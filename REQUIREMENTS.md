@@ -77,6 +77,7 @@ Leave weight empty for the driver to enter.
 
 ### 6. Persistence & list
 - On **Accept**, save entry to `localStorage`: PRO, piece fraction, trailer number, door number, slot, H/W/D, weight, timestamp
+- Also upsert **PRO destination** in a small `pros` store (`dockApp.pros.v1`) — one destination string per PRO, shared by all pieces
 - Show recent entries on screen (include trailer number and door number)
 - Helper that groups entries by PRO (supports the BOL-same-trailer rule); trailer number is the trailer identity for that rule (warn if same PRO would go on a different trailer number)
 
@@ -99,6 +100,21 @@ Leave weight empty for the driver to enter.
 - Viewing only — no forklift instructions in this MVP
 - Same PRO = same trailer rule still applies
 
+
+### 10. PRO destination
+- When logging freight, capture **Where is it going?** (destination) as free text (city, terminal code, or short note)
+- Stored **once per PRO** in `localStorage` (`dockApp.pros.v1`) so all pieces of that bill share the same destination
+- If later pieces of the same PRO are logged, show the existing destination **locked**; driver can tap **Change destination** to edit
+- Required on Accept (MVP). Shown on Recent entries, Trailer load-out, and Dock drill-down
+- Does **not** implement auto load planning yet — destination is captured so the next step can assign freight to outbound trailers by destination
+
+### 11. Outbound trailer registry
+- Fourth top-level tab: **Outbound**
+- Register outbound trailers: **trailer number** (required), **door** (optional until spotted), **destination** they are loading for, or **Open** if not decided
+- List registered outbound trailers plainly (trailer, destination or Open, door if set)
+- Stored in `localStorage` (`dockApp.outboundTrailers.v1`)
+- Same-PRO = same-trailer rule still applies to physical pieces; assigning pieces to outbound trailers by destination is a later step (not in this release)
+
 ### 9. Docs
 - `README.md` — beginner-friendly: open on computer, open on phone over same Wi‑Fi
 - `REQUIREMENTS.md` — this file
@@ -108,6 +124,7 @@ Leave weight empty for the driver to enter.
 
 ## Out of scope for this MVP
 - Photo / OCR freight ID
+- Full digital load planning / auto-assign freight to outbound trailers by destination (destination + outbound registry are prerequisites only)
 - AI load planning / forklift queue
 - TMS integration / sync
 - Login / multi-user accounts
