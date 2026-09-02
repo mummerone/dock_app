@@ -83,16 +83,28 @@ Want to see everything already on a trailer? Use the **Trailer load-out** tab at
 
 Empty trailers show a clear “nothing on this trailer yet” message. The **Log freight** tab still works the same (speak, presets, number pad).
 
+## Dock door board
+
+Want to see which trailer is at which door? Use the **Dock** tab.
+
+1. When you **Log freight**, also enter the **Door number** (the dock door where that trailer sits).
+2. Tap **Dock** (next to **Log freight** and **Trailer load-out**).
+3. You see a plain list of doors that have freight logged — each row shows **door number** and the **trailer** at that door.
+4. Tap a door → bills (PROs) on that trailer.
+5. Tap a PRO → each piece with its location (like `12/A/Left`), plus size and weight.
+6. Viewing only — no forklift instructions yet. If a door later gets a different trailer, the board shows the trailer from your current entries for that door.
+
 ---
 ## How to use it (quick)
 
 1. Enter **PRO** and **piece**. For multi-piece bills enter `1/n` first (or just total `n`), then Accept `2/n`…`n/n` in order — no skipping. After each Accept (except the last), PRO and trailer stay filled, dims/weight/slot clear, and piece auto-advances to the next fraction (locked until the sequence finishes).
-2. Enter **Trailer number** (equipment ID, e.g. `12345` — which trailer is at the door).
+2. Enter **Trailer number** (equipment ID, e.g. `12345`) and **Door number** (which dock door that trailer is at).
 3. Pick trailer **slot**: **section** (1–12), **level** (A–C), and **Left / Middle / Right**.
 4. Tap a **size preset**, or tap **Speak Dimensions**, or use the number pad. Pallet presets fill **W×D only** (enter height yourself); drums / pails / totes include height.
 5. Check the big H / W / D / Weight boxes.
 6. Tap **Accept** — the entry is saved on this device and shows under Recent Entries.
 7. Tap **Trailer load-out** anytime to review all bills and pieces on a chosen trailer.
+8. Tap **Dock** to see doors → trailers → PROs → pieces (view only).
 
 ---
 
