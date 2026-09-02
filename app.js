@@ -33,9 +33,12 @@
     activeField: 'h',
     listening: false,
     padBuffer: '',
-    view: 'entry', // 'entry' | 'loadout'
+    view: 'entry', // 'entry' | 'loadout' | 'dock'
     loadoutTrailer: '',
     pieceLocked: false, // mid-sequence: piece field forced to k/n
+    dockLevel: 'doors', // 'doors' | 'pros' | 'pieces'
+    dockDoor: '',
+    dockPro: '',
   };
 
   const el = {
@@ -43,6 +46,7 @@
     piece: document.getElementById('pieceInput'),
     pieceSlashBtn: document.getElementById('pieceSlashBtn'),
     trailerNumber: document.getElementById('trailerNumberInput'),
+    doorNumber: document.getElementById('doorNumberInput'),
     sectionChips: document.getElementById('sectionChips'),
     levelChips: document.getElementById('levelChips'),
     lateralChips: document.getElementById('lateralChips'),
@@ -72,8 +76,13 @@
     toast: document.getElementById('toast'),
     tabEntry: document.getElementById('tabEntry'),
     tabLoadout: document.getElementById('tabLoadout'),
+    tabDock: document.getElementById('tabDock'),
     viewEntry: document.getElementById('viewEntry'),
     viewLoadout: document.getElementById('viewLoadout'),
+    viewDock: document.getElementById('viewDock'),
+    dockBoard: document.getElementById('dockBoard'),
+    dockBackBtn: document.getElementById('dockBackBtn'),
+    dockHint: document.getElementById('dockHint'),
     loadoutTrailerInput: document.getElementById('loadoutTrailerInput'),
     loadoutTrailerList: document.getElementById('loadoutTrailerList'),
     loadoutTrailerChips: document.getElementById('loadoutTrailerChips'),
@@ -96,6 +105,7 @@
     bindActions();
     bindViewTabs();
     bindLoadout();
+    bindDock();
     updateDimsUI();
     updateSlotPreview();
     selectField('h', { clearBuffer: true });
@@ -316,6 +326,7 @@
       renderRecent();
       refreshLoadoutTrailerPicker();
       if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
+      if (state.view === 'dock') renderDock();
       toast('All entries cleared');
     });
   }
@@ -557,6 +568,12 @@
       el.trailerNumber.focus();
       return;
     }
+    const doorNumber = el.doorNumber ? el.doorNumber.value.trim() : '';
+    if (!doorNumber) {
+      toast('Enter door number');
+      if (el.doorNumber) el.doorNumber.focus();
+      return;
+    }
 
     // Existing pieces for this PRO on this trailer determine required next numerator
     const seq = DockStorage.nextPieceForProOnTrailer(pro, trailerNumber);
@@ -638,6 +655,7 @@
       pro,
       pieceFraction: display,
       trailerNumber,
+      doorNumber,
       section: state.section,
       level: state.level,
       lateral: state.lateral,
@@ -652,7 +670,8 @@
     if (state.view === 'loadout' && state.loadoutTrailer === trailerNumber) {
       renderLoadout(trailerNumber);
     }
-    toast(`Saved PRO ${pro} · ${display} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
+    if (state.view === 'dock') renderDock();
+    toast(`Saved PRO ${pro} · ${display} · door ${doorNumber} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
 
     prepareNextPieceAfterAccept(a, b);
   }
@@ -709,12 +728,15 @@
     const trailerDisp = e.trailerNumber
       ? escapeHtml(e.trailerNumber)
       : '—';
+    const doorDisp = e.doorNumber
+      ? escapeHtml(e.doorNumber)
+      : '—';
     div.innerHTML = `
       <div class="entry-top">
         <span class="entry-pro">${escapeHtml(e.pro)} · ${escapeHtml(e.pieceFraction)}</span>
         <span class="entry-slot">${escapeHtml(e.slotLabel)}</span>
       </div>
-      <div class="entry-trailer">Trailer ${trailerDisp}</div>
+      <div class="entry-trailer">Door ${doorDisp} · Trailer ${trailerDisp}</div>
       <div class="entry-dims">${fmt(e.h)} × ${fmt(e.w)} × ${fmt(e.d)} in · ${fmt(e.weight)} lbs</div>
       <div class="entry-meta">${escapeHtml(DockStorage.formatTimeLocal(e.timestamp))}</div>
     `;
@@ -738,31 +760,46 @@
     if (!el.tabEntry || !el.tabLoadout) return;
     el.tabEntry.addEventListener('click', () => showView('entry'));
     el.tabLoadout.addEventListener('click', () => showView('loadout'));
+    if (el.tabDock) el.tabDock.addEventListener('click', () => showView('dock'));
   }
 
   function showView(name) {
     state.view = name;
-    const isEntry = name === 'entry';
-    el.viewEntry.classList.toggle('hidden', !isEntry);
-    el.viewLoadout.classList.toggle('hidden', isEntry);
-    if (isEntry) {
-      el.viewEntry.removeAttribute('hidden');
-      el.viewLoadout.setAttribute('hidden', '');
-    } else {
-      el.viewLoadout.removeAttribute('hidden');
-      el.viewEntry.setAttribute('hidden', '');
-    }
-    el.tabEntry.classList.toggle('active', isEntry);
-    el.tabLoadout.classList.toggle('active', !isEntry);
-    el.tabEntry.setAttribute('aria-selected', isEntry ? 'true' : 'false');
-    el.tabLoadout.setAttribute('aria-selected', isEntry ? 'false' : 'true');
-    if (!isEntry) {
+    const views = {
+      entry: el.viewEntry,
+      loadout: el.viewLoadout,
+      dock: el.viewDock,
+    };
+    const tabs = {
+      entry: el.tabEntry,
+      loadout: el.tabLoadout,
+      dock: el.tabDock,
+    };
+    Object.keys(views).forEach((key) => {
+      const panel = views[key];
+      if (!panel) return;
+      const on = key === name;
+      panel.classList.toggle('hidden', !on);
+      if (on) panel.removeAttribute('hidden');
+      else panel.setAttribute('hidden', '');
+    });
+    Object.keys(tabs).forEach((key) => {
+      const tab = tabs[key];
+      if (!tab) return;
+      const on = key === name;
+      tab.classList.toggle('active', on);
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if (name === 'loadout') {
       refreshLoadoutTrailerPicker();
       if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
-      // Prefill from entry screen trailer if loadout empty
       if (!el.loadoutTrailerInput.value.trim() && el.trailerNumber.value.trim()) {
         el.loadoutTrailerInput.value = el.trailerNumber.value.trim();
       }
+    }
+    if (name === 'dock') {
+      // Stay on current drill-down if already mid-dock; otherwise doors list
+      renderDock();
     }
   }
 
@@ -905,6 +942,164 @@
     el.loadoutList.appendChild(frag);
   }
 
+
+  function bindDock() {
+    if (!el.dockBackBtn) return;
+    el.dockBackBtn.addEventListener('click', () => {
+      if (state.dockLevel === 'pieces') {
+        state.dockLevel = 'pros';
+        state.dockPro = '';
+      } else if (state.dockLevel === 'pros') {
+        state.dockLevel = 'doors';
+        state.dockDoor = '';
+        state.dockPro = '';
+      }
+      renderDock();
+    });
+  }
+
+  function renderDock() {
+    if (!el.dockBoard) return;
+    const showBack = state.dockLevel !== 'doors';
+    el.dockBackBtn.classList.toggle('hidden', !showBack);
+
+    if (state.dockLevel === 'doors') {
+      if (el.dockHint) {
+        el.dockHint.textContent =
+          'Doors that have a trailer from your logged freight. Tap a door to see bills (PROs). Viewing only.';
+      }
+      renderDockDoors();
+      return;
+    }
+    if (state.dockLevel === 'pros') {
+      if (el.dockHint) {
+        el.dockHint.textContent =
+          `Door ${state.dockDoor} — tap a bill (PRO) to see pieces and locations. Viewing only.`;
+      }
+      renderDockPros();
+      return;
+    }
+    if (el.dockHint) {
+      el.dockHint.textContent =
+        `PRO ${state.dockPro} at door ${state.dockDoor} — pieces with location. Viewing only.`;
+    }
+    renderDockPieces();
+  }
+
+  function renderDockDoors() {
+    const rows = DockStorage.doorsBoard();
+    if (!rows.length) {
+      el.dockBoard.innerHTML =
+        '<div class="empty-state">No doors yet — log freight with a door number first.</div>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    rows.forEach((row) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dock-door-row';
+      const trailer = row.trailerNumber || '—';
+      const counts = `${row.proCount} bill${row.proCount === 1 ? '' : 's'} · ${row.pieceCount} piece${row.pieceCount === 1 ? '' : 's'}`;
+      btn.innerHTML = `
+        <span class="dock-door-main">
+          <span class="dock-door-num">Door ${escapeHtml(row.doorNumber)}</span>
+          <span class="dock-door-trailer">Trailer ${escapeHtml(trailer)}</span>
+        </span>
+        <span class="dock-door-meta">${escapeHtml(counts)}</span>
+      `;
+      btn.addEventListener('click', () => {
+        state.dockDoor = row.doorNumber;
+        state.dockPro = '';
+        state.dockLevel = 'pros';
+        renderDock();
+      });
+      frag.appendChild(btn);
+    });
+    el.dockBoard.innerHTML = '';
+    el.dockBoard.appendChild(frag);
+  }
+
+  function renderDockPros() {
+    const data = DockStorage.dockProsAtDoor(state.dockDoor);
+    const head = document.createElement('div');
+    head.className = 'dock-context';
+    head.innerHTML = `
+      <div class="dock-context-title">Door ${escapeHtml(data.doorNumber)}</div>
+      <div class="dock-context-sub">Trailer ${escapeHtml(data.trailerNumber || '—')}</div>
+    `;
+
+    if (!data.groups.length) {
+      el.dockBoard.innerHTML = '';
+      el.dockBoard.appendChild(head);
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'No bills on the trailer at this door.';
+      el.dockBoard.appendChild(empty);
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    frag.appendChild(head);
+    data.groups.forEach((g) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dock-pro-row';
+      btn.innerHTML = `
+        <span class="dock-pro-main">Bill (PRO) ${escapeHtml(g.pro)}</span>
+        <span class="dock-pro-meta">${g.pieces.length} piece${g.pieces.length === 1 ? '' : 's'}</span>
+      `;
+      btn.addEventListener('click', () => {
+        state.dockPro = g.pro;
+        state.dockLevel = 'pieces';
+        renderDock();
+      });
+      frag.appendChild(btn);
+    });
+    el.dockBoard.innerHTML = '';
+    el.dockBoard.appendChild(frag);
+  }
+
+  function renderDockPieces() {
+    const data = DockStorage.dockProsAtDoor(state.dockDoor);
+    const group = data.groups.find((g) => g.pro === state.dockPro);
+    const head = document.createElement('div');
+    head.className = 'dock-context';
+    head.innerHTML = `
+      <div class="dock-context-title">PRO ${escapeHtml(state.dockPro)}</div>
+      <div class="dock-context-sub">Door ${escapeHtml(data.doorNumber)} · Trailer ${escapeHtml(data.trailerNumber || '—')}</div>
+    `;
+    el.dockBoard.innerHTML = '';
+    el.dockBoard.appendChild(head);
+
+    if (!group || !group.pieces.length) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'No pieces for this bill at this door.';
+      el.dockBoard.appendChild(empty);
+      return;
+    }
+
+    group.pieces.forEach((e) => {
+      const piece = document.createElement('div');
+      piece.className = 'dock-piece';
+      const slot = e.slotLabel || DockStorage.formatSlot(e.section, e.level, e.lateral);
+      const size =
+        e.h == null && e.w == null && e.d == null
+          ? 'Size —'
+          : `${fmt(e.h)} × ${fmt(e.w)} × ${fmt(e.d)} in`;
+      const wt = e.weight == null ? 'Weight —' : `${fmt(e.weight)} lbs`;
+      piece.innerHTML = `
+        <div class="dock-piece-top">
+          <span class="dock-piece-frac">Piece ${escapeHtml(e.pieceFraction || '—')}</span>
+          <span class="dock-piece-slot">${escapeHtml(slot)}</span>
+        </div>
+        <div class="dock-piece-dims">${escapeHtml(size)}</div>
+        <div class="dock-piece-weight">${escapeHtml(wt)}</div>
+      `;
+      el.dockBoard.appendChild(piece);
+    });
+  }
+
   let toastTimer = null;
   function toast(msg) {
     el.toast.textContent = msg;
@@ -923,7 +1118,7 @@
   }
 
   // Expose parse for quick console tests
-  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, normalizePieceInput, syncPieceSequenceFromStorage };
+  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, normalizePieceInput, syncPieceSequenceFromStorage };
 
   init();
 })();
