@@ -682,7 +682,7 @@ button {
 /* View tabs (Log freight / Trailer load-out / Dock) */
 .view-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
   gap: 8px;
   margin: 0 0 14px;
   padding: 0 2px;
@@ -700,8 +700,9 @@ button {
   border: 2px solid #2a3c58;
   color: var(--muted);
   font-weight: 800;
-  font-size: 0.92rem;
-  padding: 10px 6px;
+  font-size: 0.78rem;
+  padding: 10px 4px;
+  line-height: 1.2;
 }
 
 .view-tab.active {
@@ -967,3 +968,122 @@ button {
   color: var(--ok);
   font-weight: 700;
 }
+
+
+/* PRO destination (one per bill) */
+.destination-block {
+  margin-top: 12px;
+}
+
+.destination-field input {
+  min-height: var(--tap);
+}
+
+.destination-lock-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.destination-locked-msg {
+  margin: 0;
+  flex: 1 1 180px;
+  color: var(--ok);
+  font-weight: 700;
+  font-size: 0.88rem;
+}
+
+.destination-field input.dest-locked {
+  opacity: 0.85;
+  border-color: #2f6b4f;
+  background: #102418;
+}
+
+.entry-dest {
+  margin-top: 4px;
+  color: var(--listen);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+/* Outbound trailers */
+.outbound-dest-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.outbound-save-btn,
+.outbound-open-btn {
+  width: 100%;
+  min-height: 56px;
+}
+
+.outbound-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.outbound-row {
+  background: #0f1828;
+  border: 1px solid #2a3c58;
+  border-radius: 12px;
+  padding: 14px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.outbound-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.outbound-trailer {
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+
+.outbound-dest {
+  font-weight: 800;
+  color: var(--accent);
+  font-size: 1.05rem;
+}
+
+.outbound-dest.is-open {
+  color: var(--listen);
+}
+
+.outbound-meta {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.outbound-row-actions {
+  margin-top: 6px;
+  display: flex;
+  gap: 8px;
+}
+
+.loadout-pro-dest,
+.dock-pro-dest {
+  color: var(--listen);
+  font-weight: 700;
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+.pro-group-dest {
+  color: var(--listen);
+  font-weight: 700;
+}
+
