@@ -71,6 +71,19 @@ Example: `http://192.168.1.42:8080`
 
 ---
 
+
+## Trailer load-out view
+
+Want to see everything already on a trailer? Use the **Trailer load-out** tab at the top.
+
+1. Tap **Trailer load-out** (next to **Log freight**).
+2. Pick a trailer number from the big chips (saved trailers), or type one and tap **Show load-out**.
+3. At the top you see a short summary: trailer number, how many bills (PROs), how many pieces, and total weight when available.
+4. Below that, freight is grouped by **bill (PRO)**. Under each bill you see every piece: piece number (like `3/5`), slot location (like `12/A/Left`), size (H×W×D), and weight.
+
+Empty trailers show a clear “nothing on this trailer yet” message. The **Log freight** tab still works the same (speak, presets, number pad).
+
+---
 ## How to use it (quick)
 
 1. Enter **PRO** and **piece** (like `3/5`).
@@ -79,6 +92,7 @@ Example: `http://192.168.1.42:8080`
 4. Tap a **size preset**, or tap **Speak Dimensions**, or use the number pad. Pallet presets fill **W×D only** (enter height yourself); drums / pails / totes include height.
 5. Check the big H / W / D / Weight boxes.
 6. Tap **Accept** — the entry is saved on this device and shows under Recent Entries.
+7. Tap **Trailer load-out** anytime to review all bills and pieces on a chosen trailer.
 
 ---
 
