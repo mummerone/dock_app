@@ -20,6 +20,7 @@
    * @property {string} pro
    * @property {string} pieceFraction  e.g. "3/5"
    * @property {string} trailerNumber  equipment ID e.g. "12345" (trailer identity for BOL rule)
+   * @property {string} doorNumber     dock door where the trailer sits (e.g. "12")
    * @property {number} section        1-12
    * @property {string} level          "A"|"B"|"C"
    * @property {string} lateral        "Left"|"Middle"|"Right"
@@ -62,6 +63,7 @@
       pro: String(partial.pro || '').trim(),
       pieceFraction: String(partial.pieceFraction || '').trim(),
       trailerNumber: String(partial.trailerNumber || '').trim(),
+      doorNumber: String(partial.doorNumber || '').trim(),
       section: Number(partial.section),
       level: partial.level,
       lateral: partial.lateral,
@@ -202,6 +204,123 @@
     });
   }
 
+
+  /**
+   * Distinct door numbers from saved entries (non-empty), sorted numerically when possible.
+   * @returns {string[]}
+   */
+  function allDoorNumbers() {
+    const seen = new Set();
+    for (const e of readAll()) {
+      const d = String(e.doorNumber || '').trim();
+      if (d) seen.add(d);
+    }
+    return Array.from(seen).sort((a, b) => {
+      const na = Number(a);
+      const nb = Number(b);
+      if (!Number.isNaN(na) && !Number.isNaN(nb) && String(na) === a && String(nb) === b) {
+        return na - nb;
+      }
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+  }
+
+  /**
+   * Entries logged for a dock door.
+   * @param {string} doorNumber
+   * @returns {DockEntry[]}
+   */
+  function entriesForDoor(doorNumber) {
+    const key = String(doorNumber || '').trim();
+    if (!key) return [];
+    return readAll().filter((e) => String(e.doorNumber || '').trim() === key);
+  }
+
+  /**
+   * Current trailer at a door = trailer on the newest entry for that door.
+   * Empty string if door has no usable trailer yet.
+   * @param {string} doorNumber
+   * @returns {string}
+   */
+  function currentTrailerAtDoor(doorNumber) {
+    const list = entriesForDoor(doorNumber);
+    for (const e of list) {
+      // readAll is newest-first
+      const t = String(e.trailerNumber || '').trim();
+      if (t) return t;
+    }
+    return '';
+  }
+
+  /**
+   * Text-only dock door board rows: doors that have data, each with current trailer.
+   * Grouping is door → trailer (latest trailer wins when a door is reused).
+   * @returns {{ doorNumber: string, trailerNumber: string, pieceCount: number, proCount: number }[]}
+   */
+  function doorsBoard() {
+    const doors = allDoorNumbers();
+    return doors.map((doorNumber) => {
+      const trailerNumber = currentTrailerAtDoor(doorNumber);
+      const pieces = trailerNumber
+        ? entriesForDoor(doorNumber).filter(
+            (e) => String(e.trailerNumber || '').trim() === trailerNumber
+          )
+        : entriesForDoor(doorNumber);
+      const pros = new Set();
+      for (const e of pieces) {
+        const p = (e.pro || '').trim();
+        if (p) pros.add(p);
+      }
+      return {
+        doorNumber,
+        trailerNumber,
+        pieceCount: pieces.length,
+        proCount: pros.size,
+      };
+    });
+  }
+
+  /**
+   * PROs on the trailer currently assigned to a door (view-only dock drill-down).
+   * Uses same-PRO = same-trailer grouping via loadOutByTrailer on the door's current trailer,
+   * filtered to entries that also carry this door number when present.
+   * @param {string} doorNumber
+   * @returns {{ doorNumber: string, trailerNumber: string, groups: { pro: string, pieces: DockEntry[] }[] }}
+   */
+  function dockProsAtDoor(doorNumber) {
+    const door = String(doorNumber || '').trim();
+    const trailerNumber = currentTrailerAtDoor(door);
+    if (!door || !trailerNumber) {
+      return { doorNumber: door, trailerNumber: trailerNumber || '', groups: [] };
+    }
+    // Prefer entries that match both door + current trailer (consistent "what's at door")
+    const list = entriesForDoor(door)
+      .filter((e) => String(e.trailerNumber || '').trim() === trailerNumber)
+      .slice()
+      .reverse(); // oldest first for load order
+    const order = [];
+    /** @type {Record<string, DockEntry[]>} */
+    const map = {};
+    for (const e of list) {
+      const pro = (e.pro || '(no PRO)').trim() || '(no PRO)';
+      if (!map[pro]) {
+        map[pro] = [];
+        order.push(pro);
+      }
+      map[pro].push(e);
+    }
+    const groups = order.map((pro) => {
+      const pieces = map[pro].slice().sort((a, b) => {
+        const ma = /^(\d+)/.exec(a.pieceFraction || '');
+        const mb = /^(\d+)/.exec(b.pieceFraction || '');
+        if (ma && mb) return Number(ma[1]) - Number(mb[1]);
+        return String(a.timestamp || '').localeCompare(String(b.timestamp || ''));
+      });
+      return { pro, pieces };
+    });
+    return { doorNumber: door, trailerNumber, groups };
+  }
+
   function setLastUsed(dims) {
     localStorage.setItem(LAST_USED_KEY, JSON.stringify(dims));
   }
@@ -291,6 +410,11 @@
     allTrailerNumbers,
     entriesForTrailer,
     loadOutByTrailer,
+    allDoorNumbers,
+    entriesForDoor,
+    currentTrailerAtDoor,
+    doorsBoard,
+    dockProsAtDoor,
     formatSlot,
     getLastUsed,
     setLastUsed,
