@@ -33,6 +33,8 @@
     activeField: 'h',
     listening: false,
     padBuffer: '',
+    view: 'entry', // 'entry' | 'loadout'
+    loadoutTrailer: '',
   };
 
   const el = {
@@ -67,6 +69,20 @@
     listenBannerText: document.getElementById('listenBannerText'),
     parseHint: document.getElementById('parseHint'),
     toast: document.getElementById('toast'),
+    tabEntry: document.getElementById('tabEntry'),
+    tabLoadout: document.getElementById('tabLoadout'),
+    viewEntry: document.getElementById('viewEntry'),
+    viewLoadout: document.getElementById('viewLoadout'),
+    loadoutTrailerInput: document.getElementById('loadoutTrailerInput'),
+    loadoutTrailerList: document.getElementById('loadoutTrailerList'),
+    loadoutTrailerChips: document.getElementById('loadoutTrailerChips'),
+    loadoutShowBtn: document.getElementById('loadoutShowBtn'),
+    loadoutSummaryCard: document.getElementById('loadoutSummaryCard'),
+    loadoutList: document.getElementById('loadoutList'),
+    sumTrailer: document.getElementById('sumTrailer'),
+    sumPros: document.getElementById('sumPros'),
+    sumPieces: document.getElementById('sumPieces'),
+    sumWeight: document.getElementById('sumWeight'),
   };
 
   function init() {
@@ -77,10 +93,13 @@
     bindDimTiles();
     bindNumpad();
     bindActions();
+    bindViewTabs();
+    bindLoadout();
     updateDimsUI();
     updateSlotPreview();
     selectField('h', { clearBuffer: true });
     renderRecent();
+    refreshLoadoutTrailerPicker();
     setupSpeechStatus();
     registerServiceWorker();
   }
@@ -289,6 +308,8 @@
       if (!confirm('Clear all saved entries on this device?')) return;
       DockStorage.clearAll();
       renderRecent();
+      refreshLoadoutTrailerPicker();
+      if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
       toast('All entries cleared');
     });
   }
@@ -459,6 +480,10 @@
     });
 
     renderRecent();
+    refreshLoadoutTrailerPicker();
+    if (state.view === 'loadout' && state.loadoutTrailer === trailerNumber) {
+      renderLoadout(trailerNumber);
+    }
     toast(`Saved PRO ${pro} · ${piece} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
 
     // Ready next piece: bump piece numerator if pattern N/M
@@ -553,6 +578,178 @@
       .replace(/"/g, '&quot;');
   }
 
+
+  function bindViewTabs() {
+    if (!el.tabEntry || !el.tabLoadout) return;
+    el.tabEntry.addEventListener('click', () => showView('entry'));
+    el.tabLoadout.addEventListener('click', () => showView('loadout'));
+  }
+
+  function showView(name) {
+    state.view = name;
+    const isEntry = name === 'entry';
+    el.viewEntry.classList.toggle('hidden', !isEntry);
+    el.viewLoadout.classList.toggle('hidden', isEntry);
+    if (isEntry) {
+      el.viewEntry.removeAttribute('hidden');
+      el.viewLoadout.setAttribute('hidden', '');
+    } else {
+      el.viewLoadout.removeAttribute('hidden');
+      el.viewEntry.setAttribute('hidden', '');
+    }
+    el.tabEntry.classList.toggle('active', isEntry);
+    el.tabLoadout.classList.toggle('active', !isEntry);
+    el.tabEntry.setAttribute('aria-selected', isEntry ? 'true' : 'false');
+    el.tabLoadout.setAttribute('aria-selected', isEntry ? 'false' : 'true');
+    if (!isEntry) {
+      refreshLoadoutTrailerPicker();
+      if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
+      // Prefill from entry screen trailer if loadout empty
+      if (!el.loadoutTrailerInput.value.trim() && el.trailerNumber.value.trim()) {
+        el.loadoutTrailerInput.value = el.trailerNumber.value.trim();
+      }
+    }
+  }
+
+  function bindLoadout() {
+    if (!el.loadoutShowBtn) return;
+    el.loadoutShowBtn.addEventListener('click', () => {
+      const t = el.loadoutTrailerInput.value.trim();
+      if (!t) {
+        toast('Enter a trailer number');
+        el.loadoutTrailerInput.focus();
+        return;
+      }
+      state.loadoutTrailer = t;
+      highlightLoadoutChips(t);
+      renderLoadout(t);
+    });
+    el.loadoutTrailerInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        el.loadoutShowBtn.click();
+      }
+    });
+  }
+
+  function refreshLoadoutTrailerPicker() {
+    if (!el.loadoutTrailerChips) return;
+    const trailers = DockStorage.allTrailerNumbers();
+    // datalist
+    if (el.loadoutTrailerList) {
+      el.loadoutTrailerList.innerHTML = '';
+      trailers.forEach((t) => {
+        const opt = document.createElement('option');
+        opt.value = t;
+        el.loadoutTrailerList.appendChild(opt);
+      });
+    }
+    el.loadoutTrailerChips.innerHTML = '';
+    if (!trailers.length) {
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.style.margin = '0';
+      hint.textContent = 'No saved trailers yet — log freight first, or type a number above.';
+      el.loadoutTrailerChips.appendChild(hint);
+      return;
+    }
+    trailers.forEach((t) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'trailer-chip';
+      b.textContent = t;
+      b.dataset.value = t;
+      if (t === state.loadoutTrailer) b.classList.add('active');
+      b.addEventListener('click', () => {
+        el.loadoutTrailerInput.value = t;
+        state.loadoutTrailer = t;
+        highlightLoadoutChips(t);
+        renderLoadout(t);
+      });
+      el.loadoutTrailerChips.appendChild(b);
+    });
+  }
+
+  function highlightLoadoutChips(value) {
+    if (!el.loadoutTrailerChips) return;
+    el.loadoutTrailerChips.querySelectorAll('.trailer-chip').forEach((c) => {
+      c.classList.toggle('active', c.dataset.value === value);
+    });
+  }
+
+  function renderLoadout(trailerNumber) {
+    const t = String(trailerNumber || '').trim();
+    state.loadoutTrailer = t;
+    const groups = DockStorage.loadOutByTrailer(t);
+    const allPieces = groups.reduce((n, g) => n + g.pieces.length, 0);
+
+    let weightSum = 0;
+    let weightCount = 0;
+    groups.forEach((g) => {
+      g.pieces.forEach((e) => {
+        if (e.weight != null && !Number.isNaN(Number(e.weight))) {
+          weightSum += Number(e.weight);
+          weightCount += 1;
+        }
+      });
+    });
+
+    el.loadoutSummaryCard.classList.remove('hidden');
+    el.sumTrailer.textContent = t || '—';
+    el.sumPros.textContent = String(groups.length);
+    el.sumPieces.textContent = String(allPieces);
+    el.sumWeight.textContent = weightCount
+      ? `${weightSum.toLocaleString()} lbs`
+      : '—';
+
+    if (!groups.length) {
+      el.loadoutList.innerHTML =
+        '<div class="empty-state">Nothing on this trailer yet.<br/>Log freight with this trailer number, then come back here.</div>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    groups.forEach((g) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'loadout-pro';
+
+      const title = document.createElement('h3');
+      title.className = 'loadout-pro-title';
+      title.textContent = `Bill (PRO) ${g.pro}`;
+      wrap.appendChild(title);
+
+      const meta = document.createElement('div');
+      meta.className = 'loadout-pro-meta';
+      meta.textContent = `${g.pieces.length} piece${g.pieces.length === 1 ? '' : 's'}`;
+      wrap.appendChild(meta);
+
+      g.pieces.forEach((e) => {
+        const piece = document.createElement('div');
+        piece.className = 'loadout-piece';
+        const slot = e.slotLabel || DockStorage.formatSlot(e.section, e.level, e.lateral);
+        const size =
+          e.h == null && e.w == null && e.d == null
+            ? 'Size —'
+            : `${fmt(e.h)} × ${fmt(e.w)} × ${fmt(e.d)} in`;
+        const wt = e.weight == null ? 'Weight —' : `${fmt(e.weight)} lbs`;
+        piece.innerHTML = `
+          <div class="loadout-piece-top">
+            <span class="loadout-piece-frac">Piece ${escapeHtml(e.pieceFraction || '—')}</span>
+            <span class="loadout-piece-slot">${escapeHtml(slot)}</span>
+          </div>
+          <div class="loadout-piece-dims">${escapeHtml(size)}</div>
+          <div class="loadout-piece-weight">${escapeHtml(wt)}</div>
+        `;
+        wrap.appendChild(piece);
+      });
+
+      frag.appendChild(wrap);
+    });
+
+    el.loadoutList.innerHTML = '';
+    el.loadoutList.appendChild(frag);
+  }
+
   let toastTimer = null;
   function toast(msg) {
     el.toast.textContent = msg;
@@ -571,7 +768,7 @@
   }
 
   // Expose parse for quick console tests
-  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t) };
+  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout };
 
   init();
 })();
