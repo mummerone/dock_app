@@ -1,6 +1,6 @@
 # Dock App (MVP)
 
-A simple phone-friendly web tool for dock drivers. You type (or speak) a PRO number, piece count, trailer number, trailer slot, and the size/weight of each piece of freight. Everything stays on your device — there is no login and no company server involved.
+A simple phone-friendly web tool for dock drivers. You type (or speak) a PRO number, piece count, where the bill is going (destination), trailer number, trailer slot, and the size/weight of each piece of freight. You can also register outbound trailers (and what they are loading for). Everything stays on your device — there is no login and no company server involved.
 
 **Important rule:** All pieces with the **same PRO** (same Bill of Lading) must stay on the **same trailer**. The app remembers entries by PRO so you can see that grouping.
 
@@ -94,17 +94,34 @@ Want to see which trailer is at which door? Use the **Dock** tab.
 5. Tap a PRO → each piece with its location (like `12/A/Left`), plus size and weight.
 6. Viewing only — no forklift instructions yet. If a door later gets a different trailer, the board shows the trailer from your current entries for that door.
 
+## Destination on each PRO
+
+When you **Log freight**, fill **Where is it going?** (city, terminal code, or any short note). That destination is saved **once per PRO** — every piece of the same bill shares it. If you log another piece of that PRO later, the destination shows locked; tap **Change destination** if you need to edit it.
+
+## Outbound trailers
+
+Use the **Outbound** tab to register trailers you are loading out.
+
+1. Tap **Outbound**.
+2. Enter **Trailer number**.
+3. Optionally enter **Door number** (leave blank until the trailer is spotted).
+4. Enter what it is **Loading for** (destination), or tap **Open (no destination yet)**.
+5. Tap **Save outbound trailer**. The list below shows trailer, destination (or Open), and door.
+6. This is a registry only — assigning freight to these trailers by destination comes in a later step (not auto load planning yet).
+
 ---
 ## How to use it (quick)
 
 1. Enter **PRO** and **piece**. For multi-piece bills enter `1/n` first (or just total `n`), then Accept `2/n`…`n/n` in order — no skipping. After each Accept (except the last), PRO and trailer stay filled, dims/weight/slot clear, and piece auto-advances to the next fraction (locked until the sequence finishes).
-2. Enter **Trailer number** (equipment ID, e.g. `12345`) and **Door number** (which dock door that trailer is at).
-3. Pick trailer **slot**: **section** (1–12), **level** (A–C), and **Left / Middle / Right**.
-4. Tap a **size preset**, or tap **Speak Dimensions**, or use the number pad. Pallet presets fill **W×D only** (enter height yourself); drums / pails / totes include height.
-5. Check the big H / W / D / Weight boxes.
-6. Tap **Accept** — the entry is saved on this device and shows under Recent Entries.
-7. Tap **Trailer load-out** anytime to review all bills and pieces on a chosen trailer.
-8. Tap **Dock** to see doors → trailers → PROs → pieces (view only).
+2. Enter **Where is it going?** (destination). Later pieces of the same PRO reuse it (locked); use **Change destination** to edit.
+3. Enter **Trailer number** (equipment ID, e.g. `12345`) and **Door number** (which dock door that trailer is at).
+4. Pick trailer **slot**: **section** (1–12), **level** (A–C), and **Left / Middle / Right**.
+5. Tap a **size preset**, or tap **Speak Dimensions**, or use the number pad. Pallet presets fill **W×D only** (enter height yourself); drums / pails / totes include height.
+6. Check the big H / W / D / Weight boxes.
+7. Tap **Accept** — the entry is saved on this device and shows under Recent Entries.
+8. Tap **Trailer load-out** anytime to review all bills and pieces on a chosen trailer.
+9. Tap **Dock** to see doors → trailers → PROs → pieces (view only).
+10. Tap **Outbound** to register trailers you are loading out (trailer, optional door, destination or Open).
 
 ---
 
@@ -116,7 +133,7 @@ Want to see which trailer is at which door? Use the **Dock** tab.
 | `styles.css` | Look and layout (big buttons, high contrast) |
 | `app.js` | Screen logic and buttons |
 | `speech.js` | Voice listening and parsing (“48 by 40 by 48, 1200”) |
-| `storage.js` | Saves entries in the browser + groups by PRO |
+| `storage.js` | Saves entries, PRO destinations, and outbound trailers in the browser + groups by PRO |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
 | `sw.js` | Offline cache helper for the PWA |
 | `icon.svg` | App icon |
