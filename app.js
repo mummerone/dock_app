@@ -5,16 +5,20 @@
 (function () {
   'use strict';
 
+  // Dim mapping: H = vertical height; W = length (first footprint dim in the
+  // named size, e.g. 48 in "48×40"); D = width (second footprint dim, e.g. 40).
+  // Pallet/skid presets fill W×D only (height varies) — leave H null.
+  // Drums, pails, IBC totes, Gaylord include a standard H.
   const PRESETS = [
-    { id: 'gma', label: 'GMA 48×40', sub: '48 × 40 × 48', h: 48, w: 40, d: 48 },
-    { id: 'p4848', label: '48×48', sub: '48 × 48 × 48', h: 48, w: 48, d: 48 },
-    { id: 'half', label: 'Half pallet', sub: '48 × 20 × 40', h: 48, w: 20, d: 40 },
-    { id: 'euro', label: 'Euro', sub: '47 × 32 × 40', h: 47, w: 32, d: 40 },
-    { id: 'drum55', label: '55-gal drum', sub: '35 × 23 × 23', h: 35, w: 23, d: 23 },
-    { id: 'drum30', label: '30-gal drum', sub: '30 × 19 × 19', h: 30, w: 19, d: 19 },
-    { id: 'bucket5', label: '5-gal bucket', sub: '15 × 12 × 12', h: 15, w: 12, d: 12 },
-    { id: 'ibc', label: 'IBC 275', sub: '46 × 48 × 40', h: 46, w: 48, d: 40 },
-    { id: 'gaylord', label: 'Gaylord', sub: '48 × 40 × 36', h: 48, w: 40, d: 36 },
+    { id: 'gma', label: 'GMA 48×40', sub: 'W×D 48×40 — fills W×D only', h: null, w: 48, d: 40, footprintOnly: true },
+    { id: 'p4848', label: '48×48', sub: 'W×D 48×48 — fills W×D only', h: null, w: 48, d: 48, footprintOnly: true },
+    { id: 'half', label: 'Half pallet', sub: 'W×D 48×20 — fills W×D only', h: null, w: 48, d: 20, footprintOnly: true },
+    { id: 'euro', label: 'Euro', sub: 'W×D 47×32 — fills W×D only', h: null, w: 47, d: 32, footprintOnly: true },
+    { id: 'drum55', label: '55-gal drum', sub: 'H×W×D 35×23×23 — includes height', h: 35, w: 23, d: 23 },
+    { id: 'drum30', label: '30-gal drum', sub: 'H×W×D 30×19×19 — includes height', h: 30, w: 19, d: 19 },
+    { id: 'bucket5', label: '5-gal bucket', sub: 'H×W×D 15×12×12 — includes height', h: 15, w: 12, d: 12 },
+    { id: 'ibc', label: 'IBC 275', sub: 'H×W×D 46×48×40 — includes height', h: 46, w: 48, d: 40 },
+    { id: 'gaylord', label: 'Gaylord', sub: 'H×W×D 48×40×36 — includes height', h: 48, w: 40, d: 36 },
     { id: 'last', label: 'Custom / Last used', sub: 'Restore last Accept', last: true },
   ];
 
@@ -175,14 +179,20 @@
       el.parseHint.textContent = 'Restored last used dimensions';
       return;
     }
-    state.h = p.h;
+    // Pallet/skid: footprint only (W×D). Drums/totes: full H×W×D. Weight always empty.
+    state.h = p.footprintOnly ? null : p.h;
     state.w = p.w;
     state.d = p.d;
-    state.weight = null; // leave weight empty per requirements
+    state.weight = null;
     state.padBuffer = '';
     updateDimsUI();
-    selectField('weight', { clearBuffer: true });
-    el.parseHint.textContent = `Preset: ${p.label} — enter weight`;
+    if (p.footprintOnly) {
+      selectField('h', { clearBuffer: true });
+      el.parseHint.textContent = `Preset: ${p.label} — W×D filled; enter height & weight`;
+    } else {
+      selectField('weight', { clearBuffer: true });
+      el.parseHint.textContent = `Preset: ${p.label} — includes height; enter weight`;
+    }
   }
 
   function bindDimTiles() {
