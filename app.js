@@ -33,9 +33,10 @@
     activeField: 'h',
     listening: false,
     padBuffer: '',
-    view: 'entry', // 'entry' | 'loadout' | 'dock'
+    view: 'entry', // 'entry' | 'loadout' | 'dock' | 'outbound'
     loadoutTrailer: '',
     pieceLocked: false, // mid-sequence: piece field forced to k/n
+    destinationLocked: false, // PRO already has a destination — reuse until edited
     dockLevel: 'doors', // 'doors' | 'pros' | 'pieces'
     dockDoor: '',
     dockPro: '',
@@ -93,6 +94,18 @@
     sumPros: document.getElementById('sumPros'),
     sumPieces: document.getElementById('sumPieces'),
     sumWeight: document.getElementById('sumWeight'),
+    destination: document.getElementById('destinationInput'),
+    destinationLockRow: document.getElementById('destinationLockRow'),
+    destinationLockedMsg: document.getElementById('destinationLockedMsg'),
+    editDestinationBtn: document.getElementById('editDestinationBtn'),
+    tabOutbound: document.getElementById('tabOutbound'),
+    viewOutbound: document.getElementById('viewOutbound'),
+    outboundTrailerInput: document.getElementById('outboundTrailerInput'),
+    outboundDoorInput: document.getElementById('outboundDoorInput'),
+    outboundDestInput: document.getElementById('outboundDestInput'),
+    outboundOpenBtn: document.getElementById('outboundOpenBtn'),
+    outboundSaveBtn: document.getElementById('outboundSaveBtn'),
+    outboundList: document.getElementById('outboundList'),
   };
 
   function init() {
@@ -106,14 +119,18 @@
     bindViewTabs();
     bindLoadout();
     bindDock();
+    bindOutbound();
+    bindDestination();
     updateDimsUI();
     updateSlotPreview();
     selectField('h', { clearBuffer: true });
     renderRecent();
     refreshLoadoutTrailerPicker();
+    renderOutboundList();
     setupSpeechStatus();
     bindPieceSequenceWatchers();
     syncPieceSequenceFromStorage();
+    syncDestinationFromPro();
     registerServiceWorker();
   }
 
@@ -435,11 +452,68 @@
   }
 
   function bindPieceSequenceWatchers() {
-    const sync = () => syncPieceSequenceFromStorage();
+    const sync = () => {
+      syncPieceSequenceFromStorage();
+      syncDestinationFromPro();
+    };
     el.pro.addEventListener('change', sync);
     el.pro.addEventListener('blur', sync);
     el.trailerNumber.addEventListener('change', sync);
     el.trailerNumber.addEventListener('blur', sync);
+  }
+
+  function bindDestination() {
+    if (!el.destination) return;
+    if (el.editDestinationBtn) {
+      el.editDestinationBtn.addEventListener('click', () => {
+        setDestinationLocked(false);
+        if (el.destination) {
+          el.destination.focus();
+          el.destination.select();
+        }
+        toast('Destination unlocked — edit and Accept to save');
+      });
+    }
+  }
+
+  /**
+   * When PRO already has a saved destination, fill and lock the field.
+   * New PRO (or no destination yet) stays editable.
+   */
+  function syncDestinationFromPro() {
+    if (!el.destination) return;
+    const pro = el.pro.value.trim();
+    if (!pro) {
+      setDestinationLocked(false);
+      return;
+    }
+    const dest = DockStorage.getProDestination(pro);
+    if (dest) {
+      el.destination.value = dest;
+      setDestinationLocked(true);
+    } else {
+      // New / unknown PRO — unlock; clear field only if it was locked to another PRO
+      if (state.destinationLocked) {
+        el.destination.value = '';
+      }
+      setDestinationLocked(false);
+    }
+  }
+
+  function setDestinationLocked(locked) {
+    state.destinationLocked = !!locked;
+    if (!el.destination) return;
+    el.destination.readOnly = state.destinationLocked;
+    el.destination.classList.toggle('dest-locked', state.destinationLocked);
+    el.destination.setAttribute('aria-readonly', state.destinationLocked ? 'true' : 'false');
+    if (el.destinationLockRow) {
+      el.destinationLockRow.classList.toggle('hidden', !state.destinationLocked);
+    }
+    if (el.destinationLockedMsg && state.destinationLocked) {
+      const d = el.destination.value.trim() || '—';
+      el.destinationLockedMsg.textContent =
+        `Going to: ${d} — same for every piece of this PRO.`;
+    }
   }
 
   /**
@@ -536,11 +610,16 @@
     if (b > 1 && a < b) {
       el.piece.value = `${a + 1}/${b}`;
       setPieceLocked(true);
+      // Destination stays locked for remaining pieces
+      syncDestinationFromPro();
       el.parseHint.textContent =
-        `Saved ${a}/${b}. Next: ${a + 1}/${b} — same PRO & trailer; enter size & slot.`;
+        `Saved ${a}/${b}. Next: ${a + 1}/${b} — same PRO, trailer & destination; enter size & slot.`;
     } else {
       el.piece.value = '';
       setPieceLocked(false);
+      // Leave PRO/trailer/door/destination filled so driver can clear when ready;
+      // destination stays locked for this PRO until they change PRO.
+      syncDestinationFromPro();
       el.parseHint.textContent =
         b === 1
           ? 'Shipment complete (1/1). Enter a new PRO when ready.'
@@ -572,6 +651,16 @@
     if (!doorNumber) {
       toast('Enter door number');
       if (el.doorNumber) el.doorNumber.focus();
+      return;
+    }
+
+    const destination = el.destination ? el.destination.value.trim() : '';
+    if (!destination) {
+      toast('Enter where this PRO is going (destination)');
+      if (el.destination) {
+        setDestinationLocked(false);
+        el.destination.focus();
+      }
       return;
     }
 
@@ -656,6 +745,7 @@
       pieceFraction: display,
       trailerNumber,
       doorNumber,
+      destination,
       section: state.section,
       level: state.level,
       lateral: state.lateral,
@@ -665,13 +755,20 @@
       weight: state.weight,
     });
 
+    // Lock destination for remaining pieces of this PRO
+    if (el.destination) {
+      el.destination.value = destination;
+      setDestinationLocked(true);
+    }
+
     renderRecent();
     refreshLoadoutTrailerPicker();
     if (state.view === 'loadout' && state.loadoutTrailer === trailerNumber) {
       renderLoadout(trailerNumber);
     }
     if (state.view === 'dock') renderDock();
-    toast(`Saved PRO ${pro} · ${display} · door ${doorNumber} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
+    if (state.view === 'outbound') renderOutboundList();
+    toast(`Saved PRO ${pro} · ${display} · to ${destination} · door ${doorNumber} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
 
     prepareNextPieceAfterAccept(a, b);
   }
@@ -707,7 +804,9 @@
       const trailerNote = trailers.length
         ? `trailer ${trailers.join(', ')}`
         : 'same trailer';
-      title.textContent = `PRO ${pro} · ${count} piece(s) · ${trailerNote}`;
+      const dest = DockStorage.getProDestination(pro);
+      const destNote = dest ? ` · → ${dest}` : '';
+      title.textContent = `PRO ${pro} · ${count} piece(s) · ${trailerNote}${destNote}`;
       wrap.appendChild(title);
 
       recent
@@ -731,12 +830,17 @@
     const doorDisp = e.doorNumber
       ? escapeHtml(e.doorNumber)
       : '—';
+    const dest = DockStorage.getProDestination(e.pro);
+    const destLine = dest
+      ? `<div class="entry-dest">Going to: ${escapeHtml(dest)}</div>`
+      : '';
     div.innerHTML = `
       <div class="entry-top">
         <span class="entry-pro">${escapeHtml(e.pro)} · ${escapeHtml(e.pieceFraction)}</span>
         <span class="entry-slot">${escapeHtml(e.slotLabel)}</span>
       </div>
       <div class="entry-trailer">Door ${doorDisp} · Trailer ${trailerDisp}</div>
+      ${destLine}
       <div class="entry-dims">${fmt(e.h)} × ${fmt(e.w)} × ${fmt(e.d)} in · ${fmt(e.weight)} lbs</div>
       <div class="entry-meta">${escapeHtml(DockStorage.formatTimeLocal(e.timestamp))}</div>
     `;
@@ -761,6 +865,7 @@
     el.tabEntry.addEventListener('click', () => showView('entry'));
     el.tabLoadout.addEventListener('click', () => showView('loadout'));
     if (el.tabDock) el.tabDock.addEventListener('click', () => showView('dock'));
+    if (el.tabOutbound) el.tabOutbound.addEventListener('click', () => showView('outbound'));
   }
 
   function showView(name) {
@@ -769,11 +874,13 @@
       entry: el.viewEntry,
       loadout: el.viewLoadout,
       dock: el.viewDock,
+      outbound: el.viewOutbound,
     };
     const tabs = {
       entry: el.tabEntry,
       loadout: el.tabLoadout,
       dock: el.tabDock,
+      outbound: el.tabOutbound,
     };
     Object.keys(views).forEach((key) => {
       const panel = views[key];
@@ -800,6 +907,9 @@
     if (name === 'dock') {
       // Stay on current drill-down if already mid-dock; otherwise doors list
       renderDock();
+    }
+    if (name === 'outbound') {
+      renderOutboundList();
     }
   }
 
@@ -909,6 +1019,14 @@
       title.className = 'loadout-pro-title';
       title.textContent = `Bill (PRO) ${g.pro}`;
       wrap.appendChild(title);
+
+      const dest = g.destination || DockStorage.getProDestination(g.pro);
+      if (dest) {
+        const destEl = document.createElement('div');
+        destEl.className = 'loadout-pro-dest';
+        destEl.textContent = `Going to: ${dest}`;
+        wrap.appendChild(destEl);
+      }
 
       const meta = document.createElement('div');
       meta.className = 'loadout-pro-meta';
@@ -1044,8 +1162,13 @@
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'dock-pro-row';
+      const dest = g.destination || DockStorage.getProDestination(g.pro);
+      const destHtml = dest
+        ? `<span class="dock-pro-dest">Going to: ${escapeHtml(dest)}</span>`
+        : '';
       btn.innerHTML = `
         <span class="dock-pro-main">Bill (PRO) ${escapeHtml(g.pro)}</span>
+        ${destHtml}
         <span class="dock-pro-meta">${g.pieces.length} piece${g.pieces.length === 1 ? '' : 's'}</span>
       `;
       btn.addEventListener('click', () => {
@@ -1064,9 +1187,11 @@
     const group = data.groups.find((g) => g.pro === state.dockPro);
     const head = document.createElement('div');
     head.className = 'dock-context';
+    const proDest = DockStorage.getProDestination(state.dockPro);
+    const destSub = proDest ? ` · Going to ${escapeHtml(proDest)}` : '';
     head.innerHTML = `
       <div class="dock-context-title">PRO ${escapeHtml(state.dockPro)}</div>
-      <div class="dock-context-sub">Door ${escapeHtml(data.doorNumber)} · Trailer ${escapeHtml(data.trailerNumber || '—')}</div>
+      <div class="dock-context-sub">Door ${escapeHtml(data.doorNumber)} · Trailer ${escapeHtml(data.trailerNumber || '—')}${destSub}</div>
     `;
     el.dockBoard.innerHTML = '';
     el.dockBoard.appendChild(head);
@@ -1100,6 +1225,100 @@
     });
   }
 
+  function bindOutbound() {
+    if (!el.outboundSaveBtn) return;
+    el.outboundSaveBtn.addEventListener('click', () => saveOutboundFromForm(false));
+    if (el.outboundOpenBtn) {
+      el.outboundOpenBtn.addEventListener('click', () => saveOutboundFromForm(true));
+    }
+    if (el.outboundTrailerInput) {
+      el.outboundTrailerInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          saveOutboundFromForm(false);
+        }
+      });
+    }
+  }
+
+  /**
+   * @param {boolean} forceOpen  if true, destination becomes "open"
+   */
+  function saveOutboundFromForm(forceOpen) {
+    if (!el.outboundTrailerInput) return;
+    const trailerNumber = el.outboundTrailerInput.value.trim();
+    if (!trailerNumber) {
+      toast('Enter outbound trailer number');
+      el.outboundTrailerInput.focus();
+      return;
+    }
+    const doorNumber = el.outboundDoorInput ? el.outboundDoorInput.value.trim() : '';
+    let destination = el.outboundDestInput ? el.outboundDestInput.value.trim() : '';
+    if (forceOpen) destination = 'open';
+    if (!destination) destination = 'open';
+
+    DockStorage.saveOutboundTrailer({
+      trailerNumber,
+      doorNumber,
+      destination,
+    });
+
+    el.outboundTrailerInput.value = '';
+    if (el.outboundDoorInput) el.outboundDoorInput.value = '';
+    if (el.outboundDestInput) el.outboundDestInput.value = '';
+    renderOutboundList();
+    toast(
+      destination === 'open'
+        ? `Outbound trailer ${trailerNumber} saved as open`
+        : `Outbound trailer ${trailerNumber} → ${destination}`
+    );
+  }
+
+  function renderOutboundList() {
+    if (!el.outboundList) return;
+    const list = DockStorage.readOutboundTrailers();
+    if (!list.length) {
+      el.outboundList.innerHTML =
+        '<div class="empty-state">No outbound trailers yet — register one above.</div>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    list.forEach((row) => {
+      const div = document.createElement('div');
+      div.className = 'outbound-row';
+      const dest = String(row.destination || 'open').trim() || 'open';
+      const isOpen = dest.toLowerCase() === 'open';
+      const door = String(row.doorNumber || '').trim();
+      const doorText = door ? `Door ${door}` : 'Door not set yet';
+      div.innerHTML = `
+        <div class="outbound-row-top">
+          <span class="outbound-trailer">Trailer ${escapeHtml(row.trailerNumber)}</span>
+          <span class="outbound-dest${isOpen ? ' is-open' : ''}">${
+            isOpen ? 'Open' : escapeHtml(dest)
+          }</span>
+        </div>
+        <div class="outbound-meta">${escapeHtml(doorText)} · added ${escapeHtml(
+          DockStorage.formatTimeLocal(row.createdAt)
+        )}</div>
+        <div class="outbound-row-actions">
+          <button type="button" class="btn tiny muted-btn" data-remove="${escapeHtml(row.id)}">Remove</button>
+        </div>
+      `;
+      const rm = div.querySelector('[data-remove]');
+      if (rm) {
+        rm.addEventListener('click', () => {
+          DockStorage.removeOutboundTrailer(row.id);
+          renderOutboundList();
+          toast(`Removed outbound trailer ${row.trailerNumber}`);
+        });
+      }
+      frag.appendChild(div);
+    });
+    el.outboundList.innerHTML = '';
+    el.outboundList.appendChild(frag);
+  }
+
   let toastTimer = null;
   function toast(msg) {
     el.toast.textContent = msg;
@@ -1118,7 +1337,7 @@
   }
 
   // Expose parse for quick console tests
-  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, normalizePieceInput, syncPieceSequenceFromStorage };
+  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro };
 
   init();
 })();
