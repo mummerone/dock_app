@@ -283,6 +283,10 @@ button {
   font-size: 0.95rem;
 }
 
+.door-number-field {
+  margin-top: 12px;
+}
+
 .trailer-number-field input {
   min-height: 56px;
   font-size: 1.35rem;
@@ -675,10 +679,10 @@ button {
 }
 
 
-/* View tabs (Log freight / Trailer load-out) */
+/* View tabs (Log freight / Trailer load-out / Dock) */
 .view-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 8px;
   margin: 0 0 14px;
   padding: 0 2px;
@@ -696,8 +700,8 @@ button {
   border: 2px solid #2a3c58;
   color: var(--muted);
   font-weight: 800;
-  font-size: 1rem;
-  padding: 10px 8px;
+  font-size: 0.92rem;
+  padding: 10px 6px;
 }
 
 .view-tab.active {
@@ -849,3 +853,117 @@ button {
   font-weight: 700;
 }
 
+
+/* Dock door board (view-only) */
+.dock-board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.dock-door-row,
+.dock-pro-row {
+  width: 100%;
+  text-align: left;
+  min-height: 64px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #0f1828;
+  border: 2px solid #2a3c58;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dock-door-row:active,
+.dock-pro-row:active {
+  transform: translateY(1px);
+  border-color: var(--accent);
+}
+
+.dock-door-main,
+.dock-pro-main {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  font-weight: 800;
+  font-size: 1.15rem;
+}
+
+.dock-door-num {
+  color: var(--listen);
+}
+
+.dock-door-trailer {
+  color: var(--text);
+}
+
+.dock-door-meta,
+.dock-pro-meta {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.dock-context {
+  background: #132038;
+  border: 1px solid #2a3c58;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 4px;
+}
+
+.dock-context-title {
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+
+.dock-context-sub {
+  margin-top: 4px;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.dock-piece {
+  background: #0f1828;
+  border: 1px solid #2a3c58;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.dock-piece-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.dock-piece-frac {
+  font-weight: 800;
+  font-size: 1.15rem;
+}
+
+.dock-piece-slot {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--accent);
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.dock-piece-dims {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+}
+
+.dock-piece-weight {
+  margin-top: 4px;
+  color: var(--ok);
+  font-weight: 700;
+}
