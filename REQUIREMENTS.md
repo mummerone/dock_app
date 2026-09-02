@@ -49,14 +49,23 @@
 - Listening visual indicator while speech is active
 
 ### 5. Size presets
-Auto-fill H/W/D; leave weight empty for the driver to enter:
+Leave weight empty for the driver to enter.
+
+**Dim mapping:** H = vertical height; W = length (first footprint dim in the named size); D = width (second footprint dim). Example: GMA “48×40” → W=48, D=40.
+
+**Pallet/skid presets** fill **W×D only** (height varies wildly — leave H empty):
+
+| Preset | H | W | D | Notes |
+|--------|---|---|---|-------|
+| GMA (48×40) | — | 48 | 40 | Footprint only |
+| 48×48 | — | 48 | 48 | Footprint only |
+| Half pallet | — | 48 | 20 | Footprint only |
+| Euro | — | 47 | 32 | Footprint only |
+
+**Drums / pails / totes** include a **standard height**:
 
 | Preset | H × W × D (in) |
 |--------|----------------|
-| GMA (48×40) | 48 × 40 × 48 (typical stack height placeholder; base pallet is 48×40) |
-| 48×48 | 48 × 48 × 48 |
-| Half pallet | 48 × 20 × 40 |
-| Euro | 47 × 32 × 40 |
 | 55-gal drum | 35 × 23 × 23 |
 | 30-gal drum | 30 × 19 × 19 |
 | 5-gal bucket | 15 × 12 × 12 |
