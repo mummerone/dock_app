@@ -30,6 +30,7 @@
 - **Piece fraction** — typed (e.g. `3/5` meaning piece 3 of 5)
 - **Forced sequential piece entry** — if a shipment has multiple pieces (`n > 1`), you must Accept `1/n`, then `2/n`, … up to `n/n` with no skipping. Accept is blocked (toast) if the numerator is not the next required piece for that PRO on that trailer. On first piece you may type `1/n` or just total `n` (treated as `1/n`). After Accept of `k/n` (`k < n`): entry goes to Recent/load-out; clear dims/weight and slot; keep PRO + trailer; auto-set piece to `(k+1)/n` and lock the piece field until the sequence finishes. After `n/n` or single-piece `1/1`: clear piece (ready for a new PRO).
 - **Trailer number** — typed text/number input for the equipment ID of the trailer at the door (e.g. `12345`). Separate from trailer *slot* position. Used as trailer identity for the same-PRO = same-trailer BOL rule.
+- **Door number** — typed text/number input for the dock door where that trailer sits (e.g. `12`). Glove-friendly. Persisted on each entry. Used by the Dock board to show what is at each door.
 
 ### 3. Trailer slot
 - **Section:** 1–12 (nose to rear)
@@ -75,8 +76,8 @@ Leave weight empty for the driver to enter.
 | Custom / Last used | Restores last accepted H/W/D (and weight if saved) |
 
 ### 6. Persistence & list
-- On **Accept**, save entry to `localStorage`: PRO, piece fraction, trailer number, slot, H/W/D, weight, timestamp
-- Show recent entries on screen (include trailer number)
+- On **Accept**, save entry to `localStorage`: PRO, piece fraction, trailer number, door number, slot, H/W/D, weight, timestamp
+- Show recent entries on screen (include trailer number and door number)
 - Helper that groups entries by PRO (supports the BOL-same-trailer rule); trailer number is the trailer identity for that rule (warn if same PRO would go on a different trailer number)
 
 ### 7. Trailer load-out view
@@ -89,7 +90,16 @@ Leave weight empty for the driver to enter.
   - Empty state when that trailer has no entries
 - Does not remove the existing entry screen (speak / presets / numpad stay)
 
-### 8. Docs
+### 8. Dock door board (view-only)
+- Third top-level tab/screen labeled plainly: **Dock** (alongside **Log freight** and **Trailer load-out**)
+- List doors that currently have data from saved entries; each row shows door number + trailer number at that door
+- For “what’s at door X”, use the latest/consistent trailer for that door from entries (group by door → trailer). If the same door later gets a different trailer, show the trailer from current entries.
+- Tap a door → list of all PROs on the trailer at that door
+- Tap a PRO → list of pieces with location next to each (e.g. `12/A/Left`), plus size/weight when available
+- Viewing only — no forklift instructions in this MVP
+- Same PRO = same trailer rule still applies
+
+### 9. Docs
 - `README.md` — beginner-friendly: open on computer, open on phone over same Wi‑Fi
 - `REQUIREMENTS.md` — this file
 - Exact static-server command documented
