@@ -138,6 +138,70 @@
     return Array.from(seen);
   }
 
+
+  /**
+   * Distinct trailer numbers from all saved entries (non-empty), sorted.
+   * Use for load-out trailer picker chips.
+   * @returns {string[]}
+   */
+  function allTrailerNumbers() {
+    const seen = new Set();
+    for (const e of readAll()) {
+      const t = String(e.trailerNumber || '').trim();
+      if (t) seen.add(t);
+    }
+    return Array.from(seen).sort((a, b) => {
+      const na = Number(a);
+      const nb = Number(b);
+      if (!Number.isNaN(na) && !Number.isNaN(nb) && String(na) === a && String(nb) === b) {
+        return na - nb;
+      }
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+  }
+
+  /**
+   * All entries logged for a given trailer number.
+   * @param {string} trailerNumber
+   * @returns {DockEntry[]}
+   */
+  function entriesForTrailer(trailerNumber) {
+    const key = String(trailerNumber || '').trim();
+    if (!key) return [];
+    return readAll().filter((e) => String(e.trailerNumber || '').trim() === key);
+  }
+
+  /**
+   * Group entries for one trailer by PRO (bill), preserving piece order.
+   * @param {string} trailerNumber
+   * @returns {{ pro: string, pieces: DockEntry[] }[]}
+   */
+  function loadOutByTrailer(trailerNumber) {
+    // Oldest first so the list reads like how the trailer was loaded
+    const list = entriesForTrailer(trailerNumber).slice().reverse();
+    const order = [];
+    /** @type {Record<string, DockEntry[]>} */
+    const map = {};
+    for (const e of list) {
+      const pro = (e.pro || '(no PRO)').trim() || '(no PRO)';
+      if (!map[pro]) {
+        map[pro] = [];
+        order.push(pro);
+      }
+      map[pro].push(e);
+    }
+    // Within each PRO, sort by piece fraction numerator when possible, else timestamp
+    return order.map((pro) => {
+      const pieces = map[pro].slice().sort((a, b) => {
+        const ma = /^(\d+)/.exec(a.pieceFraction || '');
+        const mb = /^(\d+)/.exec(b.pieceFraction || '');
+        if (ma && mb) return Number(ma[1]) - Number(mb[1]);
+        return String(a.timestamp || '').localeCompare(String(b.timestamp || ''));
+      });
+      return { pro, pieces };
+    });
+  }
+
   function setLastUsed(dims) {
     localStorage.setItem(LAST_USED_KEY, JSON.stringify(dims));
   }
@@ -173,6 +237,9 @@
     groupsByPro,
     entriesForPro,
     trailerNumbersForPro,
+    allTrailerNumbers,
+    entriesForTrailer,
+    loadOutByTrailer,
     formatSlot,
     getLastUsed,
     setLastUsed,
