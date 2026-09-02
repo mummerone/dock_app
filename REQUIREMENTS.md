@@ -78,7 +78,17 @@ Leave weight empty for the driver to enter.
 - Show recent entries on screen (include trailer number)
 - Helper that groups entries by PRO (supports the BOL-same-trailer rule); trailer number is the trailer identity for that rule (warn if same PRO would go on a different trailer number)
 
-### 7. Docs
+### 7. Trailer load-out view
+- Second screen (tab) labeled plainly: **Trailer load-out** (alongside **Log freight**)
+- Choose trailer by number: chips from saved trailer numbers + free-type input
+- For the selected trailer, show:
+  - Summary: trailer number, count of PROs (bills), count of pieces, total weight when available
+  - Entries grouped by PRO (bill)
+  - Under each PRO: each piece with piece fraction, slot (`12/A/Left`), size H×W×D, weight
+  - Empty state when that trailer has no entries
+- Does not remove the existing entry screen (speak / presets / numpad stay)
+
+### 8. Docs
 - `README.md` — beginner-friendly: open on computer, open on phone over same Wi‑Fi
 - `REQUIREMENTS.md` — this file
 - Exact static-server command documented
