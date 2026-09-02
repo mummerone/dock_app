@@ -1,6 +1,6 @@
 # Dock App — MVP Requirements
 
-**What this is:** A mobile-first web tool for LTL (Less-Than-Truckload) dock drivers to log freight size, weight, PRO number, piece fraction, and trailer slot. The company TMS/billing software stays separate. This app only captures physical freight + location data.
+**What this is:** A mobile-first web tool for LTL (Less-Than-Truckload) dock drivers to log freight size, weight, PRO number, piece fraction, trailer number, and trailer slot. The company TMS/billing software stays separate. This app only captures physical freight + location data.
 
 **Who uses it:** Drivers on a phone, often wearing gloves, on a noisy dock.
 
@@ -10,8 +10,8 @@
 
 **All pieces with the same PRO (Bill of Lading) must stay on the same trailer.**
 
-- Once any piece of a shipment is assigned to a trailer, every remaining piece of that PRO must go on that same trailer.
-- Pieces of one BOL **cannot** be split across trailers.
+- Once any piece of a shipment is assigned to a trailer (by **trailer number**), every remaining piece of that PRO must go on that same trailer.
+- Pieces of one BOL **cannot** be split across trailers (different trailer numbers).
 - Pieces **may** occupy different positions (section/level/lateral) within the same trailer.
 - The data model and helpers encode this rule (group entries by PRO). Future load-planning logic must reserve space for the whole remaining shipment once the first piece is committed.
 
@@ -28,6 +28,7 @@
 ### 2. Identification fields
 - **PRO number** — typed text input
 - **Piece fraction** — typed (e.g. `3/5` meaning piece 3 of 5)
+- **Trailer number** — typed text/number input for the equipment ID of the trailer at the door (e.g. `12345`). Separate from trailer *slot* position. Used as trailer identity for the same-PRO = same-trailer BOL rule.
 
 ### 3. Trailer slot
 - **Section:** 1–12 (nose to rear)
@@ -64,9 +65,9 @@ Auto-fill H/W/D; leave weight empty for the driver to enter:
 | Custom / Last used | Restores last accepted H/W/D (and weight if saved) |
 
 ### 6. Persistence & list
-- On **Accept**, save entry to `localStorage`: PRO, piece fraction, slot, H/W/D, weight, timestamp
-- Show recent entries on screen
-- Helper that groups entries by PRO (supports the BOL-same-trailer rule)
+- On **Accept**, save entry to `localStorage`: PRO, piece fraction, trailer number, slot, H/W/D, weight, timestamp
+- Show recent entries on screen (include trailer number)
+- Helper that groups entries by PRO (supports the BOL-same-trailer rule); trailer number is the trailer identity for that rule (warn if same PRO would go on a different trailer number)
 
 ### 7. Docs
 - `README.md` — beginner-friendly: open on computer, open on phone over same Wi‑Fi

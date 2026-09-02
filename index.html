@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1220" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="description" content="Dock App — LTL freight size, weight, and trailer slot entry for drivers" />
+  <meta name="description" content="Dock App — LTL freight size, weight, trailer number, and trailer slot entry for drivers" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
@@ -38,10 +38,13 @@
             <span>PRO number</span>
             <input id="proInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 1234567" />
           </label>
-          <label class="field">
+          <div class="field piece-field">
             <span>Piece (e.g. 3/5)</span>
-            <input id="pieceInput" type="text" inputmode="numeric" autocomplete="off" placeholder="3/5" />
-          </label>
+            <div class="piece-row">
+              <input id="pieceInput" type="text" inputmode="text" autocomplete="off" placeholder="3/5" aria-label="Piece fraction" />
+              <button type="button" id="pieceSlashBtn" class="piece-slash-btn" aria-label="Insert slash" title="Insert /">/</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -51,6 +54,11 @@
           <h2 id="slot-heading">Trailer slot</h2>
           <div class="slot-preview" id="slotPreview">—/—/—</div>
         </div>
+        <label class="field trailer-number-field">
+          <span>Trailer number</span>
+          <input id="trailerNumberInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345" />
+        </label>
+        <p class="hint">Equipment ID for which trailer is at the door (separate from slot position).</p>
         <p class="hint">Section 1–12 · Level A–C · Left / Middle / Right</p>
 
         <div class="slot-block">

@@ -215,6 +215,59 @@ button {
   border-color: var(--accent);
 }
 
+/* Piece field + glove-friendly slash insert */
+.piece-field .piece-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.piece-field .piece-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.piece-slash-btn {
+  flex: 0 0 auto;
+  min-width: 56px;
+  min-height: var(--tap);
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 2px solid #2d405c;
+  background: #1a2a44;
+  color: var(--text);
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 4px 0 #0a1220;
+}
+
+.piece-slash-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #0a1220;
+  background: #243652;
+}
+
+
+.trailer-number-field {
+  margin-top: 12px;
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.trailer-number-field span {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.trailer-number-field input {
+  min-height: 56px;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+}
+
 /* Slot */
 .slot-preview {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -532,6 +585,13 @@ button {
   margin-top: 4px;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.entry-trailer {
+  margin-top: 4px;
+  font-weight: 700;
+  color: var(--listen);
+  font-size: 0.95rem;
 }
 
 .entry-dims {

@@ -34,6 +34,8 @@
   const el = {
     pro: document.getElementById('proInput'),
     piece: document.getElementById('pieceInput'),
+    pieceSlashBtn: document.getElementById('pieceSlashBtn'),
+    trailerNumber: document.getElementById('trailerNumberInput'),
     sectionChips: document.getElementById('sectionChips'),
     levelChips: document.getElementById('levelChips'),
     lateralChips: document.getElementById('lateralChips'),
@@ -247,7 +249,29 @@
     });
   }
 
+
+  function insertSlashIntoPiece() {
+    const input = el.piece;
+    if (!input) return;
+    const slash = '/';
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    if (typeof start === 'number' && typeof end === 'number') {
+      const before = input.value.slice(0, start);
+      const after = input.value.slice(end);
+      input.value = before + slash + after;
+      const pos = start + 1;
+      input.setSelectionRange(pos, pos);
+    } else {
+      input.value = (input.value || '') + slash;
+    }
+    input.focus();
+  }
+
   function bindActions() {
+    if (el.pieceSlashBtn) {
+      el.pieceSlashBtn.addEventListener('click', insertSlashIntoPiece);
+    }
     el.speakBtn.addEventListener('click', () => startSpeak({ mode: 'all' }));
     el.respeakBtn.addEventListener('click', () => startSpeak({ mode: 'active' }));
     el.acceptBtn.addEventListener('click', onAccept);
@@ -365,6 +389,7 @@
   function onAccept() {
     const pro = el.pro.value.trim();
     const piece = el.piece.value.trim();
+    const trailerNumber = el.trailerNumber.value.trim();
 
     if (!pro) {
       toast('Enter a PRO number');
@@ -374,6 +399,11 @@
     if (!piece) {
       toast('Enter piece fraction (e.g. 3/5)');
       el.piece.focus();
+      return;
+    }
+    if (!trailerNumber) {
+      toast('Enter trailer number');
+      el.trailerNumber.focus();
       return;
     }
     if (state.section == null || !state.level || !state.lateral) {
@@ -390,16 +420,25 @@
       return;
     }
 
-    // Soft check for BOL same-trailer awareness (MVP logs; does not block)
+    // Soft check for BOL same-trailer rule (MVP warns; does not hard-block)
     const existing = DockStorage.entriesForPro(pro);
+    const priorTrailers = DockStorage.trailerNumbersForPro(pro);
     if (existing.length) {
-      // Informational only — permanent rule encoded in data model / grouping
-      el.parseHint.textContent = `Note: PRO ${pro} already has ${existing.length} piece(s) logged — keep on same trailer.`;
+      if (priorTrailers.length && !priorTrailers.includes(trailerNumber)) {
+        const prior = priorTrailers.join(', ');
+        el.parseHint.textContent =
+          `Warning: PRO ${pro} was on trailer ${prior} — same PRO must stay on one trailer (you entered ${trailerNumber}).`;
+        toast(`Same PRO was on trailer ${prior}`);
+      } else {
+        el.parseHint.textContent =
+          `Note: PRO ${pro} already has ${existing.length} piece(s) on trailer ${trailerNumber} — keep on same trailer.`;
+      }
     }
 
     DockStorage.saveEntry({
       pro,
       pieceFraction: piece,
+      trailerNumber,
       section: state.section,
       level: state.level,
       lateral: state.lateral,
@@ -410,7 +449,7 @@
     });
 
     renderRecent();
-    toast(`Saved PRO ${pro} · ${piece} @ ${state.section}/${state.level}/${state.lateral}`);
+    toast(`Saved PRO ${pro} · ${piece} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
 
     // Ready next piece: bump piece numerator if pattern N/M
     bumpPieceFraction();
@@ -455,7 +494,11 @@
       const title = document.createElement('div');
       title.className = 'pro-group-title';
       const count = (groups[pro] || []).length;
-      title.textContent = `PRO ${pro} · ${count} piece(s) · same trailer`;
+      const trailers = DockStorage.trailerNumbersForPro(pro);
+      const trailerNote = trailers.length
+        ? `trailer ${trailers.join(', ')}`
+        : 'same trailer';
+      title.textContent = `PRO ${pro} · ${count} piece(s) · ${trailerNote}`;
       wrap.appendChild(title);
 
       recent
@@ -473,11 +516,15 @@
   function renderEntryCard(e) {
     const div = document.createElement('div');
     div.className = 'entry';
+    const trailerDisp = e.trailerNumber
+      ? escapeHtml(e.trailerNumber)
+      : '—';
     div.innerHTML = `
       <div class="entry-top">
         <span class="entry-pro">${escapeHtml(e.pro)} · ${escapeHtml(e.pieceFraction)}</span>
         <span class="entry-slot">${escapeHtml(e.slotLabel)}</span>
       </div>
+      <div class="entry-trailer">Trailer ${trailerDisp}</div>
       <div class="entry-dims">${fmt(e.h)} × ${fmt(e.w)} × ${fmt(e.d)} in · ${fmt(e.weight)} lbs</div>
       <div class="entry-meta">${escapeHtml(DockStorage.formatTimeLocal(e.timestamp))}</div>
     `;

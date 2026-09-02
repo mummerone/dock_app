@@ -19,6 +19,7 @@
    * @property {string} id
    * @property {string} pro
    * @property {string} pieceFraction  e.g. "3/5"
+   * @property {string} trailerNumber  equipment ID e.g. "12345" (trailer identity for BOL rule)
    * @property {number} section        1-12
    * @property {string} level          "A"|"B"|"C"
    * @property {string} lateral        "Left"|"Middle"|"Right"
@@ -60,6 +61,7 @@
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       pro: String(partial.pro || '').trim(),
       pieceFraction: String(partial.pieceFraction || '').trim(),
+      trailerNumber: String(partial.trailerNumber || '').trim(),
       section: Number(partial.section),
       level: partial.level,
       lateral: partial.lateral,
@@ -111,14 +113,29 @@
   }
 
   /**
-   * Returns trailers already used by a PRO (from slot labels / any future trailer id).
-   * MVP stores slot only; callers can still detect multi-position same-PRO loads.
+   * Returns entries already logged for a PRO (BOL).
+   * Use with trailerNumbersForPro() to enforce same-PRO = same trailer number.
    * @param {string} pro
    * @returns {DockEntry[]}
    */
   function entriesForPro(pro) {
     const key = String(pro || '').trim();
     return readAll().filter((e) => e.pro === key);
+  }
+
+  /**
+   * Distinct trailer numbers already used by a PRO.
+   * Empty strings are ignored. Permanent rule: a PRO should have at most one.
+   * @param {string} pro
+   * @returns {string[]}
+   */
+  function trailerNumbersForPro(pro) {
+    const seen = new Set();
+    for (const e of entriesForPro(pro)) {
+      const t = String(e.trailerNumber || '').trim();
+      if (t) seen.add(t);
+    }
+    return Array.from(seen);
   }
 
   function setLastUsed(dims) {
@@ -155,6 +172,7 @@
     clearAll,
     groupsByPro,
     entriesForPro,
+    trailerNumbersForPro,
     formatSlot,
     getLastUsed,
     setLastUsed,

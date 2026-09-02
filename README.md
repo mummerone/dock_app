@@ -1,6 +1,6 @@
 # Dock App (MVP)
 
-A simple phone-friendly web tool for dock drivers. You type (or speak) a PRO number, piece count, trailer slot, and the size/weight of each piece of freight. Everything stays on your device — there is no login and no company server involved.
+A simple phone-friendly web tool for dock drivers. You type (or speak) a PRO number, piece count, trailer number, trailer slot, and the size/weight of each piece of freight. Everything stays on your device — there is no login and no company server involved.
 
 **Important rule:** All pieces with the **same PRO** (same Bill of Lading) must stay on the **same trailer**. The app remembers entries by PRO so you can see that grouping.
 
@@ -74,10 +74,11 @@ Example: `http://192.168.1.42:8080`
 ## How to use it (quick)
 
 1. Enter **PRO** and **piece** (like `3/5`).
-2. Pick trailer **section** (1–12), **level** (A–C), and **Left / Middle / Right**.
-3. Tap a **size preset**, or tap **Speak Dimensions**, or use the number pad.
-4. Check the big H / W / D / Weight boxes.
-5. Tap **Accept** — the entry is saved on this device and shows under Recent Entries.
+2. Enter **Trailer number** (equipment ID, e.g. `12345` — which trailer is at the door).
+3. Pick trailer **slot**: **section** (1–12), **level** (A–C), and **Left / Middle / Right**.
+4. Tap a **size preset**, or tap **Speak Dimensions**, or use the number pad.
+5. Check the big H / W / D / Weight boxes.
+6. Tap **Accept** — the entry is saved on this device and shows under Recent Entries.
 
 ---
 
