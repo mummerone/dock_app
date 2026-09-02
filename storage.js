@@ -8,11 +8,17 @@
  * across trailers. (Different positions within one trailer are OK.)
  *
  * Helpers below group entries by PRO so callers can enforce / display that rule.
+ *
+ * Also stores:
+ * - pros: one destination per PRO (shared by all pieces of that bill)
+ * - outboundTrailers: registry of trailers being loaded out (destination or "open")
  */
 
 (function (global) {
   const STORAGE_KEY = 'dockApp.entries.v1';
   const LAST_USED_KEY = 'dockApp.lastUsedDims.v1';
+  const PROS_KEY = 'dockApp.pros.v1';
+  const OUTBOUND_KEY = 'dockApp.outboundTrailers.v1';
 
   /**
    * @typedef {Object} DockEntry
@@ -30,6 +36,22 @@
    * @property {number|null} d
    * @property {number|null} weight
    * @property {string} timestamp      ISO string
+   */
+
+  /**
+   * @typedef {Object} ProRecord
+   * @property {string} pro
+   * @property {string} destination  city, terminal code, or free text
+   * @property {string} updatedAt    ISO string
+   */
+
+  /**
+   * @typedef {Object} OutboundTrailer
+   * @property {string} id
+   * @property {string} trailerNumber
+   * @property {string} doorNumber     optional until spotted
+   * @property {string} destination    free text, or "open"
+   * @property {string} createdAt      ISO string
    */
 
   function readAll() {
@@ -54,7 +76,7 @@
   /**
    * Save a new freight entry. Does not block conflicting trailers in MVP UI,
    * but groupsByPro() exposes data for that permanent rule.
-   * @param {Omit<DockEntry,'id'|'timestamp'|'slotLabel'> & {timestamp?: string}} partial
+   * @param {Omit<DockEntry,'id'|'timestamp'|'slotLabel'> & {timestamp?: string, destination?: string}} partial
    * @returns {DockEntry}
    */
   function saveEntry(partial) {
@@ -87,11 +109,162 @@
       weight: entry.weight,
     });
 
+    // Destination lives once per PRO (not copied onto every piece)
+    if (partial.destination != null && String(partial.destination).trim() !== '') {
+      setProDestination(entry.pro, String(partial.destination).trim());
+    }
+
     return entry;
   }
 
   function clearAll() {
     writeAll([]);
+  }
+
+  // ---------- PRO destination store ----------
+
+  function readPros() {
+    try {
+      const raw = localStorage.getItem(PROS_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writePros(list) {
+    localStorage.setItem(PROS_KEY, JSON.stringify(list));
+  }
+
+  /**
+   * @param {string} pro
+   * @returns {ProRecord|null}
+   */
+  function getPro(pro) {
+    const key = String(pro || '').trim();
+    if (!key) return null;
+    return readPros().find((p) => p.pro === key) || null;
+  }
+
+  /**
+   * @param {string} pro
+   * @returns {string}
+   */
+  function getProDestination(pro) {
+    const rec = getPro(pro);
+    return rec ? String(rec.destination || '').trim() : '';
+  }
+
+  /**
+   * Upsert destination for a PRO. Empty destination clears it.
+   * @param {string} pro
+   * @param {string} destination
+   * @returns {ProRecord|null}
+   */
+  function setProDestination(pro, destination) {
+    const key = String(pro || '').trim();
+    if (!key) return null;
+    const dest = String(destination || '').trim();
+    const list = readPros();
+    const idx = list.findIndex((p) => p.pro === key);
+    const now = new Date().toISOString();
+    if (!dest) {
+      if (idx >= 0) {
+        list.splice(idx, 1);
+        writePros(list);
+      }
+      return null;
+    }
+    /** @type {ProRecord} */
+    const rec = { pro: key, destination: dest, updatedAt: now };
+    if (idx >= 0) list[idx] = rec;
+    else list.unshift(rec);
+    writePros(list);
+    return rec;
+  }
+
+  // ---------- Outbound trailer registry ----------
+
+  function readOutboundTrailers() {
+    try {
+      const raw = localStorage.getItem(OUTBOUND_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function writeOutboundTrailers(list) {
+    localStorage.setItem(OUTBOUND_KEY, JSON.stringify(list));
+  }
+
+  /**
+   * Register an outbound trailer (loading for a destination, or "open").
+   * @param {{ trailerNumber: string, doorNumber?: string, destination?: string }} partial
+   * @returns {OutboundTrailer}
+   */
+  function saveOutboundTrailer(partial) {
+    const trailerNumber = String(partial.trailerNumber || '').trim();
+    const doorNumber = String(partial.doorNumber || '').trim();
+    let destination = String(partial.destination || '').trim();
+    if (!destination) destination = 'open';
+
+    /** @type {OutboundTrailer} */
+    const row = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      trailerNumber,
+      doorNumber,
+      destination,
+      createdAt: new Date().toISOString(),
+    };
+    const list = readOutboundTrailers();
+    list.unshift(row);
+    writeOutboundTrailers(list);
+    return row;
+  }
+
+  /**
+   * @param {string} id
+   * @param {{ trailerNumber?: string, doorNumber?: string, destination?: string }} patch
+   * @returns {OutboundTrailer|null}
+   */
+  function updateOutboundTrailer(id, patch) {
+    const list = readOutboundTrailers();
+    const idx = list.findIndex((r) => r.id === id);
+    if (idx < 0) return null;
+    const cur = list[idx];
+    const next = {
+      ...cur,
+      trailerNumber:
+        patch.trailerNumber != null
+          ? String(patch.trailerNumber).trim()
+          : cur.trailerNumber,
+      doorNumber:
+        patch.doorNumber != null ? String(patch.doorNumber).trim() : cur.doorNumber,
+      destination:
+        patch.destination != null
+          ? String(patch.destination).trim() || 'open'
+          : cur.destination,
+    };
+    list[idx] = next;
+    writeOutboundTrailers(list);
+    return next;
+  }
+
+  /**
+   * @param {string} id
+   * @returns {boolean}
+   */
+  function removeOutboundTrailer(id) {
+    const list = readOutboundTrailers();
+    const next = list.filter((r) => r.id !== id);
+    if (next.length === list.length) return false;
+    writeOutboundTrailers(next);
+    return true;
   }
 
   /**
@@ -176,7 +349,7 @@
   /**
    * Group entries for one trailer by PRO (bill), preserving piece order.
    * @param {string} trailerNumber
-   * @returns {{ pro: string, pieces: DockEntry[] }[]}
+   * @returns {{ pro: string, pieces: DockEntry[], destination: string }[]}
    */
   function loadOutByTrailer(trailerNumber) {
     // Oldest first so the list reads like how the trailer was loaded
@@ -200,7 +373,7 @@
         if (ma && mb) return Number(ma[1]) - Number(mb[1]);
         return String(a.timestamp || '').localeCompare(String(b.timestamp || ''));
       });
-      return { pro, pieces };
+      return { pro, pieces, destination: getProDestination(pro) };
     });
   }
 
@@ -285,7 +458,7 @@
    * Uses same-PRO = same-trailer grouping via loadOutByTrailer on the door's current trailer,
    * filtered to entries that also carry this door number when present.
    * @param {string} doorNumber
-   * @returns {{ doorNumber: string, trailerNumber: string, groups: { pro: string, pieces: DockEntry[] }[] }}
+   * @returns {{ doorNumber: string, trailerNumber: string, groups: { pro: string, pieces: DockEntry[], destination: string }[] }}
    */
   function dockProsAtDoor(doorNumber) {
     const door = String(doorNumber || '').trim();
@@ -316,7 +489,7 @@
         if (ma && mb) return Number(ma[1]) - Number(mb[1]);
         return String(a.timestamp || '').localeCompare(String(b.timestamp || ''));
       });
-      return { pro, pieces };
+      return { pro, pieces, destination: getProDestination(pro) };
     });
     return { doorNumber: door, trailerNumber, groups };
   }
@@ -401,9 +574,19 @@
 
   global.DockStorage = {
     STORAGE_KEY,
+    PROS_KEY,
+    OUTBOUND_KEY,
     readAll,
     saveEntry,
     clearAll,
+    readPros,
+    getPro,
+    getProDestination,
+    setProDestination,
+    readOutboundTrailers,
+    saveOutboundTrailer,
+    updateOutboundTrailer,
+    removeOutboundTrailer,
     groupsByPro,
     entriesForPro,
     trailerNumbersForPro,
