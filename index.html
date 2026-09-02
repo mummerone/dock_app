@@ -36,6 +36,9 @@
       <button type="button" class="view-tab" id="tabLoadout" role="tab" aria-selected="false" aria-controls="viewLoadout">
         Trailer load-out
       </button>
+      <button type="button" class="view-tab" id="tabDock" role="tab" aria-selected="false" aria-controls="viewDock">
+        Dock
+      </button>
     </nav>
 
     <main class="content" id="viewEntry" role="tabpanel" aria-labelledby="tabEntry">
@@ -68,7 +71,11 @@
           <span>Trailer number</span>
           <input id="trailerNumberInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345" />
         </label>
-        <p class="hint">Equipment ID for which trailer is at the door (separate from slot position).</p>
+        <label class="field trailer-number-field door-number-field">
+          <span>Door number</span>
+          <input id="doorNumberInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12" />
+        </label>
+        <p class="hint">Trailer number = which trailer. Door number = which dock door that trailer is at.</p>
         <p class="hint">Section 1–12 · Level A–C · Left / Middle / Right</p>
 
         <div class="slot-block">
@@ -194,6 +201,19 @@
         <p class="hint bol-note">Grouped by bill (PRO). Same PRO stays on one trailer.</p>
         <div id="loadoutList" class="loadout-list">
           <div class="empty-state">Pick a trailer number above to see its load-out.</div>
+        </div>
+      </section>
+    </main>
+
+    <main class="content dock-view hidden" id="viewDock" role="tabpanel" aria-labelledby="tabDock" hidden>
+      <section class="card" aria-labelledby="dock-board-heading">
+        <div class="card-head">
+          <h2 id="dock-board-heading">Dock doors</h2>
+          <button type="button" id="dockBackBtn" class="btn tiny muted-btn hidden">Back</button>
+        </div>
+        <p class="hint" id="dockHint">Doors that have a trailer from your logged freight. Tap a door to see bills (PROs). Viewing only.</p>
+        <div id="dockBoard" class="dock-board">
+          <div class="empty-state">No doors yet — log freight with a door number first.</div>
         </div>
       </section>
     </main>
