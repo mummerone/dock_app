@@ -28,6 +28,7 @@
 ### 2. Identification fields
 - **PRO number** — typed text input
 - **Piece fraction** — typed (e.g. `3/5` meaning piece 3 of 5)
+- **Forced sequential piece entry** — if a shipment has multiple pieces (`n > 1`), you must Accept `1/n`, then `2/n`, … up to `n/n` with no skipping. Accept is blocked (toast) if the numerator is not the next required piece for that PRO on that trailer. On first piece you may type `1/n` or just total `n` (treated as `1/n`). After Accept of `k/n` (`k < n`): entry goes to Recent/load-out; clear dims/weight and slot; keep PRO + trailer; auto-set piece to `(k+1)/n` and lock the piece field until the sequence finishes. After `n/n` or single-piece `1/1`: clear piece (ready for a new PRO).
 - **Trailer number** — typed text/number input for the equipment ID of the trailer at the door (e.g. `12345`). Separate from trailer *slot* position. Used as trailer identity for the same-PRO = same-trailer BOL rule.
 
 ### 3. Trailer slot

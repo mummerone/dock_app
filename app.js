@@ -35,6 +35,7 @@
     padBuffer: '',
     view: 'entry', // 'entry' | 'loadout'
     loadoutTrailer: '',
+    pieceLocked: false, // mid-sequence: piece field forced to k/n
   };
 
   const el = {
@@ -101,6 +102,8 @@
     renderRecent();
     refreshLoadoutTrailerPicker();
     setupSpeechStatus();
+    bindPieceSequenceWatchers();
+    syncPieceSequenceFromStorage();
     registerServiceWorker();
   }
 
@@ -280,6 +283,7 @@
 
 
   function insertSlashIntoPiece() {
+    if (state.pieceLocked) return;
     const input = el.piece;
     if (!input) return;
     const slash = '/';
@@ -307,6 +311,8 @@
     el.clearListBtn.addEventListener('click', () => {
       if (!confirm('Clear all saved entries on this device?')) return;
       DockStorage.clearAll();
+      setPieceLocked(false);
+      el.piece.value = '';
       renderRecent();
       refreshLoadoutTrailerPicker();
       if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
@@ -417,18 +423,132 @@
     else selectField('h', { clearBuffer: true });
   }
 
+  function bindPieceSequenceWatchers() {
+    const sync = () => syncPieceSequenceFromStorage();
+    el.pro.addEventListener('change', sync);
+    el.pro.addEventListener('blur', sync);
+    el.trailerNumber.addEventListener('change', sync);
+    el.trailerNumber.addEventListener('blur', sync);
+  }
+
+  /**
+   * Normalize piece input before Accept:
+   * - "1/5" or "3/5" → {a,b}
+   * - bare "5" when starting a new sequence → treat as 1/5
+   */
+  function normalizePieceInput(raw, { allowBareTotal }) {
+    const s = String(raw || '').trim();
+    if (!s) return { ok: false, reason: 'Enter piece (e.g. 1/5 or total 5)' };
+
+    const frac = DockStorage.parsePieceFraction(s);
+    if (frac) return { ok: true, a: frac.a, b: frac.b, display: `${frac.a}/${frac.b}` };
+
+    if (allowBareTotal && /^\d+$/.test(s)) {
+      const n = Number(s);
+      if (!Number.isInteger(n) || n < 1) {
+        return { ok: false, reason: 'Piece total must be a whole number ≥ 1' };
+      }
+      return { ok: true, a: 1, b: n, display: `1/${n}`, fromBareTotal: true };
+    }
+
+    return { ok: false, reason: 'Piece must look like 1/5 (or type total pieces, e.g. 5)' };
+  }
+
+  function setPieceLocked(locked) {
+    state.pieceLocked = !!locked;
+    if (el.piece) {
+      el.piece.readOnly = state.pieceLocked;
+      el.piece.classList.toggle('piece-locked', state.pieceLocked);
+      el.piece.setAttribute('aria-readonly', state.pieceLocked ? 'true' : 'false');
+      el.piece.title = state.pieceLocked
+        ? 'Piece is locked until this shipment sequence finishes'
+        : '';
+    }
+    if (el.pieceSlashBtn) {
+      el.pieceSlashBtn.disabled = state.pieceLocked;
+    }
+  }
+
+  /**
+   * If this PRO+trailer already has an incomplete multi-piece sequence,
+   * force next k/n and lock the piece field.
+   */
+  function syncPieceSequenceFromStorage() {
+    const pro = el.pro.value.trim();
+    const trailerNumber = el.trailerNumber.value.trim();
+    if (!pro || !trailerNumber) {
+      return;
+    }
+
+    const info = DockStorage.nextPieceForProOnTrailer(pro, trailerNumber);
+    if (info.count > 0 && info.total != null && info.count < info.total) {
+      el.piece.value = `${info.nextNum}/${info.total}`;
+      setPieceLocked(true);
+      el.parseHint.textContent =
+        `Continue PRO ${pro}: enter piece ${info.nextNum}/${info.total} next (in order).`;
+      return;
+    }
+
+    if (state.pieceLocked) {
+      setPieceLocked(false);
+    }
+  }
+
+  function clearSlotSelection() {
+    state.section = null;
+    state.level = null;
+    state.lateral = null;
+    el.sectionChips.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
+    el.levelChips.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
+    el.lateralChips.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
+    updateSlotPreview();
+  }
+
+  function clearDimsAndWeight() {
+    state.h = null;
+    state.w = null;
+    state.d = null;
+    state.weight = null;
+    state.padBuffer = '';
+    updateDimsUI();
+    selectField('h', { clearBuffer: true });
+  }
+
+  /**
+   * After Accept for k/n: keep PRO + trailer; clear dims/weight + slot;
+   * auto-set (k+1)/n when k < n (locked); clear piece when finished.
+   */
+  function prepareNextPieceAfterAccept(a, b) {
+    clearDimsAndWeight();
+    clearSlotSelection();
+
+    if (b > 1 && a < b) {
+      el.piece.value = `${a + 1}/${b}`;
+      setPieceLocked(true);
+      el.parseHint.textContent =
+        `Saved ${a}/${b}. Next: ${a + 1}/${b} — same PRO & trailer; enter size & slot.`;
+    } else {
+      el.piece.value = '';
+      setPieceLocked(false);
+      el.parseHint.textContent =
+        b === 1
+          ? 'Shipment complete (1/1). Enter a new PRO when ready.'
+          : `Shipment complete (${a}/${b}). Enter a new PRO when ready.`;
+    }
+  }
+
   function onAccept() {
     const pro = el.pro.value.trim();
-    const piece = el.piece.value.trim();
     const trailerNumber = el.trailerNumber.value.trim();
+    const pieceRaw = el.piece.value.trim();
 
     if (!pro) {
       toast('Enter a PRO number');
       el.pro.focus();
       return;
     }
-    if (!piece) {
-      toast('Enter piece fraction (e.g. 3/5)');
+    if (!pieceRaw) {
+      toast('Enter piece (e.g. 1/5 or total 5)');
       el.piece.focus();
       return;
     }
@@ -437,6 +557,51 @@
       el.trailerNumber.focus();
       return;
     }
+
+    // Existing pieces for this PRO on this trailer determine required next numerator
+    const seq = DockStorage.nextPieceForProOnTrailer(pro, trailerNumber);
+    const startingFresh = seq.count === 0;
+    const normalized = normalizePieceInput(pieceRaw, { allowBareTotal: startingFresh });
+    if (!normalized.ok) {
+      toast(normalized.reason);
+      el.piece.focus();
+      return;
+    }
+
+    const { a, b, display } = normalized;
+
+    // Forced sequential entry when multi-piece (b > 1): must be next in order
+    if (b > 1) {
+      const required = seq.nextNum; // count + 1 (or 1 if none)
+      if (a !== required) {
+        toast(
+          required === 1
+            ? `Enter pieces in order — start with 1/${b}`
+            : `Enter pieces in order — next is ${required}/${b}`
+        );
+        // If mid-sequence, snap field back to required
+        if (seq.count > 0 && seq.total != null) {
+          el.piece.value = `${required}/${seq.total || b}`;
+          setPieceLocked(true);
+        }
+        return;
+      }
+      // Denominator must match an in-progress sequence
+      if (seq.count > 0 && seq.total != null && b !== seq.total) {
+        toast(`This PRO is ${seq.total} pieces — use ${required}/${seq.total}`);
+        el.piece.value = `${required}/${seq.total}`;
+        setPieceLocked(true);
+        return;
+      }
+    } else {
+      // 1/1 — only valid when no prior pieces yet for this PRO+trailer (or continuing? no, 1/1 is single)
+      if (seq.count > 0) {
+        toast(`PRO already has ${seq.count} piece(s) on this trailer — continue the sequence`);
+        syncPieceSequenceFromStorage();
+        return;
+      }
+    }
+
     if (state.section == null || !state.level || !state.lateral) {
       toast('Pick section, level, and lateral');
       return;
@@ -460,15 +625,18 @@
         el.parseHint.textContent =
           `Warning: PRO ${pro} was on trailer ${prior} — same PRO must stay on one trailer (you entered ${trailerNumber}).`;
         toast(`Same PRO was on trailer ${prior}`);
-      } else {
+      } else if (!startingFresh) {
         el.parseHint.textContent =
           `Note: PRO ${pro} already has ${existing.length} piece(s) on trailer ${trailerNumber} — keep on same trailer.`;
       }
     }
 
+    // Persist normalized fraction (e.g. bare "5" → "1/5")
+    el.piece.value = display;
+
     DockStorage.saveEntry({
       pro,
-      pieceFraction: piece,
+      pieceFraction: display,
       trailerNumber,
       section: state.section,
       level: state.level,
@@ -484,22 +652,9 @@
     if (state.view === 'loadout' && state.loadoutTrailer === trailerNumber) {
       renderLoadout(trailerNumber);
     }
-    toast(`Saved PRO ${pro} · ${piece} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
+    toast(`Saved PRO ${pro} · ${display} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
 
-    // Ready next piece: bump piece numerator if pattern N/M
-    bumpPieceFraction();
-    state.weight = null;
-    state.padBuffer = '';
-    updateDimsUI();
-    selectField('weight', { clearBuffer: true });
-  }
-
-  function bumpPieceFraction() {
-    const m = /^(\d+)\s*\/\s*(\d+)$/.exec(el.piece.value.trim());
-    if (!m) return;
-    const n = Number(m[1]);
-    const total = Number(m[2]);
-    if (n < total) el.piece.value = `${n + 1}/${total}`;
+    prepareNextPieceAfterAccept(a, b);
   }
 
   function renderRecent() {
@@ -768,7 +923,7 @@
   }
 
   // Expose parse for quick console tests
-  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout };
+  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, normalizePieceInput, syncPieceSequenceFromStorage };
 
   init();
 })();

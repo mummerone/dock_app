@@ -48,11 +48,12 @@
             <input id="proInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 1234567" />
           </label>
           <div class="field piece-field">
-            <span>Piece (e.g. 3/5)</span>
+            <span>Piece (1/n … n/n in order)</span>
             <div class="piece-row">
-              <input id="pieceInput" type="text" inputmode="text" autocomplete="off" placeholder="3/5" aria-label="Piece fraction" />
+              <input id="pieceInput" type="text" inputmode="text" autocomplete="off" placeholder="1/5 or 5" aria-label="Piece fraction" />
               <button type="button" id="pieceSlashBtn" class="piece-slash-btn" aria-label="Insert slash" title="Insert /">/</button>
             </div>
+            <p class="hint piece-seq-hint">Multi-piece: enter 1/n first (or just n), then 2/n… in order. Field locks mid-sequence.</p>
           </div>
         </div>
       </section>

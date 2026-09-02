@@ -229,6 +229,57 @@
     }
   }
 
+
+  /**
+   * Parse piece fraction "a/b" (integers). Returns {a,b} or null if invalid.
+   * @param {string} raw
+   * @returns {{a:number,b:number}|null}
+   */
+  function parsePieceFraction(raw) {
+    const s = String(raw || "").trim();
+    const m = /^(\d+)\s*\/\s*(\d+)$/.exec(s);
+    if (!m) return null;
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    if (!Number.isInteger(a) || !Number.isInteger(b) || a < 1 || b < 1 || a > b) return null;
+    return { a, b };
+  }
+
+  /**
+   * Entries for a PRO on a specific trailer number.
+   * @param {string} pro
+   * @param {string} trailerNumber
+   * @returns {DockEntry[]}
+   */
+  function entriesForProOnTrailer(pro, trailerNumber) {
+    const p = String(pro || "").trim();
+    const t = String(trailerNumber || "").trim();
+    if (!p || !t) return [];
+    return readAll().filter(
+      (e) => e.pro === p && String(e.trailerNumber || "").trim() === t
+    );
+  }
+
+  /**
+   * Next required piece numerator for PRO+trailer (1 if none yet).
+   * Also returns total if an incomplete sequence is detected from saved fractions.
+   * @param {string} pro
+   * @param {string} trailerNumber
+   * @returns {{ nextNum: number, total: number|null, count: number }}
+   */
+  function nextPieceForProOnTrailer(pro, trailerNumber) {
+    const list = entriesForProOnTrailer(pro, trailerNumber);
+    let total = null;
+    for (const e of list) {
+      const parsed = parsePieceFraction(e.pieceFraction);
+      if (parsed) {
+        if (total == null) total = parsed.b;
+        else if (parsed.b !== total) total = Math.max(total, parsed.b);
+      }
+    }
+    return { nextNum: list.length + 1, total, count: list.length };
+  }
+
   global.DockStorage = {
     STORAGE_KEY,
     readAll,
@@ -244,5 +295,8 @@
     getLastUsed,
     setLastUsed,
     formatTimeLocal,
+    parsePieceFraction,
+    entriesForProOnTrailer,
+    nextPieceForProOnTrailer,
   };
 })(window);

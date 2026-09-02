@@ -242,6 +242,27 @@ button {
   box-shadow: 0 4px 0 #0a1220;
 }
 
+
+.piece-field .piece-row input.piece-locked {
+  opacity: 0.85;
+  background: #152238;
+  color: #c8d6ef;
+  cursor: default;
+}
+
+.piece-slash-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.piece-seq-hint {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .piece-slash-btn:active {
   transform: translateY(2px);
   box-shadow: 0 2px 0 #0a1220;

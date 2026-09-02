@@ -86,7 +86,7 @@ Empty trailers show a clear “nothing on this trailer yet” message. The **Log
 ---
 ## How to use it (quick)
 
-1. Enter **PRO** and **piece** (like `3/5`).
+1. Enter **PRO** and **piece**. For multi-piece bills enter `1/n` first (or just total `n`), then Accept `2/n`…`n/n` in order — no skipping. After each Accept (except the last), PRO and trailer stay filled, dims/weight/slot clear, and piece auto-advances to the next fraction (locked until the sequence finishes).
 2. Enter **Trailer number** (equipment ID, e.g. `12345` — which trailer is at the door).
 3. Pick trailer **slot**: **section** (1–12), **level** (A–C), and **Left / Middle / Right**.
 4. Tap a **size preset**, or tap **Speak Dimensions**, or use the number pad. Pallet presets fill **W×D only** (enter height yourself); drums / pails / totes include height.
