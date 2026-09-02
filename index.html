@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1220" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="description" content="Dock App — LTL freight size, weight, trailer number, and trailer slot entry for drivers" />
+  <meta name="description" content="Dock App — LTL freight size, weight, PRO destination, trailer slot, and outbound trailers for drivers" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
@@ -39,6 +39,9 @@
       <button type="button" class="view-tab" id="tabDock" role="tab" aria-selected="false" aria-controls="viewDock">
         Dock
       </button>
+      <button type="button" class="view-tab" id="tabOutbound" role="tab" aria-selected="false" aria-controls="viewOutbound">
+        Outbound
+      </button>
     </nav>
 
     <main class="content" id="viewEntry" role="tabpanel" aria-labelledby="tabEntry">
@@ -58,6 +61,17 @@
             </div>
             <p class="hint piece-seq-hint">Multi-piece: enter 1/n first (or just n), then 2/n… in order. Field locks mid-sequence.</p>
           </div>
+        </div>
+        <div class="destination-block">
+          <label class="field destination-field">
+            <span>Where is it going? (destination)</span>
+            <input id="destinationInput" type="text" autocomplete="off" placeholder="City, terminal code, or free text" />
+          </label>
+          <div class="destination-lock-row hidden" id="destinationLockRow">
+            <p class="destination-locked-msg" id="destinationLockedMsg">Same destination for every piece of this PRO.</p>
+            <button type="button" id="editDestinationBtn" class="btn tiny muted-btn">Change destination</button>
+          </div>
+          <p class="hint">One destination per PRO — later pieces reuse it. City, terminal, or any short note is fine.</p>
         </div>
       </section>
 
@@ -214,6 +228,37 @@
         <p class="hint" id="dockHint">Doors that have a trailer from your logged freight. Tap a door to see bills (PROs). Viewing only.</p>
         <div id="dockBoard" class="dock-board">
           <div class="empty-state">No doors yet — log freight with a door number first.</div>
+        </div>
+      </section>
+    </main>
+
+    <main class="content outbound-view hidden" id="viewOutbound" role="tabpanel" aria-labelledby="tabOutbound" hidden>
+      <section class="card" aria-labelledby="outbound-add-heading">
+        <h2 id="outbound-add-heading">Register outbound trailer</h2>
+        <p class="hint">Trailers you are loading out. Destination can be a place, or tap <strong>Open</strong> if not decided yet. Door is optional until the trailer is spotted.</p>
+        <label class="field trailer-number-field">
+          <span>Trailer number</span>
+          <input id="outboundTrailerInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345" />
+        </label>
+        <label class="field trailer-number-field door-number-field">
+          <span>Door number (optional)</span>
+          <input id="outboundDoorInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12 — leave blank if not spotted" />
+        </label>
+        <label class="field destination-field">
+          <span>Loading for (destination)</span>
+          <input id="outboundDestInput" type="text" autocomplete="off" placeholder="City, terminal, or leave and tap Open" />
+        </label>
+        <div class="outbound-dest-actions">
+          <button type="button" id="outboundOpenBtn" class="btn muted-btn outbound-open-btn">Open (no destination yet)</button>
+          <button type="button" id="outboundSaveBtn" class="btn accept-btn outbound-save-btn">Save outbound trailer</button>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="outbound-list-heading">
+        <h2 id="outbound-list-heading">Outbound trailers</h2>
+        <p class="hint">Plain list of trailers registered for outbound loading. Assignment of freight by destination comes later.</p>
+        <div id="outboundList" class="outbound-list">
+          <div class="empty-state">No outbound trailers yet — register one above.</div>
         </div>
       </section>
     </main>
