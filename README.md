@@ -76,7 +76,7 @@ Example: `http://192.168.1.42:8080`
 1. Enter **PRO** and **piece** (like `3/5`).
 2. Enter **Trailer number** (equipment ID, e.g. `12345` — which trailer is at the door).
 3. Pick trailer **slot**: **section** (1–12), **level** (A–C), and **Left / Middle / Right**.
-4. Tap a **size preset**, or tap **Speak Dimensions**, or use the number pad.
+4. Tap a **size preset**, or tap **Speak Dimensions**, or use the number pad. Pallet presets fill **W×D only** (enter height yourself); drums / pails / totes include height.
 5. Check the big H / W / D / Weight boxes.
 6. Tap **Accept** — the entry is saved on this device and shows under Recent Entries.
 
