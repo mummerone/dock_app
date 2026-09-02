@@ -1,0 +1,19 @@
+{
+  "name": "Dock App",
+  "short_name": "DockApp",
+  "description": "LTL dock freight size, weight, and trailer slot entry",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

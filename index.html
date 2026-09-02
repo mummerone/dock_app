@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <meta name="theme-color" content="#0b1220" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="Dock App — LTL freight size, weight, and trailer slot entry for drivers" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <title>Dock App</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">▮</span>
+        <div>
+          <h1>Dock App</h1>
+          <p class="tagline">Freight log · same PRO = same trailer</p>
+        </div>
+      </div>
+      <div id="speechStatus" class="speech-status" aria-live="polite">
+        <span class="dot" id="listenDot"></span>
+        <span id="speechStatusText">Voice ready</span>
+      </div>
+    </header>
+
+    <main class="content">
+      <!-- ID -->
+      <section class="card" aria-labelledby="id-heading">
+        <h2 id="id-heading">Shipment</h2>
+        <div class="row two">
+          <label class="field">
+            <span>PRO number</span>
+            <input id="proInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 1234567" />
+          </label>
+          <label class="field">
+            <span>Piece (e.g. 3/5)</span>
+            <input id="pieceInput" type="text" inputmode="numeric" autocomplete="off" placeholder="3/5" />
+          </label>
+        </div>
+      </section>
+
+      <!-- Slot -->
+      <section class="card" aria-labelledby="slot-heading">
+        <div class="card-head">
+          <h2 id="slot-heading">Trailer slot</h2>
+          <div class="slot-preview" id="slotPreview">—/—/—</div>
+        </div>
+        <p class="hint">Section 1–12 · Level A–C · Left / Middle / Right</p>
+
+        <div class="slot-block">
+          <span class="slot-label">Section</span>
+          <div class="chip-grid sections" id="sectionChips" role="group" aria-label="Section 1 to 12"></div>
+        </div>
+        <div class="slot-block">
+          <span class="slot-label">Level</span>
+          <div class="chip-row" id="levelChips" role="group" aria-label="Level A B C"></div>
+        </div>
+        <div class="slot-block">
+          <span class="slot-label">Lateral</span>
+          <div class="chip-row" id="lateralChips" role="group" aria-label="Left Middle Right"></div>
+        </div>
+      </section>
+
+      <!-- Presets -->
+      <section class="card" aria-labelledby="preset-heading">
+        <h2 id="preset-heading">Size presets</h2>
+        <p class="hint">Fills H / W / D. Weight stays empty.</p>
+        <div class="preset-grid" id="presetGrid"></div>
+      </section>
+
+      <!-- Dimensions -->
+      <section class="card dims-card" aria-labelledby="dims-heading">
+        <h2 id="dims-heading">Dimensions &amp; weight</h2>
+        <p class="hint">Inches and pounds only — units are locked.</p>
+
+        <button type="button" id="speakBtn" class="btn speak-btn">
+          <span class="speak-icon" aria-hidden="true">🎤</span>
+          Speak Dimensions
+        </button>
+
+        <div class="dim-grid" id="dimGrid">
+          <button type="button" class="dim-tile" data-field="h" id="tileH">
+            <span class="dim-label">H <small>in</small></span>
+            <span class="dim-value" id="valH">—</span>
+          </button>
+          <button type="button" class="dim-tile" data-field="w" id="tileW">
+            <span class="dim-label">W <small>in</small></span>
+            <span class="dim-value" id="valW">—</span>
+          </button>
+          <button type="button" class="dim-tile" data-field="d" id="tileD">
+            <span class="dim-label">D <small>in</small></span>
+            <span class="dim-value" id="valD">—</span>
+          </button>
+          <button type="button" class="dim-tile weight" data-field="weight" id="tileWeight">
+            <span class="dim-label">Weight <small>lbs</small></span>
+            <span class="dim-value" id="valWeight">—</span>
+          </button>
+        </div>
+
+        <div class="btn-row">
+          <button type="button" id="acceptBtn" class="btn accept-btn">Accept</button>
+          <button type="button" id="respeakBtn" class="btn respeak-btn">Re-speak</button>
+        </div>
+
+        <div id="listenBanner" class="listen-banner hidden" role="status">
+          <span class="pulse"></span>
+          <span id="listenBannerText">Listening… say “48 by 40 by 48, 1200”</span>
+        </div>
+        <p id="parseHint" class="parse-hint" aria-live="polite"></p>
+      </section>
+
+      <!-- Number pad -->
+      <section class="card pad-card" aria-labelledby="pad-heading">
+        <div class="card-head">
+          <h2 id="pad-heading">Number pad</h2>
+          <span class="active-field-label" id="activeFieldLabel">Tap a field above, then type</span>
+        </div>
+        <div class="numpad" id="numpad">
+          <button type="button" data-key="1">1</button>
+          <button type="button" data-key="2">2</button>
+          <button type="button" data-key="3">3</button>
+          <button type="button" data-key="4">4</button>
+          <button type="button" data-key="5">5</button>
+          <button type="button" data-key="6">6</button>
+          <button type="button" data-key="7">7</button>
+          <button type="button" data-key="8">8</button>
+          <button type="button" data-key="9">9</button>
+          <button type="button" data-key="clear" class="danger">C</button>
+          <button type="button" data-key="0">0</button>
+          <button type="button" data-key="back" class="muted">⌫</button>
+        </div>
+      </section>
+
+      <!-- Recent -->
+      <section class="card" aria-labelledby="recent-heading">
+        <div class="card-head">
+          <h2 id="recent-heading">Recent entries</h2>
+          <button type="button" id="clearListBtn" class="btn tiny muted-btn">Clear all</button>
+        </div>
+        <p class="hint bol-note">BOL rule: pieces with the same PRO belong on one trailer.</p>
+        <div id="recentList" class="recent-list"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Units: inches · lbs</span>
+      <span>Data stays on this device</span>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <script src="storage.js"></script>
+  <script src="speech.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
