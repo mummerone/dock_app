@@ -29,7 +29,16 @@
       </div>
     </header>
 
-    <main class="content">
+    <nav class="view-tabs" role="tablist" aria-label="App screens">
+      <button type="button" class="view-tab active" id="tabEntry" role="tab" aria-selected="true" aria-controls="viewEntry">
+        Log freight
+      </button>
+      <button type="button" class="view-tab" id="tabLoadout" role="tab" aria-selected="false" aria-controls="viewLoadout">
+        Trailer load-out
+      </button>
+    </nav>
+
+    <main class="content" id="viewEntry" role="tabpanel" aria-labelledby="tabEntry">
       <!-- ID -->
       <section class="card" aria-labelledby="id-heading">
         <h2 id="id-heading">Shipment</h2>
@@ -153,6 +162,38 @@
         </div>
         <p class="hint bol-note">BOL rule: pieces with the same PRO belong on one trailer.</p>
         <div id="recentList" class="recent-list"></div>
+      </section>
+    </main>
+
+    <main class="content loadout-view hidden" id="viewLoadout" role="tabpanel" aria-labelledby="tabLoadout" hidden>
+      <section class="card" aria-labelledby="loadout-pick-heading">
+        <h2 id="loadout-pick-heading">Which trailer?</h2>
+        <p class="hint">Pick a trailer you already used, or type a trailer number.</p>
+        <label class="field trailer-number-field">
+          <span>Trailer number</span>
+          <input id="loadoutTrailerInput" type="text" inputmode="numeric" autocomplete="off" list="loadoutTrailerList" placeholder="e.g. 12345" />
+          <datalist id="loadoutTrailerList"></datalist>
+        </label>
+        <div class="trailer-chip-row" id="loadoutTrailerChips" role="group" aria-label="Saved trailer numbers"></div>
+        <button type="button" id="loadoutShowBtn" class="btn accept-btn loadout-show-btn">Show load-out</button>
+      </section>
+
+      <section class="card loadout-summary-card hidden" id="loadoutSummaryCard" aria-labelledby="loadout-summary-heading">
+        <h2 id="loadout-summary-heading">Trailer summary</h2>
+        <div class="loadout-summary" id="loadoutSummary">
+          <div class="summary-row"><span class="summary-label">Trailer</span><span class="summary-value" id="sumTrailer">—</span></div>
+          <div class="summary-row"><span class="summary-label">Bills (PROs)</span><span class="summary-value" id="sumPros">0</span></div>
+          <div class="summary-row"><span class="summary-label">Pieces</span><span class="summary-value" id="sumPieces">0</span></div>
+          <div class="summary-row"><span class="summary-label">Total weight</span><span class="summary-value" id="sumWeight">—</span></div>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="loadout-list-heading">
+        <h2 id="loadout-list-heading">What is on this trailer</h2>
+        <p class="hint bol-note">Grouped by bill (PRO). Same PRO stays on one trailer.</p>
+        <div id="loadoutList" class="loadout-list">
+          <div class="empty-state">Pick a trailer number above to see its load-out.</div>
+        </div>
       </section>
     </main>
 
