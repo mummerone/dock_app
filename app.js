@@ -33,7 +33,7 @@
     activeField: 'h',
     listening: false,
     padBuffer: '',
-    view: 'entry', // 'entry' | 'loadout' | 'dock' | 'outbound'
+    view: 'entry', // 'entry' | 'loadout' | 'dock' | 'outbound' | 'plan'
     loadoutTrailer: '',
     pieceLocked: false, // mid-sequence: piece field forced to k/n
     destinationLocked: false, // PRO already has a destination — reuse until edited
@@ -114,6 +114,15 @@
     editProDoor: document.getElementById('editProDoor'),
     editProCancelBtn: document.getElementById('editProCancelBtn'),
     editProSaveBtn: document.getElementById('editProSaveBtn'),
+    tabPlan: document.getElementById('tabPlan'),
+    viewPlan: document.getElementById('viewPlan'),
+    loadDemoInboundBtn: document.getElementById('loadDemoInboundBtn'),
+    runLoadPlanBtn: document.getElementById('runLoadPlanBtn'),
+    clearPlanBtn: document.getElementById('clearPlanBtn'),
+    planStatusHint: document.getElementById('planStatusHint'),
+    planSummary: document.getElementById('planSummary'),
+    planMoveList: document.getElementById('planMoveList'),
+    planOutboundList: document.getElementById('planOutboundList'),
   };
 
   function init() {
@@ -128,6 +137,7 @@
     bindLoadout();
     bindDock();
     bindOutbound();
+    bindPlan();
     bindDestination();
     bindEditPro();
     updateDimsUI();
@@ -136,6 +146,7 @@
     renderRecent();
     refreshLoadoutTrailerPicker();
     renderOutboundList();
+    renderPlan();
     setupSpeechStatus();
     bindPieceSequenceWatchers();
     syncPieceSequenceFromStorage();
@@ -345,15 +356,17 @@
     el.respeakBtn.addEventListener('click', () => startSpeak({ mode: 'active' }));
     el.acceptBtn.addEventListener('click', onAccept);
     el.clearListBtn.addEventListener('click', () => {
-      if (!confirm('Clear all saved entries on this device?')) return;
+      if (!confirm('Clear all saved entries and the load plan on this device?')) return;
       DockStorage.clearAll();
+      DockStorage.clearLoadPlan();
       setPieceLocked(false);
       el.piece.value = '';
       renderRecent();
+      renderPlan();
       refreshLoadoutTrailerPicker();
       if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
       if (state.view === 'dock') renderDock();
-      toast('All entries cleared');
+      toast('All entries and plan cleared');
     });
   }
 
@@ -777,6 +790,7 @@
     }
     if (state.view === 'dock') renderDock();
     if (state.view === 'outbound') renderOutboundList();
+    if (state.view === 'plan') renderPlan();
     toast(`Saved PRO ${pro} · ${display} · to ${destination} · door ${doorNumber} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
 
     prepareNextPieceAfterAccept(a, b);
@@ -888,6 +902,7 @@
     el.tabLoadout.addEventListener('click', () => showView('loadout'));
     if (el.tabDock) el.tabDock.addEventListener('click', () => showView('dock'));
     if (el.tabOutbound) el.tabOutbound.addEventListener('click', () => showView('outbound'));
+    if (el.tabPlan) el.tabPlan.addEventListener('click', () => showView('plan'));
   }
 
   function showView(name) {
@@ -897,12 +912,14 @@
       loadout: el.viewLoadout,
       dock: el.viewDock,
       outbound: el.viewOutbound,
+      plan: el.viewPlan,
     };
     const tabs = {
       entry: el.tabEntry,
       loadout: el.tabLoadout,
       dock: el.tabDock,
       outbound: el.tabOutbound,
+      plan: el.tabPlan,
     };
     Object.keys(views).forEach((key) => {
       const panel = views[key];
@@ -932,6 +949,9 @@
     }
     if (name === 'outbound') {
       renderOutboundList();
+    }
+    if (name === 'plan') {
+      renderPlan();
     }
   }
 
@@ -1468,7 +1488,209 @@
     refreshLoadoutTrailerPicker();
     if (state.view === 'dock') renderDock();
     if (state.view === 'outbound') renderOutboundList();
+    if (state.view === 'plan') renderPlan();
     syncPieceSequenceFromStorage();
+  }
+
+
+  function bindPlan() {
+    if (el.loadDemoInboundBtn) {
+      el.loadDemoInboundBtn.addEventListener('click', () => onLoadDemoInbound());
+    }
+    if (el.runLoadPlanBtn) {
+      el.runLoadPlanBtn.addEventListener('click', () => onRunLoadPlan());
+    }
+    if (el.clearPlanBtn) {
+      el.clearPlanBtn.addEventListener('click', () => {
+        if (!DockStorage.readLoadPlan()) {
+          toast('No plan to clear');
+          return;
+        }
+        if (!confirm('Clear the saved load plan from this device?')) return;
+        DockStorage.clearLoadPlan();
+        renderPlan();
+        toast('Plan cleared');
+      });
+    }
+  }
+
+  function onLoadDemoInbound() {
+    if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.seedDemoInbound) {
+      toast('Demo planner not loaded');
+      return;
+    }
+    const existing = DockStorage.readAll().length;
+    const msg = existing
+      ? `Replace all ${existing} logged piece(s) with demo inbound freight (~5 trailers)?\n\nThis clears freight + last plan. Outbound stubs for the 5 cities are added if missing.`
+      : 'Load demo inbound freight (~5 trailers at doors, mixed destinations)?\n\nOutbound stubs for the 5 cities are added if missing.';
+    if (!confirm(msg)) return;
+
+    const result = DockLoadPlan.seedDemoInbound();
+    state.dockLevel = 'doors';
+    state.dockDoor = '';
+    state.dockPro = '';
+    state.loadoutTrailer = '';
+    renderRecent();
+    refreshLoadoutTrailerPicker();
+    renderOutboundList();
+    renderPlan();
+    if (state.view === 'dock') renderDock();
+    if (el.planStatusHint) {
+      el.planStatusHint.textContent =
+        `Demo loaded: ${result.inboundTrailers} inbound trailers · ${result.proCount} PROs · ${result.pieceCount} pieces` +
+        (result.outboundCreated ? ` · ${result.outboundCreated} outbound stub(s) created` : '');
+    }
+    toast(
+      `Demo inbound: ${result.pieceCount} pieces on ${result.inboundTrailers} trailers`
+    );
+  }
+
+  function onRunLoadPlan() {
+    if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.runLoadPlan) {
+      toast('Demo planner not loaded');
+      return;
+    }
+    const plan = DockLoadPlan.runLoadPlan();
+    renderPlan();
+    renderOutboundList();
+    const s = plan.summary || {};
+    if (el.planStatusHint) {
+      el.planStatusHint.textContent = s.note
+        ? `Demo planner: ${s.moveCount || 0} moves · ${s.outboundCount || 0} outbound · ${s.note}`
+        : `Demo planner finished: ${s.moveCount || 0} moves`;
+    }
+    if (!(s.moveCount > 0)) {
+      toast(s.note || 'Nothing to plan');
+      return;
+    }
+    toast(`Demo planner: ${s.moveCount} moves → ${s.outboundCount} outbound`);
+  }
+
+  function renderPlan() {
+    const plan = DockStorage.readLoadPlan();
+    renderPlanSummary(plan);
+    renderPlanMoves(plan);
+    renderPlanOutbound(plan);
+  }
+
+  function renderPlanSummary(plan) {
+    if (!el.planSummary) return;
+    if (!plan || !(plan.moves && plan.moves.length) && !(plan.outboundLoadouts && plan.outboundLoadouts.length)) {
+      const note = plan && plan.summary && plan.summary.note
+        ? `<div class="empty-state">${escapeHtml(plan.summary.note)}</div>`
+        : '<div class="empty-state">No plan yet — load demo inbound, then run the demo planner.</div>';
+      el.planSummary.innerHTML = note;
+      return;
+    }
+    const s = plan.summary || {};
+    const when = plan.createdAt
+      ? DockStorage.formatTimeLocal(plan.createdAt)
+      : '—';
+    el.planSummary.innerHTML = `
+      <div class="plan-summary-grid">
+        <div class="summary-row"><span class="summary-label">Planner</span><span class="summary-value">${escapeHtml(plan.label || plan.planner || 'demo')}</span></div>
+        <div class="summary-row"><span class="summary-label">Saved</span><span class="summary-value">${escapeHtml(when)}</span></div>
+        <div class="summary-row"><span class="summary-label">Moves</span><span class="summary-value">${escapeHtml(String(s.moveCount != null ? s.moveCount : (plan.moves || []).length))}</span></div>
+        <div class="summary-row"><span class="summary-label">PROs</span><span class="summary-value">${escapeHtml(String(s.proCount != null ? s.proCount : '—'))}</span></div>
+        <div class="summary-row"><span class="summary-label">Outbound</span><span class="summary-value">${escapeHtml(String(s.outboundCount != null ? s.outboundCount : (plan.outboundLoadouts || []).length))}</span></div>
+        <div class="summary-row"><span class="summary-label">Skipped</span><span class="summary-value">${escapeHtml(String(s.skippedNoDest || 0))} no dest</span></div>
+      </div>
+      <p class="hint plan-note">${escapeHtml(s.note || '')}</p>
+    `;
+  }
+
+  function renderPlanMoves(plan) {
+    if (!el.planMoveList) return;
+    const moves = (plan && plan.moves) || [];
+    if (!moves.length) {
+      el.planMoveList.innerHTML =
+        '<div class="empty-state">Moves appear here after you run the plan.</div>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    moves.forEach((m, idx) => {
+      const div = document.createElement('div');
+      div.className = 'plan-move-row';
+      const fromDoor = (m.from && m.from.door) || '—';
+      const fromTr = (m.from && m.from.trailer) || '—';
+      const fromSlot = (m.from && m.from.slot) || '—';
+      const toTr = (m.to && m.to.trailer) || '—';
+      const toSlot = (m.to && m.to.slot) || '—';
+      const dest = m.destination || '';
+      div.innerHTML = `
+        <div class="plan-move-top">
+          <span class="plan-move-num">#${idx + 1}</span>
+          <span class="plan-move-pro">PRO ${escapeHtml(m.pro || '—')} · ${escapeHtml(m.pieceFraction || '—')}</span>
+        </div>
+        <div class="plan-move-dest">${escapeHtml(dest || '—')}</div>
+        <div class="plan-move-path">
+          <span class="plan-from">Door ${escapeHtml(fromDoor)} · Trl ${escapeHtml(fromTr)} · ${escapeHtml(fromSlot)}</span>
+          <span class="plan-arrow" aria-hidden="true">→</span>
+          <span class="plan-to">Trl ${escapeHtml(toTr)} · ${escapeHtml(toSlot)}</span>
+        </div>
+      `;
+      frag.appendChild(div);
+    });
+    el.planMoveList.innerHTML = '';
+    el.planMoveList.appendChild(frag);
+  }
+
+  function renderPlanOutbound(plan) {
+    if (!el.planOutboundList) return;
+    const loads = (plan && plan.outboundLoadouts) || [];
+    if (!loads.length) {
+      el.planOutboundList.innerHTML =
+        '<div class="empty-state">Planned outbound load-outs appear here after you run the plan.</div>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    loads.forEach((load) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'plan-out-trailer';
+      const door = load.doorNumber ? ` · Door ${load.doorNumber}` : '';
+      const wt =
+        load.totalWeight != null
+          ? ` · ${Number(load.totalWeight).toLocaleString()} lbs`
+          : '';
+      const head = document.createElement('div');
+      head.className = 'plan-out-head';
+      head.innerHTML = `
+        <div class="plan-out-title">Trailer ${escapeHtml(load.trailerNumber)} → ${escapeHtml(load.destination || '—')}</div>
+        <div class="plan-out-meta">${load.proCount || 0} bill${(load.proCount || 0) === 1 ? '' : 's'} · ${load.pieceCount || 0} piece${(load.pieceCount || 0) === 1 ? '' : 's'}${escapeHtml(door)}${escapeHtml(wt)}</div>
+      `;
+      wrap.appendChild(head);
+
+      (load.groups || []).forEach((g) => {
+        const gEl = document.createElement('div');
+        gEl.className = 'plan-out-pro';
+        const gHead = document.createElement('div');
+        gHead.className = 'plan-out-pro-title';
+        gHead.textContent = `Bill (PRO) ${g.pro}`;
+        gEl.appendChild(gHead);
+        (g.pieces || []).forEach((p) => {
+          const piece = document.createElement('div');
+          piece.className = 'plan-out-piece';
+          const size =
+            p.h == null && p.w == null && p.d == null
+              ? 'Size —'
+              : `${fmt(p.h)} × ${fmt(p.w)} × ${fmt(p.d)} in`;
+          const wts = p.weight == null ? 'Weight —' : `${fmt(p.weight)} lbs`;
+          piece.innerHTML = `
+            <div class="plan-out-piece-top">
+              <span>Piece ${escapeHtml(p.pieceFraction || '—')}</span>
+              <span class="plan-out-slot">${escapeHtml(p.slot || '—')}</span>
+            </div>
+            <div class="plan-out-piece-dims">${escapeHtml(size)} · ${escapeHtml(wts)}</div>
+            <div class="plan-out-piece-from">from Door ${escapeHtml(p.fromDoor || '—')} / Trl ${escapeHtml(p.fromTrailer || '—')} / ${escapeHtml(p.fromSlot || '—')}</div>
+          `;
+          gEl.appendChild(piece);
+        });
+        wrap.appendChild(gEl);
+      });
+      frag.appendChild(wrap);
+    });
+    el.planOutboundList.innerHTML = '';
+    el.planOutboundList.appendChild(frag);
   }
 
   let toastTimer = null;
@@ -1489,7 +1711,7 @@
   }
 
   // Expose parse for quick console tests
-  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro, openEditPro, closeEditPro };
+  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, renderPlan, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro, openEditPro, closeEditPro, runLoadPlan: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.runLoadPlan(), seedDemoInbound: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.seedDemoInbound() };
 
   init();
 })();

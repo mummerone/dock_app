@@ -688,8 +688,8 @@ button {
 /* View tabs (Log freight / Trailer load-out / Dock) */
 .view-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
   margin: 0 0 14px;
   padding: 0 2px;
   position: sticky;
@@ -706,8 +706,8 @@ button {
   border: 2px solid #2a3c58;
   color: var(--muted);
   font-weight: 800;
-  font-size: 0.78rem;
-  padding: 10px 4px;
+  font-size: 0.7rem;
+  padding: 8px 2px;
   line-height: 1.2;
 }
 
@@ -1177,5 +1177,156 @@ button {
   }
   .edit-pro-sheet {
     border-radius: 18px;
+  }
+}
+
+
+/* Plan tab — demo inbound + local high-and-tight planner */
+.plan-action-btn {
+  width: 100%;
+  margin-top: 10px;
+  min-height: 56px;
+}
+
+.plan-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.plan-note {
+  margin-top: 12px;
+}
+
+.plan-move-list,
+.plan-outbound-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.plan-move-row {
+  background: #0f1828;
+  border: 1px solid #2a3c58;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.plan-move-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+
+.plan-move-num {
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.plan-move-pro {
+  font-weight: 800;
+  color: var(--text);
+}
+
+.plan-move-dest {
+  color: var(--muted);
+  font-size: 0.92rem;
+  margin-bottom: 6px;
+}
+
+.plan-move-path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  font-size: 0.92rem;
+}
+
+.plan-from {
+  color: #c9d6ea;
+}
+
+.plan-arrow {
+  font-weight: 900;
+  color: var(--accent);
+}
+
+.plan-to {
+  color: #9ef0c3;
+  font-weight: 700;
+}
+
+.plan-out-trailer {
+  background: #0f1828;
+  border: 1px solid #2a3c58;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 4px;
+}
+
+.plan-out-head {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #24344f;
+}
+
+.plan-out-title {
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.plan-out-meta {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 4px;
+}
+
+.plan-out-pro {
+  margin: 10px 0 6px;
+  padding: 8px 10px;
+  background: #121c2e;
+  border-radius: 10px;
+  border: 1px solid #24344f;
+}
+
+.plan-out-pro-title {
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.plan-out-piece {
+  padding: 8px 0;
+  border-top: 1px dashed #24344f;
+}
+
+.plan-out-piece:first-of-type {
+  border-top: none;
+}
+
+.plan-out-piece-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.plan-out-slot {
+  color: #9ef0c3;
+}
+
+.plan-out-piece-dims,
+.plan-out-piece-from {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-top: 2px;
+}
+
+@media (max-width: 420px) {
+  .view-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

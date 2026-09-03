@@ -119,7 +119,16 @@ Use the **Outbound** tab to register trailers you are loading out.
 3. Optionally enter **Door number** (leave blank until the trailer is spotted).
 4. Enter what it is **Loading for** (destination), or tap **Open (no destination yet)**.
 5. Tap **Save outbound trailer**. The list below shows trailer, destination (or Open), and door.
-6. This is a registry only — assigning freight to these trailers by destination comes in a later step (not auto load planning yet).
+6. The **Plan** tab can create stubs for demo destinations and assign freight with the demo planner.
+
+## Plan tab (demo inbound + local load plan)
+
+The phone / GitHub Pages build has **no cloud AI**. The Plan tab uses a solid **local high-and-tight demo planner**.
+
+1. Tap **Plan**.
+2. **Load demo inbound** — confirms, then replaces logged freight with ~5 inbound trailers at doors. Freight is packed high-and-tight (slots 1–12 × A–C × Left/Middle/Right). Destinations randomly assigned from: Salt Lake City, Denver, San Antonio, Missoula Montana, Rapid City South Dakota (whole PRO = one destination). Creates outbound trailer stubs for those cities if missing.
+3. **Run load plan (demo AI)** — runs the local demo planner (`runLoadPlan()`). Same-PRO pieces stay on one trailer; prefers one outbound trailer per destination; packs floor (A) then decks B/C. Shows a move list (from door/trailer/slot → outbound trailer/slot) and planned outbound load-outs. Results persist in `localStorage`.
+4. Label in the UI is **demo planner** / **demo AI** — it is not calling ChatGPT.
 
 ---
 ## How to use it (quick)
@@ -134,7 +143,8 @@ Use the **Outbound** tab to register trailers you are loading out.
 8. Tap **Trailer load-out** anytime to review all bills and pieces on a chosen trailer.
 9. Tap **Dock** to see doors → trailers → PROs → pieces (view only).
 10. Tap **Outbound** to register trailers you are loading out (trailer, optional door, destination or Open).
-11. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
+11. Tap **Plan** to load demo inbound freight and run the local high-and-tight demo planner.
+12. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
 
 ---
 
@@ -146,9 +156,10 @@ Use the **Outbound** tab to register trailers you are loading out.
 | `styles.css` | Look and layout (big buttons, high contrast) |
 | `app.js` | Screen logic and buttons |
 | `speech.js` | Voice listening and parsing (“48 by 40 by 48, 1200”) |
-| `storage.js` | Saves entries, PRO destinations, and outbound trailers in the browser + groups by PRO |
+| `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
+| `loadPlan.js` | Demo inbound seed + local high-and-tight `runLoadPlan()` (swap body later for a real AI backend) |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v11`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

@@ -12,6 +12,7 @@
  * Also stores:
  * - pros: one destination per PRO (shared by all pieces of that bill)
  * - outboundTrailers: registry of trailers being loaded out (destination or "open")
+ * - loadPlan: last demo/AI load plan (moves + outbound load-outs)
  */
 
 (function (global) {
@@ -19,6 +20,7 @@
   const LAST_USED_KEY = 'dockApp.lastUsedDims.v1';
   const PROS_KEY = 'dockApp.pros.v1';
   const OUTBOUND_KEY = 'dockApp.outboundTrailers.v1';
+  const PLAN_KEY = 'dockApp.loadPlan.v1';
 
   /**
    * @typedef {Object} DockEntry
@@ -265,6 +267,94 @@
     if (next.length === list.length) return false;
     writeOutboundTrailers(next);
     return true;
+  }
+
+  // ---------- Load plan (demo / future AI) ----------
+
+  function readLoadPlan() {
+    try {
+      const raw = localStorage.getItem(PLAN_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeLoadPlan(plan) {
+    if (plan == null) {
+      localStorage.removeItem(PLAN_KEY);
+      return null;
+    }
+    localStorage.setItem(PLAN_KEY, JSON.stringify(plan));
+    return plan;
+  }
+
+  function clearLoadPlan() {
+    localStorage.removeItem(PLAN_KEY);
+  }
+
+  /**
+   * Replace all freight entries in one write (demo seed / bulk import).
+   * Does not touch outbound registry or load plan unless caller does.
+   * @param {Omit<DockEntry,'id'|'timestamp'|'slotLabel'> & {id?: string, timestamp?: string, slotLabel?: string, destination?: string}[]} rows
+   * @returns {DockEntry[]}
+   */
+  function replaceAllEntries(rows) {
+    const list = Array.isArray(rows) ? rows : [];
+    /** @type {DockEntry[]} */
+    const entries = [];
+    for (const partial of list) {
+      const section = Number(partial.section);
+      const level = partial.level;
+      const lateral = partial.lateral;
+      const entry = {
+        id: partial.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        pro: String(partial.pro || '').trim(),
+        pieceFraction: String(partial.pieceFraction || '').trim(),
+        trailerNumber: String(partial.trailerNumber || '').trim(),
+        doorNumber: String(partial.doorNumber || '').trim(),
+        section,
+        level,
+        lateral,
+        slotLabel:
+          partial.slotLabel ||
+          formatSlot(section, level, lateral),
+        h: partial.h == null || partial.h === '' ? null : Number(partial.h),
+        w: partial.w == null || partial.w === '' ? null : Number(partial.w),
+        d: partial.d == null || partial.d === '' ? null : Number(partial.d),
+        weight:
+          partial.weight == null || partial.weight === ''
+            ? null
+            : Number(partial.weight),
+        timestamp: partial.timestamp || new Date().toISOString(),
+      };
+      entries.push(entry);
+      if (partial.destination != null && String(partial.destination).trim() !== '') {
+        setProDestination(entry.pro, String(partial.destination).trim());
+      }
+    }
+    // Newest-first to match saveEntry / readAll convention
+    entries.sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+    writeAll(entries);
+    return entries;
+  }
+
+  /**
+   * Find outbound trailer already registered for a destination (case-insensitive).
+   * Skips "open". Prefers exact match after trim.
+   * @param {string} destination
+   * @returns {OutboundTrailer|null}
+   */
+  function outboundForDestination(destination) {
+    const dest = String(destination || '').trim().toLowerCase();
+    if (!dest || dest === 'open') return null;
+    const list = readOutboundTrailers();
+    return (
+      list.find((r) => String(r.destination || '').trim().toLowerCase() === dest) ||
+      null
+    );
   }
 
   /**
@@ -642,9 +732,15 @@
     STORAGE_KEY,
     PROS_KEY,
     OUTBOUND_KEY,
+    PLAN_KEY,
     readAll,
     saveEntry,
     clearAll,
+    replaceAllEntries,
+    readLoadPlan,
+    writeLoadPlan,
+    clearLoadPlan,
+    outboundForDestination,
     readPros,
     getPro,
     getProDestination,
