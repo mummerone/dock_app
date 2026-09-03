@@ -185,10 +185,16 @@ button {
   color: var(--accent);
 }
 
-.row.two {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.row.stack {
+  display: flex;
+  flex-direction: column;
   gap: 10px;
+  min-width: 0;
+}
+
+.row.stack > .field {
+  min-width: 0;
+  width: 100%;
 }
 
 .field {
