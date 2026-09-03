@@ -98,6 +98,18 @@ Want to see which trailer is at which door? Use the **Dock** tab.
 
 When you **Log freight**, fill **Where is it going?** (city, terminal code, or any short note). That destination is saved **once per PRO** — every piece of the same bill shares it. If you log another piece of that PRO later, the destination shows locked; tap **Change destination** if you need to edit it.
 
+## Edit a bill (PRO) after it is logged
+
+Need to fix a destination (or door / trailer) on a bill you already accepted? You do **not** re-enter every piece.
+
+1. On **Recent entries**, tap **Edit bill** on that PRO group.
+2. Or open **Dock** → door → bill → **Edit bill** on the PRO view.
+3. Or on **Trailer load-out**, tap **Edit bill** under that PRO.
+4. The sheet shows **PRO number** (read-only), **Where is it going?**, plus optional **Trailer** and **Door** for all pieces of that bill.
+5. Tap **Save**. Destination is stored once for the whole PRO (`dockApp.pros.v1`). Pieces keep their piece numbers and sizes.
+
+Works even if some pieces were logged before destination existed.
+
 ## Outbound trailers
 
 Use the **Outbound** tab to register trailers you are loading out.
@@ -122,6 +134,7 @@ Use the **Outbound** tab to register trailers you are loading out.
 8. Tap **Trailer load-out** anytime to review all bills and pieces on a chosen trailer.
 9. Tap **Dock** to see doors → trailers → PROs → pieces (view only).
 10. Tap **Outbound** to register trailers you are loading out (trailer, optional door, destination or Open).
+11. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
 
 ---
 

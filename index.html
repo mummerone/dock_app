@@ -271,6 +271,35 @@
 
   <div id="toast" class="toast hidden" role="status"></div>
 
+  <!-- Edit bill (PRO) sheet -->
+  <div id="editProOverlay" class="edit-pro-overlay hidden" hidden>
+    <div class="edit-pro-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-pro-heading">
+      <h2 id="edit-pro-heading">Edit bill (PRO)</h2>
+      <p class="hint">Change where this bill is going. Destination is shared by every piece. You can also fix door or trailer for all pieces of this bill — piece numbers stay the same.</p>
+      <label class="field">
+        <span>PRO number</span>
+        <input id="editProNumber" type="text" readonly class="readonly-field" />
+      </label>
+      <label class="field destination-field">
+        <span>Where is it going? (destination)</span>
+        <input id="editProDestination" type="text" autocomplete="off" placeholder="City, terminal code, or free text" />
+      </label>
+      <label class="field trailer-number-field">
+        <span>Trailer number (all pieces)</span>
+        <input id="editProTrailer" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345" />
+      </label>
+      <label class="field trailer-number-field door-number-field">
+        <span>Door number (all pieces)</span>
+        <input id="editProDoor" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12" />
+      </label>
+      <div class="edit-pro-actions">
+        <button type="button" id="editProCancelBtn" class="btn muted-btn">Cancel</button>
+        <button type="button" id="editProSaveBtn" class="btn accept-btn">Save</button>
+      </div>
+    </div>
+  </div>
+
+
   <script src="storage.js"></script>
   <script src="speech.js"></script>
   <script src="app.js"></script>

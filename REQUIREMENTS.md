@@ -97,7 +97,7 @@ Leave weight empty for the driver to enter.
 - For “what’s at door X”, use the latest/consistent trailer for that door from entries (group by door → trailer). If the same door later gets a different trailer, show the trailer from current entries.
 - Tap a door → list of all PROs on the trailer at that door
 - Tap a PRO → list of pieces with location next to each (e.g. `12/A/Left`), plus size/weight when available
-- Viewing only — no forklift instructions in this MVP
+- Mostly viewing — no forklift instructions in this MVP; **Edit bill** is available when drilling into a PRO (destination / door / trailer)
 - Same PRO = same trailer rule still applies
 
 
@@ -114,6 +114,12 @@ Leave weight empty for the driver to enter.
 - List registered outbound trailers plainly (trailer, destination or Open, door if set)
 - Stored in `localStorage` (`dockApp.outboundTrailers.v1`)
 - Same-PRO = same-trailer rule still applies to physical pieces; assigning pieces to outbound trailers by destination is a later step (not in this release)
+
+### 12. Edit logged bill (PRO)
+- After a PRO is logged, driver can **Edit bill** from Recent entries (PRO group), Dock drill-down when viewing a PRO, and Trailer load-out (per PRO).
+- Plain sheet: PRO number (read-only), destination field, Save / Cancel. Prefer also door + trailer fields that update **all pieces** of that PRO together (piece sequence unchanged).
+- Destination write goes to `dockApp.pros.v1` so every piece of the bill shares it — including bills whose pieces were saved before destination existed.
+- Does not require re-entering pieces. Glove-friendly labels.
 
 ### 9. Docs
 - `README.md` — beginner-friendly: open on computer, open on phone over same Wi‑Fi

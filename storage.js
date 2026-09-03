@@ -572,6 +572,72 @@
     return { nextNum: list.length + 1, total, count: list.length };
   }
 
+
+  /**
+   * Edit a logged bill (PRO) after the fact.
+   * - destination updates dockApp.pros.v1 (shared by all pieces; works even if
+   *   pieces were saved before destination existed).
+   * - trailerNumber / doorNumber update EVERY piece of that PRO together so
+   *   piece sequence stays intact and same-PRO = same-trailer holds.
+   * Does not require re-entering pieces.
+   * @param {string} pro
+   * @param {{ destination?: string, trailerNumber?: string, doorNumber?: string }} patch
+   * @returns {{ pro: string, destination: string, trailerNumber: string, doorNumber: string, pieceCount: number }|null}
+   */
+  function updateProBill(pro, patch) {
+    const key = String(pro || '').trim();
+    if (!key) return null;
+    patch = patch || {};
+
+    const pieces = entriesForPro(key);
+    if (!pieces.length && patch.destination == null) return null;
+
+    let destination = getProDestination(key);
+    if (patch.destination != null) {
+      const rec = setProDestination(key, patch.destination);
+      destination = rec ? rec.destination : '';
+    }
+
+    let trailerNumber = '';
+    let doorNumber = '';
+    const trailers = trailerNumbersForPro(key);
+    if (trailers.length) trailerNumber = trailers[0];
+    for (const e of pieces) {
+      const d = String(e.doorNumber || '').trim();
+      if (d) {
+        doorNumber = d;
+        break;
+      }
+    }
+
+    const touchTrailer = Object.prototype.hasOwnProperty.call(patch, 'trailerNumber');
+    const touchDoor = Object.prototype.hasOwnProperty.call(patch, 'doorNumber');
+
+    if ((touchTrailer || touchDoor) && pieces.length) {
+      const nextTrailer = touchTrailer
+        ? String(patch.trailerNumber || '').trim()
+        : null;
+      const nextDoor = touchDoor ? String(patch.doorNumber || '').trim() : null;
+      const all = readAll();
+      for (let i = 0; i < all.length; i++) {
+        if (String(all[i].pro || '').trim() !== key) continue;
+        if (nextTrailer != null) all[i].trailerNumber = nextTrailer;
+        if (nextDoor != null) all[i].doorNumber = nextDoor;
+      }
+      writeAll(all);
+      if (nextTrailer != null) trailerNumber = nextTrailer;
+      if (nextDoor != null) doorNumber = nextDoor;
+    }
+
+    return {
+      pro: key,
+      destination,
+      trailerNumber,
+      doorNumber,
+      pieceCount: entriesForPro(key).length,
+    };
+  }
+
   global.DockStorage = {
     STORAGE_KEY,
     PROS_KEY,
@@ -583,6 +649,7 @@
     getPro,
     getProDestination,
     setProDestination,
+    updateProBill,
     readOutboundTrailers,
     saveOutboundTrailer,
     updateOutboundTrailer,

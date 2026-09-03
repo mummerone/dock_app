@@ -40,6 +40,7 @@
     dockLevel: 'doors', // 'doors' | 'pros' | 'pieces'
     dockDoor: '',
     dockPro: '',
+    editingPro: '', // PRO open in Edit bill sheet
   };
 
   const el = {
@@ -106,6 +107,13 @@
     outboundOpenBtn: document.getElementById('outboundOpenBtn'),
     outboundSaveBtn: document.getElementById('outboundSaveBtn'),
     outboundList: document.getElementById('outboundList'),
+    editProOverlay: document.getElementById('editProOverlay'),
+    editProNumber: document.getElementById('editProNumber'),
+    editProDestination: document.getElementById('editProDestination'),
+    editProTrailer: document.getElementById('editProTrailer'),
+    editProDoor: document.getElementById('editProDoor'),
+    editProCancelBtn: document.getElementById('editProCancelBtn'),
+    editProSaveBtn: document.getElementById('editProSaveBtn'),
   };
 
   function init() {
@@ -121,6 +129,7 @@
     bindDock();
     bindOutbound();
     bindDestination();
+    bindEditPro();
     updateDimsUI();
     updateSlotPreview();
     selectField('h', { clearBuffer: true });
@@ -797,6 +806,8 @@
     proOrder.forEach((pro) => {
       const wrap = document.createElement('div');
       wrap.className = 'pro-group';
+      const head = document.createElement('div');
+      head.className = 'pro-group-head';
       const title = document.createElement('div');
       title.className = 'pro-group-title';
       const count = (groups[pro] || []).length;
@@ -805,9 +816,20 @@
         ? `trailer ${trailers.join(', ')}`
         : 'same trailer';
       const dest = DockStorage.getProDestination(pro);
-      const destNote = dest ? ` · → ${dest}` : '';
+      const destNote = dest ? ` · → ${dest}` : ' · no destination yet';
       title.textContent = `PRO ${pro} · ${count} piece(s) · ${trailerNote}${destNote}`;
-      wrap.appendChild(title);
+      head.appendChild(title);
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'btn tiny muted-btn edit-pro-btn';
+      editBtn.textContent = 'Edit bill';
+      editBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openEditPro(pro);
+      });
+      head.appendChild(editBtn);
+      wrap.appendChild(head);
 
       recent
         .filter((e) => e.pro === pro)
@@ -833,7 +855,7 @@
     const dest = DockStorage.getProDestination(e.pro);
     const destLine = dest
       ? `<div class="entry-dest">Going to: ${escapeHtml(dest)}</div>`
-      : '';
+      : `<div class="entry-dest entry-dest-missing">No destination yet</div>`;
     div.innerHTML = `
       <div class="entry-top">
         <span class="entry-pro">${escapeHtml(e.pro)} · ${escapeHtml(e.pieceFraction)}</span>
@@ -1015,18 +1037,29 @@
       const wrap = document.createElement('div');
       wrap.className = 'loadout-pro';
 
+      const head = document.createElement('div');
+      head.className = 'loadout-pro-head';
       const title = document.createElement('h3');
       title.className = 'loadout-pro-title';
       title.textContent = `Bill (PRO) ${g.pro}`;
-      wrap.appendChild(title);
+      head.appendChild(title);
+      const editBtn = document.createElement('button');
+      editBtn.type = 'button';
+      editBtn.className = 'btn tiny muted-btn edit-pro-btn';
+      editBtn.textContent = 'Edit bill';
+      editBtn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        openEditPro(g.pro);
+      });
+      head.appendChild(editBtn);
+      wrap.appendChild(head);
 
       const dest = g.destination || DockStorage.getProDestination(g.pro);
-      if (dest) {
-        const destEl = document.createElement('div');
-        destEl.className = 'loadout-pro-dest';
-        destEl.textContent = `Going to: ${dest}`;
-        wrap.appendChild(destEl);
-      }
+      const destEl = document.createElement('div');
+      destEl.className = 'loadout-pro-dest';
+      destEl.textContent = dest ? `Going to: ${dest}` : 'No destination yet — tap Edit bill';
+      wrap.appendChild(destEl);
 
       const meta = document.createElement('div');
       meta.className = 'loadout-pro-meta';
@@ -1099,7 +1132,7 @@
     }
     if (el.dockHint) {
       el.dockHint.textContent =
-        `PRO ${state.dockPro} at door ${state.dockDoor} — pieces with location. Viewing only.`;
+        `PRO ${state.dockPro} at door ${state.dockDoor} — pieces with location. Tap Edit bill to change destination, door, or trailer.`;
     }
     renderDockPieces();
   }
@@ -1188,13 +1221,27 @@
     const head = document.createElement('div');
     head.className = 'dock-context';
     const proDest = DockStorage.getProDestination(state.dockPro);
-    const destSub = proDest ? ` · Going to ${escapeHtml(proDest)}` : '';
+    const destSub = proDest
+      ? ` · Going to ${escapeHtml(proDest)}`
+      : ' · no destination yet';
     head.innerHTML = `
-      <div class="dock-context-title">PRO ${escapeHtml(state.dockPro)}</div>
-      <div class="dock-context-sub">Door ${escapeHtml(data.doorNumber)} · Trailer ${escapeHtml(data.trailerNumber || '—')}${destSub}</div>
+      <div class="dock-context-top">
+        <div>
+          <div class="dock-context-title">PRO ${escapeHtml(state.dockPro)}</div>
+          <div class="dock-context-sub">Door ${escapeHtml(data.doorNumber)} · Trailer ${escapeHtml(data.trailerNumber || '—')}${destSub}</div>
+        </div>
+        <button type="button" class="btn tiny muted-btn edit-pro-btn" id="dockEditProBtn">Edit bill</button>
+      </div>
     `;
     el.dockBoard.innerHTML = '';
     el.dockBoard.appendChild(head);
+    const dockEdit = head.querySelector('#dockEditProBtn');
+    if (dockEdit) {
+      dockEdit.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        openEditPro(state.dockPro);
+      });
+    }
 
     if (!group || !group.pieces.length) {
       const empty = document.createElement('div');
@@ -1319,6 +1366,111 @@
     el.outboundList.appendChild(frag);
   }
 
+
+  function bindEditPro() {
+    if (!el.editProOverlay) return;
+    if (el.editProCancelBtn) {
+      el.editProCancelBtn.addEventListener('click', () => closeEditPro());
+    }
+    if (el.editProSaveBtn) {
+      el.editProSaveBtn.addEventListener('click', () => saveEditPro());
+    }
+    el.editProOverlay.addEventListener('click', (ev) => {
+      if (ev.target === el.editProOverlay) closeEditPro();
+    });
+    if (el.editProDestination) {
+      el.editProDestination.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          saveEditPro();
+        }
+      });
+    }
+  }
+
+  /**
+   * Open plain Edit bill sheet for a PRO already on the dock.
+   * Destination updates pros store; door/trailer update every piece of that PRO.
+   */
+  function openEditPro(pro) {
+    const key = String(pro || '').trim();
+    if (!key || !el.editProOverlay) return;
+    state.editingPro = key;
+    const dest = DockStorage.getProDestination(key);
+    const pieces = DockStorage.entriesForPro(key);
+    const trailers = DockStorage.trailerNumbersForPro(key);
+    let door = '';
+    for (const e of pieces) {
+      const d = String(e.doorNumber || '').trim();
+      if (d) {
+        door = d;
+        break;
+      }
+    }
+    if (el.editProNumber) el.editProNumber.value = key;
+    if (el.editProDestination) el.editProDestination.value = dest || '';
+    if (el.editProTrailer) el.editProTrailer.value = trailers[0] || '';
+    if (el.editProDoor) el.editProDoor.value = door;
+    el.editProOverlay.classList.remove('hidden');
+    el.editProOverlay.removeAttribute('hidden');
+    if (el.editProDestination) {
+      setTimeout(() => {
+        el.editProDestination.focus();
+        el.editProDestination.select();
+      }, 50);
+    }
+  }
+
+  function closeEditPro() {
+    state.editingPro = '';
+    if (!el.editProOverlay) return;
+    el.editProOverlay.classList.add('hidden');
+    el.editProOverlay.setAttribute('hidden', '');
+  }
+
+  function saveEditPro() {
+    const pro = state.editingPro || (el.editProNumber && el.editProNumber.value.trim()) || '';
+    if (!pro) {
+      toast('No PRO to edit');
+      return;
+    }
+    const destination = el.editProDestination ? el.editProDestination.value.trim() : '';
+    const trailerNumber = el.editProTrailer ? el.editProTrailer.value.trim() : '';
+    const doorNumber = el.editProDoor ? el.editProDoor.value.trim() : '';
+
+    const result = DockStorage.updateProBill(pro, {
+      destination,
+      trailerNumber,
+      doorNumber,
+    });
+    if (!result) {
+      toast('Could not update this bill');
+      return;
+    }
+
+    closeEditPro();
+    refreshAfterProEdit(pro);
+    // Keep entry form in sync if driver is still on this PRO
+    if (el.pro && el.pro.value.trim() === pro) {
+      syncDestinationFromPro();
+      if (el.trailerNumber && trailerNumber) el.trailerNumber.value = trailerNumber;
+      if (el.doorNumber) el.doorNumber.value = doorNumber;
+    }
+    const destMsg = result.destination
+      ? `→ ${result.destination}`
+      : 'destination cleared';
+    toast(`Updated PRO ${pro} ${destMsg}`);
+  }
+
+  function refreshAfterProEdit(pro) {
+    renderRecent();
+    if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
+    refreshLoadoutTrailerPicker();
+    if (state.view === 'dock') renderDock();
+    if (state.view === 'outbound') renderOutboundList();
+    syncPieceSequenceFromStorage();
+  }
+
   let toastTimer = null;
   function toast(msg) {
     el.toast.textContent = msg;
@@ -1337,7 +1489,7 @@
   }
 
   // Expose parse for quick console tests
-  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro };
+  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro, openEditPro, closeEditPro };
 
   init();
 })();

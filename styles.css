@@ -1087,3 +1087,89 @@ button {
   font-weight: 700;
 }
 
+.entry-dest-missing {
+  color: #e8b84a;
+  font-weight: 700;
+}
+
+
+/* Edit bill (PRO) sheet */
+.pro-group-head,
+.loadout-pro-head,
+.dock-context-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.pro-group-head .pro-group-title,
+.loadout-pro-head .loadout-pro-title {
+  margin: 4px 0 0;
+  flex: 1;
+}
+
+.edit-pro-btn {
+  flex-shrink: 0;
+  min-height: 44px;
+  min-width: 88px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.edit-pro-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(5, 10, 18, 0.72);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+}
+
+.edit-pro-overlay.hidden {
+  display: none;
+}
+
+.edit-pro-sheet {
+  width: min(520px, 100%);
+  max-height: calc(100vh - 24px);
+  overflow: auto;
+  background: #121c2e;
+  border: 2px solid #2d405c;
+  border-radius: 18px 18px 14px 14px;
+  padding: 16px 14px 18px;
+  box-shadow: var(--shadow);
+}
+
+.edit-pro-sheet h2 {
+  margin: 0 0 6px;
+  font-size: 1.25rem;
+}
+
+.edit-pro-sheet .readonly-field,
+.field input.readonly-field {
+  background: #0a1220;
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.edit-pro-actions {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+@media (min-width: 560px) {
+  .edit-pro-overlay {
+    align-items: center;
+  }
+  .edit-pro-sheet {
+    border-radius: 18px;
+  }
+}
