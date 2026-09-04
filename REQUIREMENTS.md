@@ -122,11 +122,11 @@ Leave weight empty for the driver to enter.
 - Destination write goes to `dockApp.pros.v1` so every piece of the bill shares it — including bills whose pieces were saved before destination existed.
 - Does not require re-entering pieces. Glove-friendly labels.
 
-### 13. Plan tab — demo inbound + local high-and-tight planner
+### 13. Plan tab — demo inbound + local floor-first planner
 - Under **Dock** → **Demo plan** (not a separate top tab); demo inbound button lives on **Dock** → **Inbound**
-- **Load demo inbound** (with confirm): clears logged freight + last plan; seeds ~5 inbound trailers at doors with many pieces; random realistic dims/weights; destinations randomly from Salt Lake City, Denver, San Antonio, Missoula Montana, Rapid City South Dakota (whole PRO one destination); inbound slots packed high-and-tight style; auto-creates outbound trailer stubs for those 5 destinations if missing
+- **Load demo inbound** (with confirm): clears logged freight + last plan; seeds ~5 inbound trailers at doors with many pieces; random realistic dims/weights; destinations randomly from Salt Lake City, Denver, San Antonio, Missoula Montana, Rapid City South Dakota (whole PRO one destination); inbound slots packed floor-first (A), then decks B/C; auto-creates outbound trailer stubs for those 5 destinations if missing
 - **Run load plan (demo AI)**: local planner only (no cloud AI / ChatGPT). Clear `runLoadPlan()` entry point in `loadPlan.js` so a real AI backend can replace the body later. UI must say **demo planner** / **demo AI**
-- Planner rules: same-PRO = same outbound trailer; prefer one outbound trailer per destination (do not mix destinations on one outbound if avoidable); pack dense high-and-tight on deck trailers using levels A=floor, B=first deck, C=second deck; place pieces in slots 1–12 × A–C × Left/Middle/Right (floor first, then decks)
+- Planner rules: same-PRO = same outbound trailer; prefer one outbound trailer per destination (do not mix destinations on one outbound if avoidable); pack dense floor-first on deck trailers using levels A=floor, B=first deck, C=second deck; place pieces in slots 1–12 × A–C × Left/Middle/Right (floor first, then decks)
 - Output: move list (from door/trailer/slot → outbound trailer/slot) + Plan view of outbound load-outs; persist in `localStorage` (`dockApp.loadPlan.v1`)
 - Keep Log / Dock (Inbound·Outbound·Demo plan) / Edit / load-out working
 

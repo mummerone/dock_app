@@ -1203,83 +1203,137 @@ button {
 .plan-outbound-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   margin-top: 10px;
 }
 
 .plan-moves-card {
-  scroll-margin-top: 140px;
+  scroll-margin-top: 24px;
 }
 
 #dockPanelPlan {
-  scroll-margin-top: 140px;
+  scroll-margin-top: 24px;
 }
 
-/* Grouped / collapsible move sections (by outbound trailer) */
+/* Grouped / collapsible move sections (by outbound trailer) — unmistakable headers */
 .plan-move-group {
-  background: #0c1524;
-  border: 1px solid #2a3c58;
-  border-radius: 14px;
+  background: #0a1220;
+  border: 2px solid #3a5478;
+  border-radius: 16px;
   overflow: hidden;
-  scroll-margin-top: 140px;
+  scroll-margin-top: 16px;
+  margin: 0;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.28);
+}
+
+.plan-move-group + .plan-move-group {
+  margin-top: 6px;
 }
 
 .plan-move-group-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  padding: 14px 16px;
+  display: block; /* Safari: flex on <summary> can break open/close */
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0;
   cursor: pointer;
   list-style: none;
   font-weight: 800;
-  background: #132038;
-  border-bottom: 1px solid transparent;
-  min-height: 52px;
+  background: linear-gradient(180deg, #243652 0%, #1a2a44 100%);
+  border-bottom: 2px solid #0b1220;
+  border-left: 6px solid var(--accent);
+  min-height: 64px;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.plan-move-group-head-inner {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px 14px;
+  min-height: 64px;
+}
+
+.plan-move-group-head::-webkit-details-marker,
+.plan-move-group-head::marker {
+  display: none;
+  content: '';
+}
+
+.plan-move-group > summary {
+  list-style: none;
 }
 
 .plan-move-group[open] > .plan-move-group-head {
-  border-bottom-color: #24344f;
+  border-bottom-color: #2a405c;
+  background: linear-gradient(180deg, #2a4060 0%, #1e3250 100%);
 }
 
-.plan-move-group-head::-webkit-details-marker {
-  display: none;
-}
-
-.plan-move-group-head::before {
-  content: '▸';
+.plan-move-group-chevron {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(245, 166, 35, 0.18);
   color: var(--accent);
+  font-size: 1.15rem;
   font-weight: 900;
-  margin-right: 4px;
+  line-height: 1;
 }
 
-.plan-move-group[open] > .plan-move-group-head::before {
-  content: '▾';
+.plan-move-group[open] > .plan-move-group-head .plan-move-group-chevron {
+  transform: rotate(90deg);
+}
+
+.plan-move-group-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.plan-move-group-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  line-height: 1.2;
 }
 
 .plan-move-group-title {
-  flex: 1 1 auto;
   color: var(--text);
-  font-size: 1rem;
+  font-size: 1.12rem;
   line-height: 1.25;
+  font-weight: 800;
 }
 
 .plan-move-group-count {
   flex: 0 0 auto;
-  font-size: 0.85rem;
-  font-weight: 800;
+  font-size: 0.9rem;
+  font-weight: 900;
   color: #0b1220;
   background: var(--accent);
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 8px 12px;
+  box-shadow: 0 2px 0 var(--accent-dim);
+  white-space: nowrap;
 }
 
 .plan-move-group-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 10px 12px;
+  padding: 12px 10px 14px;
+  background: #0c1524;
 }
 
 .plan-move-row {
@@ -1413,13 +1467,22 @@ button {
   padding-bottom: 8px;
 }
 
-/* Demo plan: keep dock tabs in flow so sticky chrome does not cover the move list */
+/* Demo plan: disable sticky chrome so topbar/tabs never cover the move list */
+.plan-scroll-mode .topbar,
+.plan-scroll-mode .view-tabs,
+.plan-scroll-mode .dock-subnav,
 .dock-view.dock-plan-mode .dock-subnav {
   position: static;
   top: auto;
   z-index: auto;
   background: transparent;
   padding-bottom: 0;
+}
+
+.plan-scroll-mode .plan-moves-card,
+.plan-scroll-mode #dockPanelPlan,
+.plan-scroll-mode .plan-move-group {
+  scroll-margin-top: 16px;
 }
 
 .dock-subtab {

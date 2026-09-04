@@ -913,6 +913,17 @@
       .replace(/"/g, '&quot;');
   }
 
+  /** Strip legacy "high-and-tight" wording from saved plan notes / status. */
+  function sanitizePlanNote(note) {
+    if (note == null || note === '') return '';
+    return String(note)
+      .replace(/Packed\s+high-and-tight:?\s*/gi, 'Packed floor first, then decks — ')
+      .replace(/high-and-tight/gi, 'Packed floor first, then decks')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/\s+—\s*—/g, ' —')
+      .trim();
+  }
+
 
   function setPanelVisible(panel, on) {
     if (!panel) return;
@@ -940,6 +951,11 @@
     }
   }
 
+  function setPlanScrollMode(on) {
+    document.body.classList.toggle('plan-scroll-mode', Boolean(on));
+    if (el.viewDock) el.viewDock.classList.toggle('dock-plan-mode', Boolean(on));
+  }
+
   function showDockSection(section) {
     state.dockSection = section;
     const panels = {
@@ -962,8 +978,8 @@
       tab.classList.toggle('active', on);
       tab.setAttribute('aria-selected', on ? 'true' : 'false');
     });
-    // On Demo plan, unstick dock sub-nav so sticky tabs don't cover the long move list
-    if (el.viewDock) el.viewDock.classList.toggle('dock-plan-mode', section === 'plan');
+    // Demo plan: unstick topbar + view-tabs + dock sub-nav so chrome does not cover moves
+    setPlanScrollMode(section === 'plan');
     if (section === 'inbound') renderDock();
     if (section === 'outbound') renderOutboundList();
     if (section === 'plan') renderPlan();
@@ -1001,6 +1017,9 @@
     if (name === 'dock') {
       // Ensure current Dock subsection panel is visible and populated
       showDockSection(state.dockSection || 'inbound');
+    } else {
+      // Leaving Dock — restore sticky chrome
+      setPlanScrollMode(false);
     }
   }
 
@@ -1691,13 +1710,14 @@
     renderPlan();
     renderOutboundList();
     const s = plan.summary || {};
+    const noteSafe = sanitizePlanNote(s.note || '');
     if (el.planStatusHint) {
-      el.planStatusHint.textContent = s.note
-        ? `Plan: ${s.moveCount || 0} moves · ${s.outboundCount || 0} outbound · ${s.note}`
+      el.planStatusHint.textContent = noteSafe
+        ? `Plan: ${s.moveCount || 0} moves · ${s.outboundCount || 0} outbound · ${noteSafe}`
         : `Plan ready: ${s.moveCount || 0} moves`;
     }
     if (!(s.moveCount > 0)) {
-      toast(s.note || 'Nothing to plan');
+      toast(noteSafe || 'Nothing to plan');
       return;
     }
     toast(`Plan ready: ${s.moveCount} moves → ${s.outboundCount} outbound`);
@@ -1713,8 +1733,9 @@
   function renderPlanSummary(plan) {
     if (!el.planSummary) return;
     if (!plan || !(plan.moves && plan.moves.length) && !(plan.outboundLoadouts && plan.outboundLoadouts.length)) {
-      const note = plan && plan.summary && plan.summary.note
-        ? `<div class="empty-state">${escapeHtml(plan.summary.note)}</div>`
+      const rawNote = plan && plan.summary && plan.summary.note;
+      const note = rawNote
+        ? `<div class="empty-state">${escapeHtml(sanitizePlanNote(rawNote))}</div>`
         : '<div class="empty-state">No plan yet — load demo inbound, then build the load plan.</div>';
       el.planSummary.innerHTML = note;
       return;
@@ -1723,6 +1744,7 @@
     const when = plan.createdAt
       ? DockStorage.formatTimeLocal(plan.createdAt)
       : '—';
+    const noteSafe = sanitizePlanNote(s.note || '');
     el.planSummary.innerHTML = `
       <div class="plan-summary-grid">
         <div class="summary-row"><span class="summary-label">Planner</span><span class="summary-value">${escapeHtml(plan.label || plan.planner || 'demo')}</span></div>
@@ -1732,7 +1754,7 @@
         <div class="summary-row"><span class="summary-label">Outbound</span><span class="summary-value">${escapeHtml(String(s.outboundCount != null ? s.outboundCount : (plan.outboundLoadouts || []).length))}</span></div>
         <div class="summary-row"><span class="summary-label">Skipped</span><span class="summary-value">${escapeHtml(String(s.skippedNoDest || 0))} no dest</span></div>
       </div>
-      <p class="hint plan-note">${escapeHtml(s.note || '')}</p>
+      <p class="hint plan-note">${escapeHtml(noteSafe)}</p>
     `;
   }
 
@@ -1764,16 +1786,31 @@
     });
 
     const frag = document.createDocumentFragment();
+    let groupIndex = 0;
     groups.forEach((g) => {
       const details = document.createElement('details');
       details.className = 'plan-move-group';
+      // First group always open; others open too so headers stay visible between groups
       details.open = true;
+      if (groupIndex === 0) details.setAttribute('open', '');
+      groupIndex += 1;
       const count = g.items.length;
+      const trailerLabel =
+        g.trailer && g.trailer !== '—'
+          ? `Trailer ${g.trailer}`
+          : `Destination ${g.destination}`;
       const summary = document.createElement('summary');
       summary.className = 'plan-move-group-head';
+      // Inner flex row — Safari can break toggle if <summary> itself is display:flex
       summary.innerHTML = `
-        <span class="plan-move-group-title">→ Trailer ${escapeHtml(g.trailer)} · ${escapeHtml(g.destination)}</span>
-        <span class="plan-move-group-count">${count} move${count === 1 ? '' : 's'}</span>
+        <span class="plan-move-group-head-inner">
+          <span class="plan-move-group-chevron" aria-hidden="true">▸</span>
+          <span class="plan-move-group-text">
+            <span class="plan-move-group-label">Outbound group</span>
+            <span class="plan-move-group-title">${escapeHtml(trailerLabel)} · ${escapeHtml(g.destination)}</span>
+          </span>
+          <span class="plan-move-group-count">${count} move${count === 1 ? '' : 's'}</span>
+        </span>
       `;
       details.appendChild(summary);
 

@@ -259,7 +259,7 @@
   }
 
   /**
-   * Local high-and-tight demo planner.
+   * Local floor-first demo planner.
    * Reads all inbound dock pieces + destinations, assigns PROs to outbound
    * trailers by destination (one trailer per dest when possible), packs
    * floor→decks into slots 1–12 × A–C × L/M/R, returns and persists a plan.

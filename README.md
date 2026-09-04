@@ -103,7 +103,7 @@ One **Dock** tab covers inbound doors, outbound trailers, and the demo load plan
 1. Tap **Dock** → **Demo plan**.
 2. Local demo planner on this device (builds a load plan from inbound freight).
 3. **Build load plan (demo)** / **Clear plan**, then plan summary, move list (grouped by outbound trailer, collapsible, with counts), and planned outbound load-outs.
-4. On Demo plan, dock sub-tabs stay in normal flow so sticky chrome does not cover the long move list while scrolling.
+4. On Demo plan, sticky chrome is turned off (`plan-scroll-mode`): top bar, main view tabs, and dock sub-tabs all scroll away with the page so they do not cover the long move list.
 5. Tip: load demo inbound on **Inbound** first so there is freight to plan.
 
 ## Destination on each PRO
