@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0b1220" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="description" content="Dock App — LTL freight log, dock inbound/outbound board, and demo high-and-tight load plan" />
+  <meta name="description" content="Dock App — LTL freight log, dock inbound/outbound board, and demo load plan" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
@@ -233,7 +233,7 @@
         <div id="dockPanelInbound" class="dock-panel" role="tabpanel" aria-labelledby="dockSubInbound">
           <section class="card demo-inbound-card" aria-labelledby="demo-inbound-heading">
             <h2 id="demo-inbound-heading">Demo inbound trailers</h2>
-            <p class="hint">Generates <strong>5 high-and-tight inbound trailers</strong> for demo (doors + PROs + pieces). Destinations: Salt Lake City, Denver, San Antonio, Missoula Montana, Rapid City South Dakota. Whole PRO = one destination. Also creates outbound stubs for those cities if missing.</p>
+            <p class="hint">Generates <strong>5 packed demo inbound trailers</strong> (doors + PROs + pieces). Destinations: Salt Lake City, Denver, San Antonio, Missoula Montana, Rapid City South Dakota. Whole PRO = one destination. Also creates outbound stubs for those cities if missing.</p>
             <p class="hint bol-note">Confirm before wipe — this replaces all logged freight and the last plan on this device. Outbound registry is kept (stubs added).</p>
             <button type="button" id="loadDemoInboundBtn" class="btn accept-btn demo-primary-btn">Load demo inbound trailers</button>
           </section>
@@ -283,10 +283,10 @@
 
         <div id="dockPanelPlan" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubPlan" hidden>
           <section class="card" aria-labelledby="plan-run-heading">
-            <h2 id="plan-run-heading">Load plan (demo planner)</h2>
-            <p class="hint">This is a <strong>local demo planner</strong> — not ChatGPT / cloud AI. It reads inbound dock freight, keeps same-PRO pieces together, prefers one outbound trailer per destination, and packs floor (A) then decks B/C into slots 1–12 × A–C × Left/Middle/Right.</p>
+            <h2 id="plan-run-heading">Build load plan (demo)</h2>
+            <p class="hint">Local demo planner on this device. Reads inbound dock freight, keeps same-PRO pieces together, prefers one outbound trailer per destination, and packs floor first (A), then decks B/C into slots 1–12 × A–C × Left/Middle/Right.</p>
             <p class="hint">Tip: generate freight first with <strong>Load demo inbound trailers</strong> on the Inbound section.</p>
-            <button type="button" id="runLoadPlanBtn" class="btn speak-btn demo-primary-btn">Run load plan (demo AI)</button>
+            <button type="button" id="runLoadPlanBtn" class="btn speak-btn demo-primary-btn">Build load plan (demo)</button>
             <button type="button" id="clearPlanBtn" class="btn muted-btn demo-secondary-btn">Clear plan</button>
             <p class="hint" id="planStatusHint" aria-live="polite"></p>
           </section>
@@ -298,9 +298,9 @@
             </div>
           </section>
 
-          <section class="card" aria-labelledby="plan-moves-heading">
+          <section class="card plan-moves-card" aria-labelledby="plan-moves-heading">
             <h2 id="plan-moves-heading">Move list</h2>
-            <p class="hint">From door / inbound trailer / slot → outbound trailer / slot.</p>
+            <p class="hint">Grouped by outbound trailer. From door / inbound trailer / slot → outbound trailer / slot. Tap a group header to collapse or expand.</p>
             <div id="planMoveList" class="plan-move-list">
               <div class="empty-state">Moves appear here after you run the plan.</div>
             </div>

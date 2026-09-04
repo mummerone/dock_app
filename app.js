@@ -962,6 +962,8 @@
       tab.classList.toggle('active', on);
       tab.setAttribute('aria-selected', on ? 'true' : 'false');
     });
+    // On Demo plan, unstick dock sub-nav so sticky tabs don't cover the long move list
+    if (el.viewDock) el.viewDock.classList.toggle('dock-plan-mode', section === 'plan');
     if (section === 'inbound') renderDock();
     if (section === 'outbound') renderOutboundList();
     if (section === 'plan') renderPlan();
@@ -1639,7 +1641,7 @@
   function onLoadDemoInbound() {
     toast('Opening confirm…');
     if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.seedDemoInbound) {
-      toast('Demo planner not loaded — try a hard refresh');
+      toast('Load planner not loaded — try a hard refresh');
       return;
     }
     const existing = DockStorage.readAll().length;
@@ -1682,7 +1684,7 @@
 
   function onRunLoadPlan() {
     if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.runLoadPlan) {
-      toast('Demo planner not loaded');
+      toast('Load planner not loaded');
       return;
     }
     const plan = DockLoadPlan.runLoadPlan();
@@ -1691,14 +1693,14 @@
     const s = plan.summary || {};
     if (el.planStatusHint) {
       el.planStatusHint.textContent = s.note
-        ? `Demo planner: ${s.moveCount || 0} moves · ${s.outboundCount || 0} outbound · ${s.note}`
-        : `Demo planner finished: ${s.moveCount || 0} moves`;
+        ? `Plan: ${s.moveCount || 0} moves · ${s.outboundCount || 0} outbound · ${s.note}`
+        : `Plan ready: ${s.moveCount || 0} moves`;
     }
     if (!(s.moveCount > 0)) {
       toast(s.note || 'Nothing to plan');
       return;
     }
-    toast(`Demo planner: ${s.moveCount} moves → ${s.outboundCount} outbound`);
+    toast(`Plan ready: ${s.moveCount} moves → ${s.outboundCount} outbound`);
   }
 
   function renderPlan() {
@@ -1713,7 +1715,7 @@
     if (!plan || !(plan.moves && plan.moves.length) && !(plan.outboundLoadouts && plan.outboundLoadouts.length)) {
       const note = plan && plan.summary && plan.summary.note
         ? `<div class="empty-state">${escapeHtml(plan.summary.note)}</div>`
-        : '<div class="empty-state">No plan yet — load demo inbound, then run the demo planner.</div>';
+        : '<div class="empty-state">No plan yet — load demo inbound, then build the load plan.</div>';
       el.planSummary.innerHTML = note;
       return;
     }
@@ -1742,30 +1744,68 @@
         '<div class="empty-state">Moves appear here after you run the plan.</div>';
       return;
     }
-    const frag = document.createDocumentFragment();
+
+    // Group by outbound trailer (fallback: destination) so long plans are scannable
+    const groups = new Map();
     moves.forEach((m, idx) => {
-      const div = document.createElement('div');
-      div.className = 'plan-move-row';
-      const fromDoor = (m.from && m.from.door) || '—';
-      const fromTr = (m.from && m.from.trailer) || '—';
-      const fromSlot = (m.from && m.from.slot) || '—';
-      const toTr = (m.to && m.to.trailer) || '—';
-      const toSlot = (m.to && m.to.slot) || '—';
+      const toTr = (m.to && m.to.trailer) || '';
       const dest = m.destination || '';
-      div.innerHTML = `
-        <div class="plan-move-top">
-          <span class="plan-move-num">#${idx + 1}</span>
-          <span class="plan-move-pro">PRO ${escapeHtml(m.pro || '—')} · ${escapeHtml(m.pieceFraction || '—')}</span>
-        </div>
-        <div class="plan-move-dest">${escapeHtml(dest || '—')}</div>
-        <div class="plan-move-path">
-          <span class="plan-from">Door ${escapeHtml(fromDoor)} · Trl ${escapeHtml(fromTr)} · ${escapeHtml(fromSlot)}</span>
-          <span class="plan-arrow" aria-hidden="true">→</span>
-          <span class="plan-to">Trl ${escapeHtml(toTr)} · ${escapeHtml(toSlot)}</span>
-        </div>
-      `;
-      frag.appendChild(div);
+      const key = toTr ? `trl:${toTr}` : `dest:${dest || 'unknown'}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          trailer: toTr || '—',
+          destination: dest || '—',
+          items: [],
+        });
+      }
+      const g = groups.get(key);
+      if ((!g.destination || g.destination === '—') && dest) g.destination = dest;
+      g.items.push({ m, idx });
     });
+
+    const frag = document.createDocumentFragment();
+    groups.forEach((g) => {
+      const details = document.createElement('details');
+      details.className = 'plan-move-group';
+      details.open = true;
+      const count = g.items.length;
+      const summary = document.createElement('summary');
+      summary.className = 'plan-move-group-head';
+      summary.innerHTML = `
+        <span class="plan-move-group-title">→ Trailer ${escapeHtml(g.trailer)} · ${escapeHtml(g.destination)}</span>
+        <span class="plan-move-group-count">${count} move${count === 1 ? '' : 's'}</span>
+      `;
+      details.appendChild(summary);
+
+      const body = document.createElement('div');
+      body.className = 'plan-move-group-body';
+      g.items.forEach(({ m, idx }) => {
+        const div = document.createElement('div');
+        div.className = 'plan-move-row';
+        const fromDoor = (m.from && m.from.door) || '—';
+        const fromTr = (m.from && m.from.trailer) || '—';
+        const fromSlot = (m.from && m.from.slot) || '—';
+        const toTr = (m.to && m.to.trailer) || '—';
+        const toSlot = (m.to && m.to.slot) || '—';
+        const dest = m.destination || '';
+        div.innerHTML = `
+          <div class="plan-move-top">
+            <span class="plan-move-num">#${idx + 1}</span>
+            <span class="plan-move-pro">PRO ${escapeHtml(m.pro || '—')} · ${escapeHtml(m.pieceFraction || '—')}</span>
+          </div>
+          <div class="plan-move-dest">${escapeHtml(dest || '—')}</div>
+          <div class="plan-move-path">
+            <span class="plan-from">Door ${escapeHtml(fromDoor)} · Trl ${escapeHtml(fromTr)} · ${escapeHtml(fromSlot)}</span>
+            <span class="plan-arrow" aria-hidden="true">→</span>
+            <span class="plan-to">Trl ${escapeHtml(toTr)} · ${escapeHtml(toSlot)}</span>
+          </div>
+        `;
+        body.appendChild(div);
+      });
+      details.appendChild(body);
+      frag.appendChild(details);
+    });
+
     el.planMoveList.innerHTML = '';
     el.planMoveList.appendChild(frag);
   }

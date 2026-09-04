@@ -90,7 +90,7 @@ One **Dock** tab covers inbound doors, outbound trailers, and the demo load plan
 ### Inbound
 1. When you **Log freight**, also enter the **Door number** (the dock door where that trailer sits).
 2. Tap **Dock** → **Inbound**.
-3. At the top: **Load demo inbound trailers** — confirms, then generates 5 high-and-tight inbound trailers for demo (same `seedDemoInbound()` as before; wipes logged freight + last plan).
+3. At the top: **Load demo inbound trailers** — confirms, then generates 5 packed demo inbound trailers (same `seedDemoInbound()` as before; wipes logged freight + last plan).
 4. Below that: door board — doors that have freight → tap a door → bills (PROs) → pieces with slot/size/weight.
 5. Viewing only on the board — no forklift instructions yet.
 
@@ -101,9 +101,10 @@ One **Dock** tab covers inbound doors, outbound trailers, and the demo load plan
 
 ### Demo plan
 1. Tap **Dock** → **Demo plan**.
-2. This is a **local demo planner** (not ChatGPT / cloud AI).
-3. **Run load plan (demo AI)** / **Clear plan**, then plan summary, move list, and planned outbound load-outs.
-4. Tip: load demo inbound on **Inbound** first so there is freight to plan.
+2. Local demo planner on this device (builds a load plan from inbound freight).
+3. **Build load plan (demo)** / **Clear plan**, then plan summary, move list (grouped by outbound trailer, collapsible, with counts), and planned outbound load-outs.
+4. On Demo plan, dock sub-tabs stay in normal flow so sticky chrome does not cover the long move list while scrolling.
+5. Tip: load demo inbound on **Inbound** first so there is freight to plan.
 
 ## Destination on each PRO
 
@@ -134,7 +135,7 @@ Works even if some pieces were logged before destination existed.
 8. Tap **Trailer load-out** anytime to review all bills and pieces on a chosen trailer.
 9. Tap **Dock** → **Inbound** for the door board (and **Load demo inbound trailers** at the top).
 10. Tap **Dock** → **Outbound** to register trailers you are loading out.
-11. Tap **Dock** → **Demo plan** to run the local high-and-tight demo planner.
+11. Tap **Dock** → **Demo plan** to build the local demo load plan.
 12. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
 
 ---
@@ -148,9 +149,9 @@ Works even if some pieces were logged before destination existed.
 | `app.js` | Screen logic and buttons |
 | `speech.js` | Voice listening and parsing (“48 by 40 by 48, 1200”) |
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
-| `loadPlan.js` | Demo inbound seed + local high-and-tight `runLoadPlan()` (swap body later for a real AI backend) |
+| `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v13`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v15`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
@@ -162,7 +163,7 @@ Works even if some pieces were logged before destination existed.
 - **Voice (Web Speech API):** Works best in **Chrome** and **Safari**. Usually needs **https://** or **localhost**. May fail on Firefox or on plain HTTP LAN URLs. Use the number pad if voice is blocked.
 - **Data stays in this browser:** Entries are stored in `localStorage` on the device/browser you used. Clearing site data, using a different browser, or a different phone will not show the same list.
 - **No sync / no TMS:** This MVP does not talk to company billing software.
-- **Not a toy form:** Built for gloves and noise — large taps, high contrast — but it is still an MVP, not a full dock AI system.
+- **Not a toy form:** Built for gloves and noise — large taps, high contrast — but it is still an MVP, not a full dock planning system.
 
 ---
 

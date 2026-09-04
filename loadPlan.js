@@ -1,8 +1,8 @@
 /**
- * Dock App — local high-and-tight load planner (DEMO)
+ * Dock App — local demo load planner
  * ----------------------------------------------------
- * Phone / GitHub Pages build has NO cloud AI API.
- * runLoadPlan() is a solid local demo planner. A real AI backend can
+ * Phone / GitHub Pages build has no remote planning API.
+ * runLoadPlan() is a local demo planner. A real backend can
  * replace the body of runLoadPlan() later while keeping the same shape.
  *
  * Permanent rule: all pieces of the same PRO stay on the same trailer.
@@ -66,7 +66,7 @@
   }
 
   /**
-   * Ordered slot list for high-and-tight packing on a deck trailer.
+   * Ordered slot list for floor-first packing on a deck trailer.
    * Floor (A) nose→rear filling Left/Middle/Right, then B, then C.
    * @returns {{section:number, level:string, lateral:string, slotLabel:string}[]}
    */
@@ -88,7 +88,7 @@
   }
 
   /**
-   * Pack pieces of one inbound trailer into contiguous high-and-tight slots.
+   * Pack pieces of one inbound trailer into contiguous packed slots.
    * @param {number} pieceCount
    * @returns {{section:number, level:string, lateral:string, slotLabel:string}[]}
    */
@@ -139,7 +139,7 @@
   }
 
   /**
-   * Build ~5 inbound trailers loaded high-and-tight with mixed freight.
+   * Build ~5 inbound trailers packed with mixed freight.
    * Clears existing freight entries + PRO destinations first (caller confirms).
    * Creates outbound stubs for the five demo destinations if missing.
    * Does not clear the outbound registry (only adds stubs).
@@ -275,7 +275,7 @@
       const empty = {
         createdAt: new Date().toISOString(),
         planner: 'demo',
-        label: 'demo planner',
+        label: 'demo plan',
         moves: [],
         outboundLoadouts: [],
         summary: {
@@ -443,7 +443,7 @@
     const plan = {
       createdAt: new Date().toISOString(),
       planner: 'demo',
-      label: 'demo planner',
+      label: 'demo plan',
       moves,
       outboundLoadouts,
       summary: {
@@ -455,7 +455,7 @@
         note:
           skippedNoDest > 0
             ? `${skippedNoDest} PRO(s) skipped — no destination set.`
-            : 'Packed high-and-tight: floor (A) then decks B/C; one outbound per destination.',
+            : 'Packed floor first, then decks B/C; one outbound per destination.',
       },
     };
 
