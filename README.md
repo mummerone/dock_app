@@ -143,6 +143,9 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v19 cache-bust + network-first SW so phones get Work list fixes.
+
+
 | File | What it is |
 |------|------------|
 | `index.html` | The main page |
@@ -152,7 +155,7 @@ Works even if some pieces were logged before destination existed.
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v18`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v19`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
