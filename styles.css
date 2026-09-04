@@ -68,10 +68,10 @@ button {
   align-items: flex-start;
   gap: 12px;
   padding: 8px 4px 16px;
-  position: static;
-  top: 0;
-  z-index: 20;
-  background: linear-gradient(180deg, rgba(11, 18, 32, 0.98) 70%, rgba(11, 18, 32, 0));
+  /* Not sticky — sticky chrome covered Demo plan moves while scrolling */
+  position: relative;
+  z-index: 5;
+  background: transparent;
 }
 
 .brand {
@@ -692,10 +692,9 @@ button {
   gap: 8px;
   margin: 0 0 14px;
   padding: 0 2px;
-  position: static;
-  top: 64px;
-  z-index: 18;
-  background: linear-gradient(180deg, rgba(11, 18, 32, 0.98) 80%, rgba(11, 18, 32, 0));
+  position: relative;
+  z-index: 4;
+  background: transparent;
   padding-bottom: 8px;
 }
 
@@ -723,6 +722,187 @@ button {
 }
 
 /* Trailer load-out view */
+.loadout-howto-card .loadout-howto {
+  margin: 10px 0 0;
+  padding-left: 1.25rem;
+  color: var(--muted);
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.loadout-howto li {
+  margin-bottom: 6px;
+}
+
+.loadout-howto strong {
+  color: var(--text);
+}
+
+.trailer-chip-out {
+  border-color: var(--accent);
+}
+
+.chip-out-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  background: var(--accent);
+  color: var(--chip-on-text);
+  border-radius: 6px;
+  padding: 2px 6px;
+  margin-right: 2px;
+  vertical-align: middle;
+}
+
+.loadout-work-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.loadout-work-head h2 {
+  margin: 0;
+}
+
+.loadout-work-progress {
+  margin: 8px 0 12px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--listen);
+}
+
+.loadout-work-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loadout-work-step {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #0f1828;
+  border: 2px solid #2a3c58;
+  border-radius: 14px;
+  padding: 14px 16px;
+  color: var(--text);
+  min-height: 72px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.loadout-work-step:active {
+  transform: translateY(1px);
+}
+
+.loadout-work-step.is-done {
+  border-color: var(--ok);
+  opacity: 0.72;
+  background: #0c1f18;
+}
+
+.loadout-work-step-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.loadout-work-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--chip-on-text);
+  font-weight: 900;
+  font-size: 1.15rem;
+}
+
+.loadout-work-check {
+  font-weight: 900;
+  font-size: 1.25rem;
+  color: var(--ok);
+  min-width: 1.25rem;
+}
+
+.loadout-work-pro {
+  font-weight: 800;
+  font-size: 1.1rem;
+  flex: 1;
+}
+
+.loadout-work-dest {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+}
+
+.loadout-work-action {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.loadout-work-get,
+.loadout-work-put {
+  background: #132038;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.loadout-work-arrow {
+  display: none;
+}
+
+.loadout-work-meta {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.loadout-work-tap-hint {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.loadout-work-step.is-done .loadout-work-tap-hint {
+  color: var(--ok);
+}
+
+@media (min-width: 560px) {
+  .loadout-work-action {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .loadout-work-arrow {
+    display: inline;
+    font-weight: 900;
+    color: var(--accent);
+    padding: 0 4px;
+  }
+  .loadout-work-get,
+  .loadout-work-put {
+    flex: 1;
+    min-width: 180px;
+  }
+}
+
+
 .loadout-show-btn {
   width: 100%;
   margin-top: 14px;
@@ -1460,10 +1640,9 @@ button {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 12px;
-  position: static;
-  top: 128px;
-  z-index: 17;
-  background: linear-gradient(180deg, rgba(11, 18, 32, 0.98) 75%, rgba(11, 18, 32, 0));
+  position: relative;
+  z-index: 3;
+  background: transparent;
   padding-bottom: 8px;
 }
 

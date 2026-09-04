@@ -22,6 +22,9 @@
     { id: 'last', label: 'Custom / Last used', sub: 'Restore last Accept', last: true },
   ];
 
+  /** localStorage: done marks for Trailer load-out work steps (per plan + trailer) */
+  const LOADOUT_DONE_KEY = 'dockApp.loadoutDone.v1';
+
   const state = {
     section: null,
     level: null,
@@ -93,6 +96,14 @@
     loadoutShowBtn: document.getElementById('loadoutShowBtn'),
     loadoutSummaryCard: document.getElementById('loadoutSummaryCard'),
     loadoutList: document.getElementById('loadoutList'),
+    loadoutWorkCard: document.getElementById('loadoutWorkCard'),
+    loadoutWorkList: document.getElementById('loadoutWorkList'),
+    loadoutWorkHint: document.getElementById('loadoutWorkHint'),
+    loadoutWorkProgress: document.getElementById('loadoutWorkProgress'),
+    loadoutClearDoneBtn: document.getElementById('loadoutClearDoneBtn'),
+    loadoutInventoryCard: document.getElementById('loadoutInventoryCard'),
+    loadoutListHeading: document.getElementById('loadout-list-heading'),
+    loadoutInventoryHint: document.getElementById('loadoutInventoryHint'),
     sumTrailer: document.getElementById('sumTrailer'),
     sumPros: document.getElementById('sumPros'),
     sumPieces: document.getElementById('sumPieces'),
@@ -1042,17 +1053,91 @@
         el.loadoutShowBtn.click();
       }
     });
+    if (el.loadoutClearDoneBtn) {
+      el.loadoutClearDoneBtn.addEventListener('click', () => {
+        const t = state.loadoutTrailer;
+        if (!t) {
+          toast('Pick a trailer first');
+          return;
+        }
+        const plan = DockStorage.readLoadPlan();
+        const fp = planFingerprint(plan);
+        if (!fp) {
+          toast('No plan — nothing to clear');
+          return;
+        }
+        clearLoadoutDone(fp, t);
+        renderLoadout(t);
+        toast('Cleared done marks for this trailer');
+      });
+    }
+    if (el.loadoutWorkList) {
+      el.loadoutWorkList.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-move-key]');
+        if (!btn) return;
+        const moveKey = btn.getAttribute('data-move-key');
+        const t = state.loadoutTrailer;
+        const plan = DockStorage.readLoadPlan();
+        const fp = planFingerprint(plan);
+        if (!t || !fp || !moveKey) return;
+        const done = isLoadoutMoveDone(fp, t, moveKey);
+        setLoadoutMoveDone(fp, t, moveKey, !done);
+        renderLoadout(t);
+      });
+    }
+  }
+
+  /** Collect trailer numbers for chips: freight + plan outbound + registered outbound. */
+  function collectLoadoutTrailerOptions() {
+    /** @type {Map<string, {value:string, outbound:boolean}>} */
+    const map = new Map();
+    const add = (num, outbound) => {
+      const v = String(num || '').trim();
+      if (!v) return;
+      const prev = map.get(v);
+      if (prev) {
+        if (outbound) prev.outbound = true;
+        return;
+      }
+      map.set(v, { value: v, outbound: !!outbound });
+    };
+
+    DockStorage.allTrailerNumbers().forEach((t) => add(t, false));
+
+    const plan = DockStorage.readLoadPlan();
+    if (plan) {
+      (plan.outboundLoadouts || []).forEach((load) => add(load.trailerNumber, true));
+      (plan.moves || []).forEach((m) => {
+        if (m.to && m.to.trailer) add(m.to.trailer, true);
+        if (m.from && m.from.trailer) add(m.from.trailer, false);
+      });
+    }
+
+    DockStorage.readOutboundTrailers().forEach((r) => add(r.trailerNumber, true));
+
+    const list = Array.from(map.values());
+    list.sort((a, b) => {
+      // Outbound (plan) chips first so workers see go-get targets
+      if (a.outbound !== b.outbound) return a.outbound ? -1 : 1;
+      const na = Number(a.value);
+      const nb = Number(b.value);
+      if (!Number.isNaN(na) && !Number.isNaN(nb) && String(na) === a.value && String(nb) === b.value) {
+        return na - nb;
+      }
+      return a.value.localeCompare(b.value, undefined, { numeric: true });
+    });
+    return list;
   }
 
   function refreshLoadoutTrailerPicker() {
     if (!el.loadoutTrailerChips) return;
-    const trailers = DockStorage.allTrailerNumbers();
+    const trailers = collectLoadoutTrailerOptions();
     // datalist
     if (el.loadoutTrailerList) {
       el.loadoutTrailerList.innerHTML = '';
-      trailers.forEach((t) => {
+      trailers.forEach((row) => {
         const opt = document.createElement('option');
-        opt.value = t;
+        opt.value = row.value;
         el.loadoutTrailerList.appendChild(opt);
       });
     }
@@ -1061,22 +1146,27 @@
       const hint = document.createElement('p');
       hint.className = 'hint';
       hint.style.margin = '0';
-      hint.textContent = 'No saved trailers yet — log freight first, or type a number above.';
+      hint.textContent =
+        'No trailers yet — log freight, or go to Dock → Inbound → Load demo inbound, then Demo plan.';
       el.loadoutTrailerChips.appendChild(hint);
       return;
     }
-    trailers.forEach((t) => {
+    trailers.forEach((row) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'trailer-chip';
-      b.textContent = t;
-      b.dataset.value = t;
-      if (t === state.loadoutTrailer) b.classList.add('active');
+      b.className = 'trailer-chip' + (row.outbound ? ' trailer-chip-out' : '');
+      b.dataset.value = row.value;
+      if (row.outbound) {
+        b.innerHTML = `<span class="chip-out-tag">OUT</span> ${escapeHtml(row.value)}`;
+      } else {
+        b.textContent = row.value;
+      }
+      if (row.value === state.loadoutTrailer) b.classList.add('active');
       b.addEventListener('click', () => {
-        el.loadoutTrailerInput.value = t;
-        state.loadoutTrailer = t;
-        highlightLoadoutChips(t);
-        renderLoadout(t);
+        el.loadoutTrailerInput.value = row.value;
+        state.loadoutTrailer = row.value;
+        highlightLoadoutChips(row.value);
+        renderLoadout(row.value);
       });
       el.loadoutTrailerChips.appendChild(b);
     });
@@ -1089,34 +1179,207 @@
     });
   }
 
-  function renderLoadout(trailerNumber) {
-    const t = String(trailerNumber || '').trim();
-    state.loadoutTrailer = t;
-    const groups = DockStorage.loadOutByTrailer(t);
-    const allPieces = groups.reduce((n, g) => n + g.pieces.length, 0);
+  function planFingerprint(plan) {
+    if (!plan) return '';
+    const created = plan.createdAt || '';
+    const n = (plan.moves && plan.moves.length) || 0;
+    return `${created}|${n}`;
+  }
 
-    let weightSum = 0;
-    let weightCount = 0;
-    groups.forEach((g) => {
-      g.pieces.forEach((e) => {
-        if (e.weight != null && !Number.isNaN(Number(e.weight))) {
-          weightSum += Number(e.weight);
-          weightCount += 1;
-        }
-      });
+  function moveDoneKey(m, idx) {
+    if (m && m.entryId) return String(m.entryId);
+    return `${idx}:${(m && m.pro) || ''}:${(m && m.pieceFraction) || ''}`;
+  }
+
+  function readLoadoutDoneStore() {
+    try {
+      const raw = localStorage.getItem(LOADOUT_DONE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeLoadoutDoneStore(store) {
+    try {
+      localStorage.setItem(LOADOUT_DONE_KEY, JSON.stringify(store));
+    } catch (_) {
+      /* ignore quota */
+    }
+  }
+
+  function loadoutDoneBucketKey(fingerprint, trailer) {
+    return `${fingerprint}::${String(trailer || '').trim()}`;
+  }
+
+  function isLoadoutMoveDone(fingerprint, trailer, moveKey) {
+    const store = readLoadoutDoneStore();
+    const bucket = store[loadoutDoneBucketKey(fingerprint, trailer)];
+    return !!(bucket && bucket[moveKey]);
+  }
+
+  function setLoadoutMoveDone(fingerprint, trailer, moveKey, done) {
+    const store = readLoadoutDoneStore();
+    const key = loadoutDoneBucketKey(fingerprint, trailer);
+    if (!store[key]) store[key] = {};
+    if (done) store[key][moveKey] = true;
+    else delete store[key][moveKey];
+    if (!Object.keys(store[key]).length) delete store[key];
+    writeLoadoutDoneStore(store);
+  }
+
+  function clearLoadoutDone(fingerprint, trailer) {
+    const store = readLoadoutDoneStore();
+    delete store[loadoutDoneBucketKey(fingerprint, trailer)];
+    writeLoadoutDoneStore(store);
+  }
+
+  /**
+   * Moves for the selected trailer: prefer outbound (to.trailer), else inbound (from.trailer).
+   * @returns {{ role: 'outbound'|'inbound'|null, moves: object[], planIndexes: number[] }}
+   */
+  function movesForSelectedTrailer(plan, trailerNumber) {
+    const t = String(trailerNumber || '').trim();
+    const all = (plan && plan.moves) || [];
+    if (!t || !all.length) return { role: null, moves: [], planIndexes: [] };
+
+    /** @type {object[]} */
+    const outMoves = [];
+    /** @type {number[]} */
+    const outIdx = [];
+    /** @type {object[]} */
+    const inMoves = [];
+    /** @type {number[]} */
+    const inIdx = [];
+
+    all.forEach((m, idx) => {
+      const toTr = String((m.to && m.to.trailer) || '').trim();
+      const fromTr = String((m.from && m.from.trailer) || '').trim();
+      if (toTr === t) {
+        outMoves.push(m);
+        outIdx.push(idx);
+      }
+      if (fromTr === t) {
+        inMoves.push(m);
+        inIdx.push(idx);
+      }
     });
 
-    el.loadoutSummaryCard.classList.remove('hidden');
-    el.sumTrailer.textContent = t || '—';
-    el.sumPros.textContent = String(groups.length);
-    el.sumPieces.textContent = String(allPieces);
-    el.sumWeight.textContent = weightCount
-      ? `${weightSum.toLocaleString()} lbs`
-      : '—';
+    if (outMoves.length) return { role: 'outbound', moves: outMoves, planIndexes: outIdx };
+    if (inMoves.length) return { role: 'inbound', moves: inMoves, planIndexes: inIdx };
+    return { role: null, moves: [], planIndexes: [] };
+  }
+
+  function renderLoadoutWorkList(plan, trailerNumber, filtered) {
+    if (!el.loadoutWorkCard || !el.loadoutWorkList) return false;
+    const { role, moves, planIndexes } = filtered;
+    if (!role || !moves.length) {
+      el.loadoutWorkCard.classList.add('hidden');
+      el.loadoutWorkList.innerHTML = '';
+      return false;
+    }
+
+    const fp = planFingerprint(plan);
+    el.loadoutWorkCard.classList.remove('hidden');
+
+    if (el.loadoutWorkHint) {
+      el.loadoutWorkHint.textContent =
+        role === 'outbound'
+          ? 'Go-get steps to load THIS outbound trailer. Tap a step when finished.'
+          : 'Steps that pull freight FROM this inbound trailer. Tap a step when finished.';
+    }
+
+    let doneCount = 0;
+    const frag = document.createDocumentFragment();
+    moves.forEach((m, i) => {
+      const planIdx = planIndexes[i];
+      const key = moveDoneKey(m, planIdx);
+      const done = isLoadoutMoveDone(fp, trailerNumber, key);
+      if (done) doneCount += 1;
+
+      const fromDoor = (m.from && m.from.door) || '—';
+      const fromTr = (m.from && m.from.trailer) || '—';
+      const fromSlot = (m.from && m.from.slot) || '—';
+      const toTr = (m.to && m.to.trailer) || '—';
+      const toSlot = (m.to && m.to.slot) || '—';
+      const toDoor = (m.to && m.to.door) || '';
+      const dest = m.destination || '';
+      const size =
+        m.h == null && m.w == null && m.d == null
+          ? ''
+          : `${fmt(m.h)} × ${fmt(m.w)} × ${fmt(m.d)} in`;
+      const wt = m.weight == null ? '' : `${fmt(m.weight)} lbs`;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'loadout-work-step' + (done ? ' is-done' : '');
+      btn.setAttribute('data-move-key', key);
+      btn.setAttribute('role', 'listitem');
+      btn.setAttribute(
+        'aria-pressed',
+        done ? 'true' : 'false'
+      );
+      btn.innerHTML = `
+        <div class="loadout-work-step-top">
+          <span class="loadout-work-num">${i + 1}</span>
+          <span class="loadout-work-check" aria-hidden="true">${done ? '✓' : ''}</span>
+          <span class="loadout-work-pro">PRO ${escapeHtml(m.pro || '—')} · Piece ${escapeHtml(m.pieceFraction || '—')}</span>
+        </div>
+        ${dest ? `<div class="loadout-work-dest">Going to: ${escapeHtml(dest)}</div>` : ''}
+        <div class="loadout-work-action">
+          <span class="loadout-work-get"><strong>Get</strong> Door ${escapeHtml(fromDoor)} · Trl ${escapeHtml(fromTr)} · ${escapeHtml(fromSlot)}</span>
+          <span class="loadout-work-arrow" aria-hidden="true">→</span>
+          <span class="loadout-work-put"><strong>Put</strong> Trl ${escapeHtml(toTr)}${toDoor ? ` · Door ${escapeHtml(toDoor)}` : ''} · ${escapeHtml(toSlot)}</span>
+        </div>
+        ${size || wt ? `<div class="loadout-work-meta">${escapeHtml([size, wt].filter(Boolean).join(' · '))}</div>` : ''}
+        <div class="loadout-work-tap-hint">${done ? 'Done — tap to undo' : 'Tap when done'}</div>
+      `;
+      frag.appendChild(btn);
+    });
+
+    el.loadoutWorkList.innerHTML = '';
+    el.loadoutWorkList.appendChild(frag);
+
+    if (el.loadoutWorkProgress) {
+      el.loadoutWorkProgress.textContent = `${doneCount} of ${moves.length} done`;
+    }
+    return true;
+  }
+
+  function renderLoadoutInventory(groups, opts) {
+    const { hasPlan, hasWork, role } = opts;
+    if (el.loadoutListHeading) {
+      if (hasWork && role === 'outbound') {
+        el.loadoutListHeading.textContent = 'What is already planned on this trailer';
+      } else {
+        el.loadoutListHeading.textContent = 'What is on this trailer';
+      }
+    }
+    if (el.loadoutInventoryHint) {
+      el.loadoutInventoryHint.textContent = hasWork && role === 'outbound'
+        ? 'Logged freight currently on this trailer (if any). Work list above is your go-get guide.'
+        : 'Grouped by bill (PRO). Same PRO stays on one trailer.';
+    }
 
     if (!groups.length) {
-      el.loadoutList.innerHTML =
-        '<div class="empty-state">Nothing on this trailer yet.<br/>Log freight with this trailer number, then come back here.</div>';
+      let msg;
+      if (!state.loadoutTrailer) {
+        msg = 'Pick a trailer number above to see its load-out.';
+      } else if (hasWork) {
+        msg =
+          role === 'outbound'
+            ? 'No logged freight on this outbound yet — follow the Work list above to load it.'
+            : 'No freight left listed on this trailer. Follow the Work list if steps remain.';
+      } else if (hasPlan) {
+        msg =
+          'Nothing on this trailer in the inventory, and no work steps for it in the current plan. Try an <strong>OUT</strong> trailer chip, or pick an inbound that has freight.';
+      } else {
+        msg =
+          'Nothing on this trailer yet.<br/>Log freight with this trailer number, or go to <strong>Dock → Demo plan</strong> and build a plan for a work list.';
+      }
+      el.loadoutList.innerHTML = `<div class="empty-state">${msg}</div>`;
       return;
     }
 
@@ -1179,6 +1442,86 @@
 
     el.loadoutList.innerHTML = '';
     el.loadoutList.appendChild(frag);
+  }
+
+  function renderLoadout(trailerNumber) {
+    const t = String(trailerNumber || '').trim();
+    state.loadoutTrailer = t;
+
+    if (!t) {
+      if (el.loadoutSummaryCard) el.loadoutSummaryCard.classList.add('hidden');
+      if (el.loadoutWorkCard) {
+        el.loadoutWorkCard.classList.add('hidden');
+        if (el.loadoutWorkList) el.loadoutWorkList.innerHTML = '';
+      }
+      if (el.loadoutList) {
+        el.loadoutList.innerHTML =
+          '<div class="empty-state">Pick a trailer number above to see its load-out.</div>';
+      }
+      if (el.loadoutListHeading) el.loadoutListHeading.textContent = 'What is on this trailer';
+      return;
+    }
+
+    const groups = DockStorage.loadOutByTrailer(t);
+    const allPieces = groups.reduce((n, g) => n + g.pieces.length, 0);
+
+    let weightSum = 0;
+    let weightCount = 0;
+    groups.forEach((g) => {
+      g.pieces.forEach((e) => {
+        if (e.weight != null && !Number.isNaN(Number(e.weight))) {
+          weightSum += Number(e.weight);
+          weightCount += 1;
+        }
+      });
+    });
+
+    const plan = DockStorage.readLoadPlan();
+    const hasPlan = !!(plan && plan.moves && plan.moves.length);
+    const filtered = movesForSelectedTrailer(plan, t);
+    const hasWork = renderLoadoutWorkList(plan, t, filtered);
+
+    // Summary: prefer work-list counts when loading outbound with a plan
+    let sumPros = groups.length;
+    let sumPieces = allPieces;
+    let sumWeightText = weightCount ? `${weightSum.toLocaleString()} lbs` : '—';
+
+    if (hasWork && filtered.role === 'outbound' && plan) {
+      const load = (plan.outboundLoadouts || []).find(
+        (L) => String(L.trailerNumber || '').trim() === t
+      );
+      if (load) {
+        sumPros = load.proCount != null ? load.proCount : sumPros;
+        sumPieces = load.pieceCount != null ? load.pieceCount : filtered.moves.length;
+        if (load.totalWeight != null) {
+          sumWeightText = `${Number(load.totalWeight).toLocaleString()} lbs`;
+        }
+      } else {
+        sumPros = new Set(filtered.moves.map((m) => m.pro)).size;
+        sumPieces = filtered.moves.length;
+        let w = 0;
+        let wc = 0;
+        filtered.moves.forEach((m) => {
+          if (m.weight != null && !Number.isNaN(Number(m.weight))) {
+            w += Number(m.weight);
+            wc += 1;
+          }
+        });
+        sumWeightText = wc ? `${w.toLocaleString()} lbs` : '—';
+      }
+    }
+
+    el.loadoutSummaryCard.classList.remove('hidden');
+    el.sumTrailer.textContent = t || '—';
+    el.sumPros.textContent = String(sumPros);
+    el.sumPieces.textContent = String(sumPieces);
+    el.sumWeight.textContent = sumWeightText;
+
+    renderLoadoutInventory(groups, {
+      hasPlan,
+      hasWork,
+      role: filtered.role,
+    });
   }
 
 
@@ -1651,6 +1994,10 @@
       renderPlan();
       if (el.planStatusHint) el.planStatusHint.textContent = 'Plan cleared.';
       toast('Plan cleared');
+      refreshLoadoutTrailerPicker();
+      if (state.view === 'loadout' && state.loadoutTrailer) {
+        renderLoadout(state.loadoutTrailer);
+      }
     } catch (err) {
       const msg = String(err && err.message ? err.message : err);
       toast(`Clear plan failed: ${msg}`);
@@ -1681,10 +2028,12 @@
       state.dockDoor = '';
       state.dockPro = '';
       state.loadoutTrailer = '';
+      if (el.loadoutTrailerInput) el.loadoutTrailerInput.value = '';
       renderRecent();
       refreshLoadoutTrailerPicker();
       renderOutboundList();
       renderPlan();
+      if (state.view === 'loadout') renderLoadout('');
       if (state.view === 'dock' && state.dockSection === 'inbound') renderDock();
       if (state.view === 'dock' && state.dockSection === 'outbound') renderOutboundList();
       if (el.planStatusHint) {
@@ -1721,6 +2070,10 @@
       return;
     }
     toast(`Plan ready: ${s.moveCount} moves → ${s.outboundCount} outbound`);
+    refreshLoadoutTrailerPicker();
+    if (state.view === 'loadout' && state.loadoutTrailer) {
+      renderLoadout(state.loadoutTrailer);
+    }
   }
 
   function renderPlan() {

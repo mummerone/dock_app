@@ -72,16 +72,17 @@ Example: `http://192.168.1.42:8080`
 ---
 
 
-## Trailer load-out view
+## Trailer load-out (worker job list)
 
-Want to see everything already on a trailer? Use the **Trailer load-out** tab at the top.
+Use **Trailer load-out** to follow a go-get / put list without a developer.
 
 1. Tap **Trailer load-out** (next to **Log freight**).
-2. Pick a trailer number from the big chips (saved trailers), or type one and tap **Show load-out**.
-3. At the top you see a short summary: trailer number, how many bills (PROs), how many pieces, and total weight when available.
-4. Below that, freight is grouped by **bill (PRO)**. Under each bill you see every piece: piece number (like `3/5`), slot location (like `12/A/Left`), size (H×W×D), and weight.
+2. Tap a trailer chip — **OUT** chips are outbound trailers from the last load plan (e.g. after **Dock → Demo plan**). You can also type a number and tap **Show**.
+3. **Work list** (when a plan exists for that trailer): numbered steps with door, get-from slot, put-to slot, PRO and piece. Tap a step to mark it done; **Clear done** resets marks for this trailer + plan.
+4. **What is on this trailer**: inventory grouped by bill (PRO) with slots — same PRO stays on one trailer.
+5. No plan yet? Empty tips tell you to run **Dock → Demo plan** (or log freight first).
 
-Empty trailers show a clear “nothing on this trailer yet” message. The **Log freight** tab still works the same (speak, presets, number pad).
+Done marks stay on this device only (`localStorage`). The **Log freight** tab still works the same.
 
 ## Dock (Inbound · Outbound · Demo plan)
 
@@ -132,7 +133,7 @@ Works even if some pieces were logged before destination existed.
 5. Tap a **size preset**, or tap **Speak Dimensions**, or use the number pad. Pallet presets fill **W×D only** (enter height yourself); drums / pails / totes include height.
 6. Check the big H / W / D / Weight boxes.
 7. Tap **Accept** — the entry is saved on this device and shows under Recent Entries.
-8. Tap **Trailer load-out** anytime to review all bills and pieces on a chosen trailer.
+8. Tap **Trailer load-out** anytime for the work list (after a plan) or inventory on a chosen trailer.
 9. Tap **Dock** → **Inbound** for the door board (and **Load demo inbound trailers** at the top).
 10. Tap **Dock** → **Outbound** to register trailers you are loading out.
 11. Tap **Dock** → **Demo plan** to build the local demo load plan.
@@ -151,7 +152,7 @@ Works even if some pieces were logged before destination existed.
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v15`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v18`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
