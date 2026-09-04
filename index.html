@@ -185,24 +185,15 @@
     </main>
 
     <main class="content loadout-view hidden" id="viewLoadout" role="tabpanel" aria-labelledby="tabLoadout" hidden>
-      <section class="card loadout-howto-card" aria-labelledby="loadout-howto-heading">
-        <h2 id="loadout-howto-heading">How to use Trailer load-out</h2>
-        <ol class="loadout-howto">
-          <li>Tap a trailer chip (or type a number and tap <strong>Show</strong>).</li>
-          <li>If a load plan exists, follow the numbered <strong>Work list</strong> — door, get from slot, put to slot.</li>
-          <li>Tap a step when you finish it. Use <strong>Clear done</strong> to start over on this trailer.</li>
-        </ol>
-      </section>
-
       <section class="card" aria-labelledby="loadout-pick-heading">
         <h2 id="loadout-pick-heading">Which trailer?</h2>
-        <p class="hint">Chips include trailers with logged freight and outbound trailers from the last load plan (marked OUT).</p>
+        <p class="hint">Pick a trailer you already used, or type a trailer number.</p>
         <label class="field trailer-number-field">
           <span>Trailer number</span>
-          <input id="loadoutTrailerInput" type="text" inputmode="numeric" autocomplete="off" list="loadoutTrailerList" placeholder="e.g. 90001" />
+          <input id="loadoutTrailerInput" type="text" inputmode="numeric" autocomplete="off" list="loadoutTrailerList" placeholder="e.g. 12345" />
           <datalist id="loadoutTrailerList"></datalist>
         </label>
-        <div class="trailer-chip-row" id="loadoutTrailerChips" role="group" aria-label="Trailer numbers"></div>
+        <div class="trailer-chip-row" id="loadoutTrailerChips" role="group" aria-label="Saved trailer numbers"></div>
         <button type="button" id="loadoutShowBtn" class="btn accept-btn loadout-show-btn">Show load-out</button>
       </section>
 
@@ -216,19 +207,9 @@
         </div>
       </section>
 
-      <section class="card loadout-work-card hidden" id="loadoutWorkCard" aria-labelledby="loadout-work-heading">
-        <div class="loadout-work-head">
-          <h2 id="loadout-work-heading">Work list</h2>
-          <button type="button" id="loadoutClearDoneBtn" class="btn tiny muted-btn">Clear done</button>
-        </div>
-        <p class="hint" id="loadoutWorkHint">Numbered steps for this trailer. Tap a step to mark it done.</p>
-        <p class="loadout-work-progress" id="loadoutWorkProgress" aria-live="polite"></p>
-        <div id="loadoutWorkList" class="loadout-work-list" role="list"></div>
-      </section>
-
-      <section class="card" id="loadoutInventoryCard" aria-labelledby="loadout-list-heading">
+      <section class="card" aria-labelledby="loadout-list-heading">
         <h2 id="loadout-list-heading">What is on this trailer</h2>
-        <p class="hint bol-note" id="loadoutInventoryHint">Grouped by bill (PRO). Same PRO stays on one trailer.</p>
+        <p class="hint bol-note">Grouped by bill (PRO). Same PRO stays on one trailer.</p>
         <div id="loadoutList" class="loadout-list">
           <div class="empty-state">Pick a trailer number above to see its load-out.</div>
         </div>
