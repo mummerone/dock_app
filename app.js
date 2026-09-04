@@ -33,7 +33,8 @@
     activeField: 'h',
     listening: false,
     padBuffer: '',
-    view: 'entry', // 'entry' | 'loadout' | 'dock' | 'outbound' | 'plan'
+    view: 'entry', // 'entry' | 'loadout' | 'dock'
+    dockSection: 'inbound', // 'inbound' | 'outbound' | 'plan'
     loadoutTrailer: '',
     pieceLocked: false, // mid-sequence: piece field forced to k/n
     destinationLocked: false, // PRO already has a destination — reuse until edited
@@ -99,8 +100,12 @@
     destinationLockRow: document.getElementById('destinationLockRow'),
     destinationLockedMsg: document.getElementById('destinationLockedMsg'),
     editDestinationBtn: document.getElementById('editDestinationBtn'),
-    tabOutbound: document.getElementById('tabOutbound'),
-    viewOutbound: document.getElementById('viewOutbound'),
+    dockSubInbound: document.getElementById('dockSubInbound'),
+    dockSubOutbound: document.getElementById('dockSubOutbound'),
+    dockSubPlan: document.getElementById('dockSubPlan'),
+    dockPanelInbound: document.getElementById('dockPanelInbound'),
+    dockPanelOutbound: document.getElementById('dockPanelOutbound'),
+    dockPanelPlan: document.getElementById('dockPanelPlan'),
     outboundTrailerInput: document.getElementById('outboundTrailerInput'),
     outboundDoorInput: document.getElementById('outboundDoorInput'),
     outboundDestInput: document.getElementById('outboundDestInput'),
@@ -114,8 +119,6 @@
     editProDoor: document.getElementById('editProDoor'),
     editProCancelBtn: document.getElementById('editProCancelBtn'),
     editProSaveBtn: document.getElementById('editProSaveBtn'),
-    tabPlan: document.getElementById('tabPlan'),
-    viewPlan: document.getElementById('viewPlan'),
     loadDemoInboundBtn: document.getElementById('loadDemoInboundBtn'),
     runLoadPlanBtn: document.getElementById('runLoadPlanBtn'),
     clearPlanBtn: document.getElementById('clearPlanBtn'),
@@ -134,6 +137,7 @@
     bindNumpad();
     bindActions();
     bindViewTabs();
+    bindDockSubnav();
     bindLoadout();
     bindDock();
     bindOutbound();
@@ -363,9 +367,14 @@
       el.piece.value = '';
       renderRecent();
       renderPlan();
+      renderOutboundList();
       refreshLoadoutTrailerPicker();
       if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
-      if (state.view === 'dock') renderDock();
+      if (state.view === 'dock') {
+        if (state.dockSection === 'inbound') renderDock();
+        else if (state.dockSection === 'outbound') renderOutboundList();
+        else if (state.dockSection === 'plan') renderPlan();
+      }
       toast('All entries and plan cleared');
     });
   }
@@ -788,9 +797,11 @@
     if (state.view === 'loadout' && state.loadoutTrailer === trailerNumber) {
       renderLoadout(trailerNumber);
     }
-    if (state.view === 'dock') renderDock();
-    if (state.view === 'outbound') renderOutboundList();
-    if (state.view === 'plan') renderPlan();
+    if (state.view === 'dock') {
+      if (state.dockSection === 'inbound') renderDock();
+      else if (state.dockSection === 'outbound') renderOutboundList();
+      else if (state.dockSection === 'plan') renderPlan();
+    }
     toast(`Saved PRO ${pro} · ${display} · to ${destination} · door ${doorNumber} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
 
     prepareNextPieceAfterAccept(a, b);
@@ -896,13 +907,57 @@
   }
 
 
+  function setPanelVisible(panel, on) {
+    if (!panel) return;
+    panel.classList.toggle('hidden', !on);
+    if (on) panel.removeAttribute('hidden');
+    else panel.setAttribute('hidden', '');
+  }
+
   function bindViewTabs() {
     if (!el.tabEntry || !el.tabLoadout) return;
     el.tabEntry.addEventListener('click', () => showView('entry'));
     el.tabLoadout.addEventListener('click', () => showView('loadout'));
     if (el.tabDock) el.tabDock.addEventListener('click', () => showView('dock'));
-    if (el.tabOutbound) el.tabOutbound.addEventListener('click', () => showView('outbound'));
-    if (el.tabPlan) el.tabPlan.addEventListener('click', () => showView('plan'));
+  }
+
+  function bindDockSubnav() {
+    if (el.dockSubInbound) {
+      el.dockSubInbound.addEventListener('click', () => showDockSection('inbound'));
+    }
+    if (el.dockSubOutbound) {
+      el.dockSubOutbound.addEventListener('click', () => showDockSection('outbound'));
+    }
+    if (el.dockSubPlan) {
+      el.dockSubPlan.addEventListener('click', () => showDockSection('plan'));
+    }
+  }
+
+  function showDockSection(section) {
+    state.dockSection = section;
+    const panels = {
+      inbound: el.dockPanelInbound,
+      outbound: el.dockPanelOutbound,
+      plan: el.dockPanelPlan,
+    };
+    const tabs = {
+      inbound: el.dockSubInbound,
+      outbound: el.dockSubOutbound,
+      plan: el.dockSubPlan,
+    };
+    Object.keys(panels).forEach((key) => {
+      setPanelVisible(panels[key], key === section);
+    });
+    Object.keys(tabs).forEach((key) => {
+      const tab = tabs[key];
+      if (!tab) return;
+      const on = key === section;
+      tab.classList.toggle('active', on);
+      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    if (section === 'inbound') renderDock();
+    if (section === 'outbound') renderOutboundList();
+    if (section === 'plan') renderPlan();
   }
 
   function showView(name) {
@@ -911,23 +966,14 @@
       entry: el.viewEntry,
       loadout: el.viewLoadout,
       dock: el.viewDock,
-      outbound: el.viewOutbound,
-      plan: el.viewPlan,
     };
     const tabs = {
       entry: el.tabEntry,
       loadout: el.tabLoadout,
       dock: el.tabDock,
-      outbound: el.tabOutbound,
-      plan: el.tabPlan,
     };
     Object.keys(views).forEach((key) => {
-      const panel = views[key];
-      if (!panel) return;
-      const on = key === name;
-      panel.classList.toggle('hidden', !on);
-      if (on) panel.removeAttribute('hidden');
-      else panel.setAttribute('hidden', '');
+      setPanelVisible(views[key], key === name);
     });
     Object.keys(tabs).forEach((key) => {
       const tab = tabs[key];
@@ -944,14 +990,8 @@
       }
     }
     if (name === 'dock') {
-      // Stay on current drill-down if already mid-dock; otherwise doors list
-      renderDock();
-    }
-    if (name === 'outbound') {
-      renderOutboundList();
-    }
-    if (name === 'plan') {
-      renderPlan();
+      // Ensure current Dock subsection panel is visible and populated
+      showDockSection(state.dockSection || 'inbound');
     }
   }
 
@@ -1486,9 +1526,11 @@
     renderRecent();
     if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
     refreshLoadoutTrailerPicker();
-    if (state.view === 'dock') renderDock();
-    if (state.view === 'outbound') renderOutboundList();
-    if (state.view === 'plan') renderPlan();
+    if (state.view === 'dock') {
+      if (state.dockSection === 'inbound') renderDock();
+      else if (state.dockSection === 'outbound') renderOutboundList();
+      else if (state.dockSection === 'plan') renderPlan();
+    }
     syncPieceSequenceFromStorage();
   }
 
@@ -1534,7 +1576,7 @@
     refreshLoadoutTrailerPicker();
     renderOutboundList();
     renderPlan();
-    if (state.view === 'dock') renderDock();
+    if (state.view === 'dock' && state.dockSection === 'inbound') renderDock();
     if (el.planStatusHint) {
       el.planStatusHint.textContent =
         `Demo loaded: ${result.inboundTrailers} inbound trailers · ${result.proCount} PROs · ${result.pieceCount} pieces` +

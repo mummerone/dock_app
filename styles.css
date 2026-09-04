@@ -688,8 +688,8 @@ button {
 /* View tabs (Log freight / Trailer load-out / Dock) */
 .view-tabs {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   margin: 0 0 14px;
   padding: 0 2px;
   position: sticky;
@@ -700,14 +700,14 @@ button {
 }
 
 .view-tab {
-  min-height: 52px;
+  min-height: 56px;
   border-radius: 14px;
   background: #132038;
   border: 2px solid #2a3c58;
   color: var(--muted);
   font-weight: 800;
-  font-size: 0.7rem;
-  padding: 8px 2px;
+  font-size: 0.85rem;
+  padding: 10px 4px;
   line-height: 1.2;
 }
 
@@ -1181,7 +1181,7 @@ button {
 }
 
 
-/* Plan tab — demo inbound + local high-and-tight planner */
+/* Demo plan (inside Dock) — local high-and-tight planner */
 .plan-action-btn {
   width: 100%;
   margin-top: 10px;
@@ -1325,8 +1325,88 @@ button {
   margin-top: 2px;
 }
 
+/* Dock sub-nav (Inbound / Outbound / Demo plan) — glove-friendly */
+.dock-subnav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+  position: sticky;
+  top: 128px;
+  z-index: 17;
+  background: linear-gradient(180deg, rgba(11, 18, 32, 0.98) 75%, rgba(11, 18, 32, 0));
+  padding-bottom: 8px;
+}
+
+.dock-subtab {
+  min-height: 52px;
+  border-radius: 14px;
+  background: #0f1828;
+  border: 2px solid #3a5070;
+  color: #c9d6ea;
+  font-weight: 800;
+  font-size: 0.92rem;
+  padding: 10px 6px;
+  line-height: 1.15;
+}
+
+.dock-subtab.active {
+  background: #1e6b4f;
+  border-color: #2ecf8a;
+  color: #e8fff4;
+  box-shadow: 0 4px 0 #0f3d2c;
+}
+
+.dock-subtab:active {
+  transform: translateY(1px);
+}
+
+.dock-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 40vh;
+}
+
+.dock-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dock-panel.hidden {
+  display: none !important;
+}
+
+.demo-primary-btn {
+  width: 100%;
+  margin-top: 12px;
+  min-height: 64px;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.demo-secondary-btn {
+  width: 100%;
+  margin-top: 10px;
+  min-height: 52px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.demo-inbound-card {
+  border-color: #2a6a4a;
+}
+
 @media (max-width: 420px) {
-  .view-tabs {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .view-tab {
+    font-size: 0.78rem;
+  }
+  .dock-subtab {
+    font-size: 0.82rem;
+    min-height: 50px;
+  }
+  .dock-subnav {
+    top: 124px;
   }
 }

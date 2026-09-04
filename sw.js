@@ -1,5 +1,5 @@
 /* Minimal offline cache for Dock App static assets */
-const CACHE = 'dock-app-v11';
+const CACHE = 'dock-app-v12';
 const ASSETS = [
   './',
   './index.html',

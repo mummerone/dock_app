@@ -106,10 +106,10 @@ Leave weight empty for the driver to enter.
 - Stored **once per PRO** in `localStorage` (`dockApp.pros.v1`) so all pieces of that bill share the same destination
 - If later pieces of the same PRO are logged, show the existing destination **locked**; driver can tap **Change destination** to edit
 - Required on Accept (MVP). Shown on Recent entries, Trailer load-out, and Dock drill-down
-- Destination is used by the Plan tab demo planner to assign PROs to outbound trailers by destination
+- Destination is used by the Dock → Demo plan local planner to assign PROs to outbound trailers by destination
 
 ### 11. Outbound trailer registry
-- Fourth top-level tab: **Outbound**
+- Under **Dock** → **Outbound** (not a separate top tab)
 - Register outbound trailers: **trailer number** (required), **door** (optional until spotted), **destination** they are loading for, or **Open** if not decided
 - List registered outbound trailers plainly (trailer, destination or Open, door if set)
 - Stored in `localStorage` (`dockApp.outboundTrailers.v1`)
@@ -123,12 +123,12 @@ Leave weight empty for the driver to enter.
 - Does not require re-entering pieces. Glove-friendly labels.
 
 ### 13. Plan tab — demo inbound + local high-and-tight planner
-- Fifth top-level tab: **Plan**
+- Under **Dock** → **Demo plan** (not a separate top tab); demo inbound button lives on **Dock** → **Inbound**
 - **Load demo inbound** (with confirm): clears logged freight + last plan; seeds ~5 inbound trailers at doors with many pieces; random realistic dims/weights; destinations randomly from Salt Lake City, Denver, San Antonio, Missoula Montana, Rapid City South Dakota (whole PRO one destination); inbound slots packed high-and-tight style; auto-creates outbound trailer stubs for those 5 destinations if missing
 - **Run load plan (demo AI)**: local planner only (no cloud AI / ChatGPT). Clear `runLoadPlan()` entry point in `loadPlan.js` so a real AI backend can replace the body later. UI must say **demo planner** / **demo AI**
 - Planner rules: same-PRO = same outbound trailer; prefer one outbound trailer per destination (do not mix destinations on one outbound if avoidable); pack dense high-and-tight on deck trailers using levels A=floor, B=first deck, C=second deck; place pieces in slots 1–12 × A–C × Left/Middle/Right (floor first, then decks)
 - Output: move list (from door/trailer/slot → outbound trailer/slot) + Plan view of outbound load-outs; persist in `localStorage` (`dockApp.loadPlan.v1`)
-- Keep Log / Dock / Outbound / Edit / load-out working
+- Keep Log / Dock (Inbound·Outbound·Demo plan) / Edit / load-out working
 
 ### 9. Docs
 - `README.md` — beginner-friendly: open on computer, open on phone over same Wi‑Fi

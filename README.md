@@ -1,6 +1,6 @@
 # Dock App (MVP)
 
-A simple phone-friendly web tool for dock drivers. You type (or speak) a PRO number, piece count, where the bill is going (destination), trailer number, trailer slot, and the size/weight of each piece of freight. You can also register outbound trailers (and what they are loading for). Everything stays on your device — there is no login and no company server involved.
+A simple phone-friendly web tool for dock drivers. You type (or speak) a PRO number, piece count, where the bill is going (destination), trailer number, trailer slot, and the size/weight of each piece of freight. Under **Dock** you can view inbound doors, register outbound trailers, and run the demo load plan. Everything stays on your device — there is no login and no company server involved.
 
 **Important rule:** All pieces with the **same PRO** (same Bill of Lading) must stay on the **same trailer**. The app remembers entries by PRO so you can see that grouping.
 
@@ -83,16 +83,27 @@ Want to see everything already on a trailer? Use the **Trailer load-out** tab at
 
 Empty trailers show a clear “nothing on this trailer yet” message. The **Log freight** tab still works the same (speak, presets, number pad).
 
-## Dock door board
+## Dock (Inbound · Outbound · Demo plan)
 
-Want to see which trailer is at which door? Use the **Dock** tab.
+One **Dock** tab covers inbound doors, outbound trailers, and the demo load planner. Inside Dock, use the big sub-nav buttons:
 
+### Inbound
 1. When you **Log freight**, also enter the **Door number** (the dock door where that trailer sits).
-2. Tap **Dock** (next to **Log freight** and **Trailer load-out**).
-3. You see a plain list of doors that have freight logged — each row shows **door number** and the **trailer** at that door.
-4. Tap a door → bills (PROs) on that trailer.
-5. Tap a PRO → each piece with its location (like `12/A/Left`), plus size and weight.
-6. Viewing only — no forklift instructions yet. If a door later gets a different trailer, the board shows the trailer from your current entries for that door.
+2. Tap **Dock** → **Inbound**.
+3. At the top: **Load demo inbound trailers** — confirms, then generates 5 high-and-tight inbound trailers for demo (same `seedDemoInbound()` as before; wipes logged freight + last plan).
+4. Below that: door board — doors that have freight → tap a door → bills (PROs) → pieces with slot/size/weight.
+5. Viewing only on the board — no forklift instructions yet.
+
+### Outbound
+1. Tap **Dock** → **Outbound**.
+2. Register trailers you are loading out: trailer number, optional door, destination or **Open**.
+3. The list below shows registered outbound trailers.
+
+### Demo plan
+1. Tap **Dock** → **Demo plan**.
+2. This is a **local demo planner** (not ChatGPT / cloud AI).
+3. **Run load plan (demo AI)** / **Clear plan**, then plan summary, move list, and planned outbound load-outs.
+4. Tip: load demo inbound on **Inbound** first so there is freight to plan.
 
 ## Destination on each PRO
 
@@ -110,26 +121,6 @@ Need to fix a destination (or door / trailer) on a bill you already accepted? Yo
 
 Works even if some pieces were logged before destination existed.
 
-## Outbound trailers
-
-Use the **Outbound** tab to register trailers you are loading out.
-
-1. Tap **Outbound**.
-2. Enter **Trailer number**.
-3. Optionally enter **Door number** (leave blank until the trailer is spotted).
-4. Enter what it is **Loading for** (destination), or tap **Open (no destination yet)**.
-5. Tap **Save outbound trailer**. The list below shows trailer, destination (or Open), and door.
-6. The **Plan** tab can create stubs for demo destinations and assign freight with the demo planner.
-
-## Plan tab (demo inbound + local load plan)
-
-The phone / GitHub Pages build has **no cloud AI**. The Plan tab uses a solid **local high-and-tight demo planner**.
-
-1. Tap **Plan**.
-2. **Load demo inbound** — confirms, then replaces logged freight with ~5 inbound trailers at doors. Freight is packed high-and-tight (slots 1–12 × A–C × Left/Middle/Right). Destinations randomly assigned from: Salt Lake City, Denver, San Antonio, Missoula Montana, Rapid City South Dakota (whole PRO = one destination). Creates outbound trailer stubs for those cities if missing.
-3. **Run load plan (demo AI)** — runs the local demo planner (`runLoadPlan()`). Same-PRO pieces stay on one trailer; prefers one outbound trailer per destination; packs floor (A) then decks B/C. Shows a move list (from door/trailer/slot → outbound trailer/slot) and planned outbound load-outs. Results persist in `localStorage`.
-4. Label in the UI is **demo planner** / **demo AI** — it is not calling ChatGPT.
-
 ---
 ## How to use it (quick)
 
@@ -141,9 +132,9 @@ The phone / GitHub Pages build has **no cloud AI**. The Plan tab uses a solid **
 6. Check the big H / W / D / Weight boxes.
 7. Tap **Accept** — the entry is saved on this device and shows under Recent Entries.
 8. Tap **Trailer load-out** anytime to review all bills and pieces on a chosen trailer.
-9. Tap **Dock** to see doors → trailers → PROs → pieces (view only).
-10. Tap **Outbound** to register trailers you are loading out (trailer, optional door, destination or Open).
-11. Tap **Plan** to load demo inbound freight and run the local high-and-tight demo planner.
+9. Tap **Dock** → **Inbound** for the door board (and **Load demo inbound trailers** at the top).
+10. Tap **Dock** → **Outbound** to register trailers you are loading out.
+11. Tap **Dock** → **Demo plan** to run the local high-and-tight demo planner.
 12. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
 
 ---
@@ -159,7 +150,7 @@ The phone / GitHub Pages build has **no cloud AI**. The Plan tab uses a solid **
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local high-and-tight `runLoadPlan()` (swap body later for a real AI backend) |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v11`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v12`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
