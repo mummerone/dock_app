@@ -22,6 +22,9 @@
     { id: 'last', label: 'Custom / Last used', sub: 'Restore last Accept', last: true },
   ];
 
+  /** localStorage: done marks for Trailer load-out work steps (per plan + trailer) */
+  const LOADOUT_DONE_KEY = 'dockApp.loadoutDone.v1';
+
   const state = {
     section: null,
     level: null,
@@ -90,9 +93,18 @@
     loadoutTrailerInput: document.getElementById('loadoutTrailerInput'),
     loadoutTrailerList: document.getElementById('loadoutTrailerList'),
     loadoutTrailerChips: document.getElementById('loadoutTrailerChips'),
+    loadoutPlanBanner: document.getElementById('loadoutPlanBanner'),
     loadoutShowBtn: document.getElementById('loadoutShowBtn'),
     loadoutSummaryCard: document.getElementById('loadoutSummaryCard'),
     loadoutList: document.getElementById('loadoutList'),
+    loadoutWorkCard: document.getElementById('loadoutWorkCard'),
+    loadoutWorkList: document.getElementById('loadoutWorkList'),
+    loadoutWorkHint: document.getElementById('loadoutWorkHint'),
+    loadoutWorkProgress: document.getElementById('loadoutWorkProgress'),
+    loadoutClearDoneBtn: document.getElementById('loadoutClearDoneBtn'),
+    loadoutInventoryCard: document.getElementById('loadoutInventoryCard'),
+    loadoutListHeading: document.getElementById('loadout-list-heading'),
+    loadoutInventoryHint: document.getElementById('loadoutInventoryHint'),
     sumTrailer: document.getElementById('sumTrailer'),
     sumPros: document.getElementById('sumPros'),
     sumPieces: document.getElementById('sumPieces'),
@@ -156,6 +168,7 @@
     selectField('h', { clearBuffer: true });
     renderRecent();
     refreshLoadoutTrailerPicker();
+    updateLoadoutPlanBanner();
     renderOutboundList();
     renderPlan();
     setupSpeechStatus();
@@ -913,6 +926,17 @@
       .replace(/"/g, '&quot;');
   }
 
+  /** Strip legacy "high-and-tight" wording from saved plan notes / status. */
+  function sanitizePlanNote(note) {
+    if (note == null || note === '') return '';
+    return String(note)
+      .replace(/Packed\s+high-and-tight:?\s*/gi, 'Packed floor first, then decks — ')
+      .replace(/high-and-tight/gi, 'Packed floor first, then decks')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/\s+—\s*—/g, ' —')
+      .trim();
+  }
+
 
   function setPanelVisible(panel, on) {
     if (!panel) return;
@@ -940,6 +964,11 @@
     }
   }
 
+  function setPlanScrollMode(on) {
+    document.body.classList.toggle('plan-scroll-mode', Boolean(on));
+    if (el.viewDock) el.viewDock.classList.toggle('dock-plan-mode', Boolean(on));
+  }
+
   function showDockSection(section) {
     state.dockSection = section;
     const panels = {
@@ -962,8 +991,8 @@
       tab.classList.toggle('active', on);
       tab.setAttribute('aria-selected', on ? 'true' : 'false');
     });
-    // On Demo plan, unstick dock sub-nav so sticky tabs don't cover the long move list
-    if (el.viewDock) el.viewDock.classList.toggle('dock-plan-mode', section === 'plan');
+    // Demo plan: unstick topbar + view-tabs + dock sub-nav so chrome does not cover moves
+    setPlanScrollMode(section === 'plan');
     if (section === 'inbound') renderDock();
     if (section === 'outbound') renderOutboundList();
     if (section === 'plan') renderPlan();
@@ -993,14 +1022,26 @@
     });
     if (name === 'loadout') {
       refreshLoadoutTrailerPicker();
-      if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
-      if (!el.loadoutTrailerInput.value.trim() && el.trailerNumber.value.trim()) {
-        el.loadoutTrailerInput.value = el.trailerNumber.value.trim();
+      updateLoadoutPlanBanner();
+      const selected = String(state.loadoutTrailer || '').trim();
+      if (selected) {
+        renderLoadout(selected);
+      } else {
+        const plan = DockStorage.readLoadPlan();
+        const hasOutbound = planOutboundTrailerNumbers(plan).length > 0;
+        // Keep input empty when a plan has OUT trailers so the worker taps an OUT chip.
+        if (!hasOutbound && el.loadoutTrailerInput && !el.loadoutTrailerInput.value.trim() && el.trailerNumber && el.trailerNumber.value.trim()) {
+          el.loadoutTrailerInput.value = el.trailerNumber.value.trim();
+        }
+        renderLoadout('');
       }
     }
     if (name === 'dock') {
       // Ensure current Dock subsection panel is visible and populated
       showDockSection(state.dockSection || 'inbound');
+    } else {
+      // Leaving Dock — restore sticky chrome
+      setPlanScrollMode(false);
     }
   }
 
@@ -1009,7 +1050,10 @@
     el.loadoutShowBtn.addEventListener('click', () => {
       const t = el.loadoutTrailerInput.value.trim();
       if (!t) {
-        toast('Enter a trailer number');
+        state.loadoutTrailer = '';
+        highlightLoadoutChips('');
+        renderLoadout('');
+        toast('Enter a trailer number or tap a chip');
         el.loadoutTrailerInput.focus();
         return;
       }
@@ -1023,17 +1067,175 @@
         el.loadoutShowBtn.click();
       }
     });
+    el.loadoutTrailerInput.addEventListener('input', () => {
+      if (!el.loadoutTrailerInput.value.trim()) {
+        state.loadoutTrailer = '';
+        highlightLoadoutChips('');
+        renderLoadout('');
+      }
+    });
+    if (el.loadoutClearDoneBtn) {
+      el.loadoutClearDoneBtn.addEventListener('click', () => {
+        const t = state.loadoutTrailer;
+        if (!t) {
+          toast('Pick a trailer first');
+          return;
+        }
+        const plan = DockStorage.readLoadPlan();
+        const fp = planFingerprint(plan);
+        if (!fp) {
+          toast('No plan — nothing to clear');
+          return;
+        }
+        clearLoadoutDone(fp, t);
+        renderLoadout(t);
+        toast('Cleared done marks for this trailer');
+      });
+    }
+    if (el.loadoutWorkList) {
+      el.loadoutWorkList.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-move-key]');
+        if (!btn) return;
+        const moveKey = btn.getAttribute('data-move-key');
+        const t = state.loadoutTrailer;
+        const plan = DockStorage.readLoadPlan();
+        const fp = planFingerprint(plan);
+        if (!t || !fp || !moveKey) return;
+        const done = isLoadoutMoveDone(fp, t, moveKey);
+        setLoadoutMoveDone(fp, t, moveKey, !done);
+        renderLoadout(t);
+      });
+    }
+  }
+
+  /** Collect trailer numbers for chips: freight + plan outbound + registered outbound. */
+  function collectLoadoutTrailerOptions() {
+    /** @type {Map<string, {value:string, outbound:boolean}>} */
+    const map = new Map();
+    const add = (num, outbound) => {
+      const v = String(num || '').trim();
+      if (!v) return;
+      const prev = map.get(v);
+      if (prev) {
+        if (outbound) prev.outbound = true;
+        return;
+      }
+      map.set(v, { value: v, outbound: !!outbound });
+    };
+
+    DockStorage.allTrailerNumbers().forEach((t) => add(t, false));
+
+    const plan = DockStorage.readLoadPlan();
+    if (plan) {
+      (plan.outboundLoadouts || []).forEach((load) => add(load.trailerNumber, true));
+      (plan.moves || []).forEach((m) => {
+        if (m.to && m.to.trailer) add(m.to.trailer, true);
+        if (m.from && m.from.trailer) add(m.from.trailer, false);
+      });
+    }
+
+    DockStorage.readOutboundTrailers().forEach((r) => add(r.trailerNumber, true));
+
+    const list = Array.from(map.values());
+    list.sort((a, b) => {
+      // Outbound (plan) chips first so workers see go-get targets
+      if (a.outbound !== b.outbound) return a.outbound ? -1 : 1;
+      const na = Number(a.value);
+      const nb = Number(b.value);
+      if (!Number.isNaN(na) && !Number.isNaN(nb) && String(na) === a.value && String(nb) === b.value) {
+        return na - nb;
+      }
+      return a.value.localeCompare(b.value, undefined, { numeric: true });
+    });
+    return list;
+  }
+
+  function uniqueSortedTrailers(nums) {
+    const set = new Set();
+    (nums || []).forEach((n) => {
+      const v = String(n || '').trim();
+      if (v) set.add(v);
+    });
+    return Array.from(set).sort((a, b) => {
+      const na = Number(a);
+      const nb = Number(b);
+      if (!Number.isNaN(na) && !Number.isNaN(nb) && String(na) === a && String(nb) === b) {
+        return na - nb;
+      }
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+  }
+
+  function isPlanPresent(plan) {
+    return !!(
+      plan &&
+      (((plan.moves && plan.moves.length) || (plan.outboundLoadouts && plan.outboundLoadouts.length)))
+    );
+  }
+
+  function planOutboundTrailerNumbers(plan) {
+    const nums = [];
+    if (!plan) return nums;
+    (plan.outboundLoadouts || []).forEach((load) => nums.push(load.trailerNumber));
+    (plan.moves || []).forEach((m) => {
+      if (m.to && m.to.trailer) nums.push(m.to.trailer);
+    });
+    return uniqueSortedTrailers(nums);
+  }
+
+  function firstOutboundFromPlan(plan) {
+    const loads = (plan && plan.outboundLoadouts) || [];
+    for (let i = 0; i < loads.length; i++) {
+      const v = String(loads[i].trailerNumber || '').trim();
+      if (v) return v;
+    }
+    const moves = (plan && plan.moves) || [];
+    for (let i = 0; i < moves.length; i++) {
+      const v = String((moves[i].to && moves[i].to.trailer) || '').trim();
+      if (v) return v;
+    }
+    return '';
+  }
+
+  function isOutboundRegistered(trailerNumber) {
+    const t = String(trailerNumber || '').trim();
+    if (!t) return false;
+    return DockStorage.readOutboundTrailers().some((r) => String(r.trailerNumber || '').trim() === t);
+  }
+
+  function updateLoadoutPlanBanner() {
+    const banner = el.loadoutPlanBanner;
+    if (!banner) return;
+    const plan = DockStorage.readLoadPlan();
+    const outs = planOutboundTrailerNumbers(plan);
+    const hasPlan = isPlanPresent(plan);
+    banner.classList.toggle('is-empty', !hasPlan);
+    if (!hasPlan) {
+      banner.textContent =
+        'No load plan on this device yet. Go to Dock → Demo plan → Build load plan (demo).';
+      return;
+    }
+    const n = outs.length;
+    const noun = n === 1 ? 'trailer' : 'trailers';
+    const selected = String(state.loadoutTrailer || '').trim();
+    if (!selected && n) {
+      banner.textContent =
+        `Load plan ready — ${n} outbound ${noun}: ${outs.join(', ')}. Tap an OUT chip for the Work list.`;
+    } else {
+      banner.textContent =
+        `Load plan ready — ${n} outbound ${noun}. Tap an OUT chip for the Work list.`;
+    }
   }
 
   function refreshLoadoutTrailerPicker() {
     if (!el.loadoutTrailerChips) return;
-    const trailers = DockStorage.allTrailerNumbers();
+    const trailers = collectLoadoutTrailerOptions();
     // datalist
     if (el.loadoutTrailerList) {
       el.loadoutTrailerList.innerHTML = '';
-      trailers.forEach((t) => {
+      trailers.forEach((row) => {
         const opt = document.createElement('option');
-        opt.value = t;
+        opt.value = row.value;
         el.loadoutTrailerList.appendChild(opt);
       });
     }
@@ -1042,25 +1244,32 @@
       const hint = document.createElement('p');
       hint.className = 'hint';
       hint.style.margin = '0';
-      hint.textContent = 'No saved trailers yet — log freight first, or type a number above.';
+      hint.textContent =
+        'No trailers yet — log freight, or go to Dock → Inbound → Load demo inbound, then Demo plan.';
       el.loadoutTrailerChips.appendChild(hint);
+      updateLoadoutPlanBanner();
       return;
     }
-    trailers.forEach((t) => {
+    trailers.forEach((row) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'trailer-chip';
-      b.textContent = t;
-      b.dataset.value = t;
-      if (t === state.loadoutTrailer) b.classList.add('active');
+      b.className = 'trailer-chip' + (row.outbound ? ' trailer-chip-out' : '');
+      b.dataset.value = row.value;
+      if (row.outbound) {
+        b.innerHTML = `<span class="chip-out-tag">OUT</span> ${escapeHtml(row.value)}`;
+      } else {
+        b.textContent = row.value;
+      }
+      if (row.value === state.loadoutTrailer) b.classList.add('active');
       b.addEventListener('click', () => {
-        el.loadoutTrailerInput.value = t;
-        state.loadoutTrailer = t;
-        highlightLoadoutChips(t);
-        renderLoadout(t);
+        el.loadoutTrailerInput.value = row.value;
+        state.loadoutTrailer = row.value;
+        highlightLoadoutChips(row.value);
+        renderLoadout(row.value);
       });
       el.loadoutTrailerChips.appendChild(b);
     });
+    updateLoadoutPlanBanner();
   }
 
   function highlightLoadoutChips(value) {
@@ -1070,34 +1279,223 @@
     });
   }
 
-  function renderLoadout(trailerNumber) {
-    const t = String(trailerNumber || '').trim();
-    state.loadoutTrailer = t;
-    const groups = DockStorage.loadOutByTrailer(t);
-    const allPieces = groups.reduce((n, g) => n + g.pieces.length, 0);
+  function planFingerprint(plan) {
+    if (!plan) return '';
+    const created = plan.createdAt || '';
+    const n = (plan.moves && plan.moves.length) || 0;
+    return `${created}|${n}`;
+  }
 
-    let weightSum = 0;
-    let weightCount = 0;
-    groups.forEach((g) => {
-      g.pieces.forEach((e) => {
-        if (e.weight != null && !Number.isNaN(Number(e.weight))) {
-          weightSum += Number(e.weight);
-          weightCount += 1;
-        }
-      });
+  function moveDoneKey(m, idx) {
+    if (m && m.entryId) return String(m.entryId);
+    return `${idx}:${(m && m.pro) || ''}:${(m && m.pieceFraction) || ''}`;
+  }
+
+  function readLoadoutDoneStore() {
+    try {
+      const raw = localStorage.getItem(LOADOUT_DONE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeLoadoutDoneStore(store) {
+    try {
+      localStorage.setItem(LOADOUT_DONE_KEY, JSON.stringify(store));
+    } catch (_) {
+      /* ignore quota */
+    }
+  }
+
+  function loadoutDoneBucketKey(fingerprint, trailer) {
+    return `${fingerprint}::${String(trailer || '').trim()}`;
+  }
+
+  function isLoadoutMoveDone(fingerprint, trailer, moveKey) {
+    const store = readLoadoutDoneStore();
+    const bucket = store[loadoutDoneBucketKey(fingerprint, trailer)];
+    return !!(bucket && bucket[moveKey]);
+  }
+
+  function setLoadoutMoveDone(fingerprint, trailer, moveKey, done) {
+    const store = readLoadoutDoneStore();
+    const key = loadoutDoneBucketKey(fingerprint, trailer);
+    if (!store[key]) store[key] = {};
+    if (done) store[key][moveKey] = true;
+    else delete store[key][moveKey];
+    if (!Object.keys(store[key]).length) delete store[key];
+    writeLoadoutDoneStore(store);
+  }
+
+  function clearLoadoutDone(fingerprint, trailer) {
+    const store = readLoadoutDoneStore();
+    delete store[loadoutDoneBucketKey(fingerprint, trailer)];
+    writeLoadoutDoneStore(store);
+  }
+
+  /**
+   * Moves for the selected trailer: prefer outbound (to.trailer), else inbound (from.trailer).
+   * @returns {{ role: 'outbound'|'inbound'|null, moves: object[], planIndexes: number[] }}
+   */
+  function movesForSelectedTrailer(plan, trailerNumber) {
+    const t = String(trailerNumber || '').trim();
+    const all = (plan && plan.moves) || [];
+    if (!t || !all.length) return { role: null, moves: [], planIndexes: [] };
+
+    /** @type {object[]} */
+    const outMoves = [];
+    /** @type {number[]} */
+    const outIdx = [];
+    /** @type {object[]} */
+    const inMoves = [];
+    /** @type {number[]} */
+    const inIdx = [];
+
+    all.forEach((m, idx) => {
+      const toTr = String((m.to && m.to.trailer) || '').trim();
+      const fromTr = String((m.from && m.from.trailer) || '').trim();
+      if (toTr === t) {
+        outMoves.push(m);
+        outIdx.push(idx);
+      }
+      if (fromTr === t) {
+        inMoves.push(m);
+        inIdx.push(idx);
+      }
     });
 
-    el.loadoutSummaryCard.classList.remove('hidden');
-    el.sumTrailer.textContent = t || '—';
-    el.sumPros.textContent = String(groups.length);
-    el.sumPieces.textContent = String(allPieces);
-    el.sumWeight.textContent = weightCount
-      ? `${weightSum.toLocaleString()} lbs`
-      : '—';
+    if (outMoves.length) return { role: 'outbound', moves: outMoves, planIndexes: outIdx };
+    if (inMoves.length) return { role: 'inbound', moves: inMoves, planIndexes: inIdx };
+    return { role: null, moves: [], planIndexes: [] };
+  }
+
+  function renderLoadoutWorkList(plan, trailerNumber, filtered) {
+    if (!el.loadoutWorkCard || !el.loadoutWorkList) return false;
+    const { role, moves, planIndexes } = filtered;
+    if (!role || !moves.length) {
+      const t = String(trailerNumber || '').trim();
+      const outboundStub = t && isOutboundRegistered(t);
+      if (t && outboundStub && !isPlanPresent(plan)) {
+        el.loadoutWorkCard.classList.remove('hidden');
+        el.loadoutWorkList.innerHTML = '<div class="empty-state">Build a load plan first</div>';
+        if (el.loadoutWorkHint) {
+          el.loadoutWorkHint.textContent =
+            'No plan moves for this outbound yet. Go to Dock → Demo plan → Build load plan (demo).';
+        }
+        if (el.loadoutWorkProgress) el.loadoutWorkProgress.textContent = '';
+        return false;
+      }
+      el.loadoutWorkCard.classList.add('hidden');
+      el.loadoutWorkList.innerHTML = '';
+      if (el.loadoutWorkProgress) el.loadoutWorkProgress.textContent = '';
+      return false;
+    }
+
+    const fp = planFingerprint(plan);
+    el.loadoutWorkCard.classList.remove('hidden');
+
+    if (el.loadoutWorkHint) {
+      el.loadoutWorkHint.textContent =
+        role === 'outbound'
+          ? 'Go-get steps to load THIS outbound trailer. Tap a step when finished.'
+          : 'Steps that pull freight FROM this inbound trailer. Tap a step when finished.';
+    }
+
+    let doneCount = 0;
+    const frag = document.createDocumentFragment();
+    moves.forEach((m, i) => {
+      const planIdx = planIndexes[i];
+      const key = moveDoneKey(m, planIdx);
+      const done = isLoadoutMoveDone(fp, trailerNumber, key);
+      if (done) doneCount += 1;
+
+      const fromDoor = (m.from && m.from.door) || '—';
+      const fromTr = (m.from && m.from.trailer) || '—';
+      const fromSlot = (m.from && m.from.slot) || '—';
+      const toTr = (m.to && m.to.trailer) || '—';
+      const toSlot = (m.to && m.to.slot) || '—';
+      const toDoor = (m.to && m.to.door) || '';
+      const dest = m.destination || '';
+      const size =
+        m.h == null && m.w == null && m.d == null
+          ? ''
+          : `${fmt(m.h)} × ${fmt(m.w)} × ${fmt(m.d)} in`;
+      const wt = m.weight == null ? '' : `${fmt(m.weight)} lbs`;
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'loadout-work-step' + (done ? ' is-done' : '');
+      btn.setAttribute('data-move-key', key);
+      btn.setAttribute('role', 'listitem');
+      btn.setAttribute(
+        'aria-pressed',
+        done ? 'true' : 'false'
+      );
+      btn.innerHTML = `
+        <div class="loadout-work-step-top">
+          <span class="loadout-work-num">${i + 1}</span>
+          <span class="loadout-work-check" aria-hidden="true">${done ? '✓' : ''}</span>
+          <span class="loadout-work-pro">PRO ${escapeHtml(m.pro || '—')} · Piece ${escapeHtml(m.pieceFraction || '—')}</span>
+        </div>
+        ${dest ? `<div class="loadout-work-dest">Going to: ${escapeHtml(dest)}</div>` : ''}
+        <div class="loadout-work-action">
+          <span class="loadout-work-get"><strong>Get</strong> Door ${escapeHtml(fromDoor)} · Trl ${escapeHtml(fromTr)} · ${escapeHtml(fromSlot)}</span>
+          <span class="loadout-work-arrow" aria-hidden="true">→</span>
+          <span class="loadout-work-put"><strong>Put</strong> Trl ${escapeHtml(toTr)}${toDoor ? ` · Door ${escapeHtml(toDoor)}` : ''} · ${escapeHtml(toSlot)}</span>
+        </div>
+        ${size || wt ? `<div class="loadout-work-meta">${escapeHtml([size, wt].filter(Boolean).join(' · '))}</div>` : ''}
+        <div class="loadout-work-tap-hint">${done ? 'Done — tap to undo' : 'Tap when done'}</div>
+      `;
+      frag.appendChild(btn);
+    });
+
+    el.loadoutWorkList.innerHTML = '';
+    el.loadoutWorkList.appendChild(frag);
+
+    if (el.loadoutWorkProgress) {
+      el.loadoutWorkProgress.textContent = `${doneCount} of ${moves.length} done`;
+    }
+    return true;
+  }
+
+  function renderLoadoutInventory(groups, opts) {
+    const { hasPlan, hasWork, role } = opts;
+    if (el.loadoutListHeading) {
+      if (hasWork && role === 'outbound') {
+        el.loadoutListHeading.textContent = 'What is already planned on this trailer';
+      } else {
+        el.loadoutListHeading.textContent = 'What is on this trailer';
+      }
+    }
+    if (el.loadoutInventoryHint) {
+      el.loadoutInventoryHint.textContent = hasWork && role === 'outbound'
+        ? 'Logged freight currently on this trailer (if any). Work list above is your go-get guide.'
+        : 'Grouped by bill (PRO). Same PRO stays on one trailer.';
+    }
 
     if (!groups.length) {
-      el.loadoutList.innerHTML =
-        '<div class="empty-state">Nothing on this trailer yet.<br/>Log freight with this trailer number, then come back here.</div>';
+      let msg;
+      if (!state.loadoutTrailer) {
+        msg = 'Enter a trailer number or tap a chip';
+      } else if (hasWork) {
+        msg =
+          role === 'outbound'
+            ? 'No logged freight on this outbound yet — follow the Work list above to load it.'
+            : 'No freight left listed on this trailer. Follow the Work list if steps remain.';
+      } else if (hasPlan) {
+        msg =
+          'Nothing on this trailer in the inventory, and no work steps for it in the current plan. Try an <strong>OUT</strong> trailer chip, or pick an inbound that has freight.';
+      } else if (isOutboundRegistered(state.loadoutTrailer)) {
+        msg =
+          'Build a load plan first.<br/>Go to <strong>Dock → Demo plan</strong> and tap <strong>Build load plan (demo)</strong>.';
+      } else {
+        msg =
+          'Nothing on this trailer yet.<br/>Log freight with this trailer number, or go to <strong>Dock → Demo plan</strong> and build a plan for a work list.';
+      }
+      el.loadoutList.innerHTML = `<div class="empty-state">${msg}</div>`;
       return;
     }
 
@@ -1160,6 +1558,97 @@
 
     el.loadoutList.innerHTML = '';
     el.loadoutList.appendChild(frag);
+  }
+
+  function renderLoadout(trailerNumber) {
+    const t = String(trailerNumber || '').trim();
+    state.loadoutTrailer = t;
+
+    if (!t) {
+      if (el.loadoutSummaryCard) el.loadoutSummaryCard.classList.add('hidden');
+      if (el.sumTrailer) el.sumTrailer.textContent = '—';
+      if (el.sumPros) el.sumPros.textContent = '0';
+      if (el.sumPieces) el.sumPieces.textContent = '0';
+      if (el.sumWeight) el.sumWeight.textContent = '—';
+      if (el.loadoutWorkCard) {
+        el.loadoutWorkCard.classList.add('hidden');
+        if (el.loadoutWorkList) el.loadoutWorkList.innerHTML = '';
+      }
+      if (el.loadoutWorkProgress) el.loadoutWorkProgress.textContent = '';
+      if (el.loadoutList) {
+        el.loadoutList.innerHTML =
+          '<div class="empty-state">Enter a trailer number or tap a chip</div>';
+      }
+      if (el.loadoutListHeading) el.loadoutListHeading.textContent = 'What is on this trailer';
+      if (el.loadoutInventoryHint) {
+        el.loadoutInventoryHint.textContent = 'Grouped by bill (PRO). Same PRO stays on one trailer.';
+      }
+      highlightLoadoutChips('');
+      updateLoadoutPlanBanner();
+      return;
+    }
+
+    const groups = DockStorage.loadOutByTrailer(t);
+    const allPieces = groups.reduce((n, g) => n + g.pieces.length, 0);
+
+    let weightSum = 0;
+    let weightCount = 0;
+    groups.forEach((g) => {
+      g.pieces.forEach((e) => {
+        if (e.weight != null && !Number.isNaN(Number(e.weight))) {
+          weightSum += Number(e.weight);
+          weightCount += 1;
+        }
+      });
+    });
+
+    const plan = DockStorage.readLoadPlan();
+    const hasPlan = isPlanPresent(plan);
+    const filtered = movesForSelectedTrailer(plan, t);
+    const hasWork = renderLoadoutWorkList(plan, t, filtered);
+
+    // Summary: prefer work-list counts when loading outbound with a plan
+    let sumPros = groups.length;
+    let sumPieces = allPieces;
+    let sumWeightText = weightCount ? `${weightSum.toLocaleString()} lbs` : '—';
+
+    if (hasWork && filtered.role === 'outbound' && plan) {
+      const load = (plan.outboundLoadouts || []).find(
+        (L) => String(L.trailerNumber || '').trim() === t
+      );
+      if (load) {
+        sumPros = load.proCount != null ? load.proCount : sumPros;
+        sumPieces = load.pieceCount != null ? load.pieceCount : filtered.moves.length;
+        if (load.totalWeight != null) {
+          sumWeightText = `${Number(load.totalWeight).toLocaleString()} lbs`;
+        }
+      } else {
+        sumPros = new Set(filtered.moves.map((m) => m.pro)).size;
+        sumPieces = filtered.moves.length;
+        let w = 0;
+        let wc = 0;
+        filtered.moves.forEach((m) => {
+          if (m.weight != null && !Number.isNaN(Number(m.weight))) {
+            w += Number(m.weight);
+            wc += 1;
+          }
+        });
+        sumWeightText = wc ? `${w.toLocaleString()} lbs` : '—';
+      }
+    }
+
+    el.loadoutSummaryCard.classList.remove('hidden');
+    el.sumTrailer.textContent = t || '—';
+    el.sumPros.textContent = String(sumPros);
+    el.sumPieces.textContent = String(sumPieces);
+    el.sumWeight.textContent = sumWeightText;
+
+    renderLoadoutInventory(groups, {
+      hasPlan,
+      hasWork,
+      role: filtered.role,
+    });
+    updateLoadoutPlanBanner();
   }
 
 
@@ -1632,6 +2121,11 @@
       renderPlan();
       if (el.planStatusHint) el.planStatusHint.textContent = 'Plan cleared.';
       toast('Plan cleared');
+      refreshLoadoutTrailerPicker();
+      updateLoadoutPlanBanner();
+      if (state.view === 'loadout') {
+        renderLoadout(state.loadoutTrailer || '');
+      }
     } catch (err) {
       const msg = String(err && err.message ? err.message : err);
       toast(`Clear plan failed: ${msg}`);
@@ -1662,10 +2156,12 @@
       state.dockDoor = '';
       state.dockPro = '';
       state.loadoutTrailer = '';
+      if (el.loadoutTrailerInput) el.loadoutTrailerInput.value = '';
       renderRecent();
       refreshLoadoutTrailerPicker();
       renderOutboundList();
       renderPlan();
+      if (state.view === 'loadout') renderLoadout('');
       if (state.view === 'dock' && state.dockSection === 'inbound') renderDock();
       if (state.view === 'dock' && state.dockSection === 'outbound') renderOutboundList();
       if (el.planStatusHint) {
@@ -1691,16 +2187,31 @@
     renderPlan();
     renderOutboundList();
     const s = plan.summary || {};
+    const noteSafe = sanitizePlanNote(s.note || '');
     if (el.planStatusHint) {
-      el.planStatusHint.textContent = s.note
-        ? `Plan: ${s.moveCount || 0} moves · ${s.outboundCount || 0} outbound · ${s.note}`
+      el.planStatusHint.textContent = noteSafe
+        ? `Plan: ${s.moveCount || 0} moves · ${s.outboundCount || 0} outbound · ${noteSafe}`
         : `Plan ready: ${s.moveCount || 0} moves`;
     }
+    refreshLoadoutTrailerPicker();
+    updateLoadoutPlanBanner();
     if (!(s.moveCount > 0)) {
-      toast(s.note || 'Nothing to plan');
+      toast(noteSafe || 'Nothing to plan');
+      if (state.view === 'loadout') renderLoadout(state.loadoutTrailer || '');
       return;
     }
     toast(`Plan ready: ${s.moveCount} moves → ${s.outboundCount} outbound`);
+    if (state.view === 'loadout') {
+      const firstOut = firstOutboundFromPlan(plan);
+      if (firstOut) {
+        if (el.loadoutTrailerInput) el.loadoutTrailerInput.value = firstOut;
+        state.loadoutTrailer = firstOut;
+        highlightLoadoutChips(firstOut);
+        renderLoadout(firstOut);
+      } else {
+        renderLoadout(state.loadoutTrailer || '');
+      }
+    }
   }
 
   function renderPlan() {
@@ -1713,8 +2224,9 @@
   function renderPlanSummary(plan) {
     if (!el.planSummary) return;
     if (!plan || !(plan.moves && plan.moves.length) && !(plan.outboundLoadouts && plan.outboundLoadouts.length)) {
-      const note = plan && plan.summary && plan.summary.note
-        ? `<div class="empty-state">${escapeHtml(plan.summary.note)}</div>`
+      const rawNote = plan && plan.summary && plan.summary.note;
+      const note = rawNote
+        ? `<div class="empty-state">${escapeHtml(sanitizePlanNote(rawNote))}</div>`
         : '<div class="empty-state">No plan yet — load demo inbound, then build the load plan.</div>';
       el.planSummary.innerHTML = note;
       return;
@@ -1723,6 +2235,7 @@
     const when = plan.createdAt
       ? DockStorage.formatTimeLocal(plan.createdAt)
       : '—';
+    const noteSafe = sanitizePlanNote(s.note || '');
     el.planSummary.innerHTML = `
       <div class="plan-summary-grid">
         <div class="summary-row"><span class="summary-label">Planner</span><span class="summary-value">${escapeHtml(plan.label || plan.planner || 'demo')}</span></div>
@@ -1732,7 +2245,7 @@
         <div class="summary-row"><span class="summary-label">Outbound</span><span class="summary-value">${escapeHtml(String(s.outboundCount != null ? s.outboundCount : (plan.outboundLoadouts || []).length))}</span></div>
         <div class="summary-row"><span class="summary-label">Skipped</span><span class="summary-value">${escapeHtml(String(s.skippedNoDest || 0))} no dest</span></div>
       </div>
-      <p class="hint plan-note">${escapeHtml(s.note || '')}</p>
+      <p class="hint plan-note">${escapeHtml(noteSafe)}</p>
     `;
   }
 
@@ -1764,16 +2277,31 @@
     });
 
     const frag = document.createDocumentFragment();
+    let groupIndex = 0;
     groups.forEach((g) => {
       const details = document.createElement('details');
       details.className = 'plan-move-group';
+      // First group always open; others open too so headers stay visible between groups
       details.open = true;
+      if (groupIndex === 0) details.setAttribute('open', '');
+      groupIndex += 1;
       const count = g.items.length;
+      const trailerLabel =
+        g.trailer && g.trailer !== '—'
+          ? `Trailer ${g.trailer}`
+          : `Destination ${g.destination}`;
       const summary = document.createElement('summary');
       summary.className = 'plan-move-group-head';
+      // Inner flex row — Safari can break toggle if <summary> itself is display:flex
       summary.innerHTML = `
-        <span class="plan-move-group-title">→ Trailer ${escapeHtml(g.trailer)} · ${escapeHtml(g.destination)}</span>
-        <span class="plan-move-group-count">${count} move${count === 1 ? '' : 's'}</span>
+        <span class="plan-move-group-head-inner">
+          <span class="plan-move-group-chevron" aria-hidden="true">▸</span>
+          <span class="plan-move-group-text">
+            <span class="plan-move-group-label">Outbound group</span>
+            <span class="plan-move-group-title">${escapeHtml(trailerLabel)} · ${escapeHtml(g.destination)}</span>
+          </span>
+          <span class="plan-move-group-count">${count} move${count === 1 ? '' : 's'}</span>
+        </span>
       `;
       details.appendChild(summary);
 
@@ -1880,7 +2408,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=19').catch(() => {
       /* offline cache optional */
     });
   }
