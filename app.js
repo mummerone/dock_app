@@ -1,1759 +1,1987 @@
-/**
- * Dock App — main UI controller
- * Permanent rule reminder: same PRO => same trailer (see storage.js groupsByPro).
- */
-(function () {
-  'use strict';
-
-  // Dim mapping: H = vertical height; W = length (first footprint dim in the
-  // named size, e.g. 48 in "48×40"); D = width (second footprint dim, e.g. 40).
-  // Pallet/skid presets fill W×D only (height varies) — leave H null.
-  // Drums, pails, IBC totes, Gaylord include a standard H.
-  const PRESETS = [
-    { id: 'gma', label: 'GMA 48×40', sub: 'W×D 48×40 — fills W×D only', h: null, w: 48, d: 40, footprintOnly: true },
-    { id: 'p4848', label: '48×48', sub: 'W×D 48×48 — fills W×D only', h: null, w: 48, d: 48, footprintOnly: true },
-    { id: 'half', label: 'Half pallet', sub: 'W×D 48×20 — fills W×D only', h: null, w: 48, d: 20, footprintOnly: true },
-    { id: 'euro', label: 'Euro', sub: 'W×D 47×32 — fills W×D only', h: null, w: 47, d: 32, footprintOnly: true },
-    { id: 'drum55', label: '55-gal drum', sub: 'H×W×D 35×23×23 — includes height', h: 35, w: 23, d: 23 },
-    { id: 'drum30', label: '30-gal drum', sub: 'H×W×D 30×19×19 — includes height', h: 30, w: 19, d: 19 },
-    { id: 'bucket5', label: '5-gal bucket', sub: 'H×W×D 15×12×12 — includes height', h: 15, w: 12, d: 12 },
-    { id: 'ibc', label: 'IBC 275', sub: 'H×W×D 46×48×40 — includes height', h: 46, w: 48, d: 40 },
-    { id: 'gaylord', label: 'Gaylord', sub: 'H×W×D 48×40×36 — includes height', h: 48, w: 40, d: 36 },
-    { id: 'last', label: 'Custom / Last used', sub: 'Restore last Accept', last: true },
-  ];
-
-  const state = {
-    section: null,
-    level: null,
-    lateral: null,
-    h: null,
-    w: null,
-    d: null,
-    weight: null,
-    activeField: 'h',
-    listening: false,
-    padBuffer: '',
-    view: 'entry', // 'entry' | 'loadout' | 'dock'
-    dockSection: 'inbound', // 'inbound' | 'outbound' | 'plan'
-    loadoutTrailer: '',
-    pieceLocked: false, // mid-sequence: piece field forced to k/n
-    destinationLocked: false, // PRO already has a destination — reuse until edited
-    dockLevel: 'doors', // 'doors' | 'pros' | 'pieces'
-    dockDoor: '',
-    dockPro: '',
-    editingPro: '', // PRO open in Edit bill sheet
-  };
-
-  const el = {
-    pro: document.getElementById('proInput'),
-    piece: document.getElementById('pieceInput'),
-    pieceSlashBtn: document.getElementById('pieceSlashBtn'),
-    trailerNumber: document.getElementById('trailerNumberInput'),
-    doorNumber: document.getElementById('doorNumberInput'),
-    sectionChips: document.getElementById('sectionChips'),
-    levelChips: document.getElementById('levelChips'),
-    lateralChips: document.getElementById('lateralChips'),
-    slotPreview: document.getElementById('slotPreview'),
-    presetGrid: document.getElementById('presetGrid'),
-    speakBtn: document.getElementById('speakBtn'),
-    respeakBtn: document.getElementById('respeakBtn'),
-    acceptBtn: document.getElementById('acceptBtn'),
-    valH: document.getElementById('valH'),
-    valW: document.getElementById('valW'),
-    valD: document.getElementById('valD'),
-    valWeight: document.getElementById('valWeight'),
-    tileH: document.getElementById('tileH'),
-    tileW: document.getElementById('tileW'),
-    tileD: document.getElementById('tileD'),
-    tileWeight: document.getElementById('tileWeight'),
-    numpad: document.getElementById('numpad'),
-    activeFieldLabel: document.getElementById('activeFieldLabel'),
-    recentList: document.getElementById('recentList'),
-    clearListBtn: document.getElementById('clearListBtn'),
-    speechStatus: document.getElementById('speechStatus'),
-    speechStatusText: document.getElementById('speechStatusText'),
-    listenDot: document.getElementById('listenDot'),
-    listenBanner: document.getElementById('listenBanner'),
-    listenBannerText: document.getElementById('listenBannerText'),
-    parseHint: document.getElementById('parseHint'),
-    toast: document.getElementById('toast'),
-    tabEntry: document.getElementById('tabEntry'),
-    tabLoadout: document.getElementById('tabLoadout'),
-    tabDock: document.getElementById('tabDock'),
-    viewEntry: document.getElementById('viewEntry'),
-    viewLoadout: document.getElementById('viewLoadout'),
-    viewDock: document.getElementById('viewDock'),
-    dockBoard: document.getElementById('dockBoard'),
-    dockBackBtn: document.getElementById('dockBackBtn'),
-    dockHint: document.getElementById('dockHint'),
-    loadoutTrailerInput: document.getElementById('loadoutTrailerInput'),
-    loadoutTrailerList: document.getElementById('loadoutTrailerList'),
-    loadoutTrailerChips: document.getElementById('loadoutTrailerChips'),
-    loadoutShowBtn: document.getElementById('loadoutShowBtn'),
-    loadoutSummaryCard: document.getElementById('loadoutSummaryCard'),
-    loadoutList: document.getElementById('loadoutList'),
-    sumTrailer: document.getElementById('sumTrailer'),
-    sumPros: document.getElementById('sumPros'),
-    sumPieces: document.getElementById('sumPieces'),
-    sumWeight: document.getElementById('sumWeight'),
-    destination: document.getElementById('destinationInput'),
-    destinationLockRow: document.getElementById('destinationLockRow'),
-    destinationLockedMsg: document.getElementById('destinationLockedMsg'),
-    editDestinationBtn: document.getElementById('editDestinationBtn'),
-    dockSubInbound: document.getElementById('dockSubInbound'),
-    dockSubOutbound: document.getElementById('dockSubOutbound'),
-    dockSubPlan: document.getElementById('dockSubPlan'),
-    dockPanelInbound: document.getElementById('dockPanelInbound'),
-    dockPanelOutbound: document.getElementById('dockPanelOutbound'),
-    dockPanelPlan: document.getElementById('dockPanelPlan'),
-    outboundTrailerInput: document.getElementById('outboundTrailerInput'),
-    outboundDoorInput: document.getElementById('outboundDoorInput'),
-    outboundDestInput: document.getElementById('outboundDestInput'),
-    outboundOpenBtn: document.getElementById('outboundOpenBtn'),
-    outboundSaveBtn: document.getElementById('outboundSaveBtn'),
-    outboundList: document.getElementById('outboundList'),
-    editProOverlay: document.getElementById('editProOverlay'),
-    editProNumber: document.getElementById('editProNumber'),
-    editProDestination: document.getElementById('editProDestination'),
-    editProTrailer: document.getElementById('editProTrailer'),
-    editProDoor: document.getElementById('editProDoor'),
-    editProCancelBtn: document.getElementById('editProCancelBtn'),
-    editProSaveBtn: document.getElementById('editProSaveBtn'),
-    loadDemoInboundBtn: document.getElementById('loadDemoInboundBtn'),
-    runLoadPlanBtn: document.getElementById('runLoadPlanBtn'),
-    clearPlanBtn: document.getElementById('clearPlanBtn'),
-    planStatusHint: document.getElementById('planStatusHint'),
-    planSummary: document.getElementById('planSummary'),
-    planMoveList: document.getElementById('planMoveList'),
-    planOutboundList: document.getElementById('planOutboundList'),
-  };
-
-  function init() {
-    buildSectionChips();
-    buildLevelChips();
-    buildLateralChips();
-    buildPresets();
-    bindDimTiles();
-    bindNumpad();
-    bindActions();
-    bindViewTabs();
-    bindDockSubnav();
-    bindLoadout();
-    bindDock();
-    bindOutbound();
-    bindPlan();
-    bindDestination();
-    bindEditPro();
-    updateDimsUI();
-    updateSlotPreview();
-    selectField('h', { clearBuffer: true });
-    renderRecent();
-    refreshLoadoutTrailerPicker();
-    renderOutboundList();
-    renderPlan();
-    setupSpeechStatus();
-    bindPieceSequenceWatchers();
-    syncPieceSequenceFromStorage();
-    syncDestinationFromPro();
-    registerServiceWorker();
-  }
-
-  function buildSectionChips() {
-    el.sectionChips.innerHTML = '';
-    for (let i = 1; i <= 12; i++) {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'chip';
-      b.textContent = String(i);
-      b.dataset.value = String(i);
-      b.addEventListener('click', () => {
-        state.section = i;
-        highlightChips(el.sectionChips, String(i));
-        updateSlotPreview();
-      });
-      el.sectionChips.appendChild(b);
-    }
-  }
-
-  function buildLevelChips() {
-    el.levelChips.innerHTML = '';
-    ['A', 'B', 'C'].forEach((lv) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'chip';
-      b.textContent = lv;
-      b.dataset.value = lv;
-      b.addEventListener('click', () => {
-        state.level = lv;
-        highlightChips(el.levelChips, lv);
-        updateSlotPreview();
-      });
-      el.levelChips.appendChild(b);
-    });
-  }
-
-  function buildLateralChips() {
-    el.lateralChips.innerHTML = '';
-    ['Left', 'Middle', 'Right'].forEach((side) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'chip';
-      b.textContent = side;
-      b.dataset.value = side;
-      b.addEventListener('click', () => {
-        state.lateral = side;
-        highlightChips(el.lateralChips, side);
-        updateSlotPreview();
-      });
-      el.lateralChips.appendChild(b);
-    });
-  }
-
-  function highlightChips(container, value) {
-    container.querySelectorAll('.chip').forEach((c) => {
-      c.classList.toggle('active', c.dataset.value === value);
-    });
-  }
-
-  function updateSlotPreview() {
-    const s = state.section != null ? state.section : '—';
-    const l = state.level || '—';
-    const lat = state.lateral || '—';
-    el.slotPreview.textContent = `${s}/${l}/${lat}`;
-  }
-
-  function buildPresets() {
-    el.presetGrid.innerHTML = '';
-    PRESETS.forEach((p) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'preset-btn';
-      b.innerHTML = `<strong>${p.label}</strong><span>${p.sub}</span>`;
-      b.addEventListener('click', () => applyPreset(p));
-      el.presetGrid.appendChild(b);
-    });
-  }
-
-  function applyPreset(p) {
-    if (p.last) {
-      const last = DockStorage.getLastUsed();
-      if (!last) {
-        toast('No last-used size yet — Accept an entry first');
-        return;
-      }
-      state.h = last.h;
-      state.w = last.w;
-      state.d = last.d;
-      // Weight left editable; restore if present but still allow override
-      state.weight = last.weight;
-      state.padBuffer = '';
-      updateDimsUI();
-      selectField('weight', { clearBuffer: true });
-      el.parseHint.textContent = 'Restored last used dimensions';
-      return;
-    }
-    // Pallet/skid: footprint only (W×D). Drums/totes: full H×W×D. Weight always empty.
-    state.h = p.footprintOnly ? null : p.h;
-    state.w = p.w;
-    state.d = p.d;
-    state.weight = null;
-    state.padBuffer = '';
-    updateDimsUI();
-    if (p.footprintOnly) {
-      selectField('h', { clearBuffer: true });
-      el.parseHint.textContent = `Preset: ${p.label} — W×D filled; enter height & weight`;
-    } else {
-      selectField('weight', { clearBuffer: true });
-      el.parseHint.textContent = `Preset: ${p.label} — includes height; enter weight`;
-    }
-  }
-
-  function bindDimTiles() {
-    const tiles = [
-      [el.tileH, 'h'],
-      [el.tileW, 'w'],
-      [el.tileD, 'd'],
-      [el.tileWeight, 'weight'],
-    ];
-    tiles.forEach(([node, field]) => {
-      node.addEventListener('click', () => {
-        selectField(field, { clearBuffer: true });
-        // Tap field = option to re-speak just that value
-        if (DockSpeech.isSupported()) {
-          el.parseHint.textContent = `Selected ${fieldLabel(field)} — type on pad or tap Speak / Re-speak`;
-        }
-      });
-    });
-  }
-
-  function fieldLabel(field) {
-    return { h: 'Height', w: 'Width', d: 'Depth', weight: 'Weight' }[field] || field;
-  }
-
-  function selectField(field, opts = {}) {
-    state.activeField = field;
-    if (opts.clearBuffer) state.padBuffer = '';
-    [el.tileH, el.tileW, el.tileD, el.tileWeight].forEach((t) => t.classList.remove('selected'));
-    const map = { h: el.tileH, w: el.tileW, d: el.tileD, weight: el.tileWeight };
-    map[field].classList.add('selected');
-    const unit = field === 'weight' ? 'lbs' : 'in';
-    el.activeFieldLabel.textContent = `Editing ${fieldLabel(field)} (${unit})`;
-  }
-
-  function updateDimsUI() {
-    el.valH.textContent = state.h == null ? '—' : String(state.h);
-    el.valW.textContent = state.w == null ? '—' : String(state.w);
-    el.valD.textContent = state.d == null ? '—' : String(state.d);
-    el.valWeight.textContent = state.weight == null ? '—' : String(state.weight);
-  }
-
-  function bindNumpad() {
-    el.numpad.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-key]');
-      if (!btn) return;
-      const key = btn.dataset.key;
-      if (key === 'clear') {
-        state.padBuffer = '';
-        state[state.activeField] = null;
-        updateDimsUI();
-        return;
-      }
-      if (key === 'back') {
-        state.padBuffer = state.padBuffer.slice(0, -1);
-        state[state.activeField] = state.padBuffer === '' ? null : Number(state.padBuffer);
-        updateDimsUI();
-        return;
-      }
-      // digit
-      if (state.padBuffer.length >= 6) return;
-      state.padBuffer += key;
-      state[state.activeField] = Number(state.padBuffer);
-      updateDimsUI();
-    });
-  }
-
-
-  function insertSlashIntoPiece() {
-    if (state.pieceLocked) return;
-    const input = el.piece;
-    if (!input) return;
-    const slash = '/';
-    const start = input.selectionStart;
-    const end = input.selectionEnd;
-    if (typeof start === 'number' && typeof end === 'number') {
-      const before = input.value.slice(0, start);
-      const after = input.value.slice(end);
-      input.value = before + slash + after;
-      const pos = start + 1;
-      input.setSelectionRange(pos, pos);
-    } else {
-      input.value = (input.value || '') + slash;
-    }
-    input.focus();
-  }
-
-  function bindActions() {
-    if (el.pieceSlashBtn) {
-      el.pieceSlashBtn.addEventListener('click', insertSlashIntoPiece);
-    }
-    el.speakBtn.addEventListener('click', () => startSpeak({ mode: 'all' }));
-    el.respeakBtn.addEventListener('click', () => startSpeak({ mode: 'active' }));
-    el.acceptBtn.addEventListener('click', onAccept);
-    el.clearListBtn.addEventListener('click', () => {
-      if (!confirm('Clear all saved entries and the load plan on this device?')) return;
-      DockStorage.clearAll();
-      DockStorage.clearLoadPlan();
-      setPieceLocked(false);
-      el.piece.value = '';
-      renderRecent();
-      renderPlan();
-      renderOutboundList();
-      refreshLoadoutTrailerPicker();
-      if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
-      if (state.view === 'dock') {
-        if (state.dockSection === 'inbound') renderDock();
-        else if (state.dockSection === 'outbound') renderOutboundList();
-        else if (state.dockSection === 'plan') renderPlan();
-      }
-      toast('All entries and plan cleared');
-    });
-  }
-
-  function setupSpeechStatus() {
-    if (!DockSpeech.isSupported()) {
-      el.speechStatus.classList.add('unsupported');
-      el.speechStatusText.textContent = 'Voice unavailable';
-      el.speakBtn.disabled = false; // still clickable to show toast
-      el.parseHint.textContent =
-        'Voice not supported here — use presets or the number pad. (Chrome/Safari + https or localhost usually required.)';
-    } else {
-      el.speechStatusText.textContent = 'Voice ready';
-    }
-  }
-
-  function setListeningUI(on, interimText) {
-    state.listening = on;
-    el.speechStatus.classList.toggle('listening', on);
-    el.listenBanner.classList.toggle('hidden', !on);
-    el.speechStatusText.textContent = on ? 'Listening…' : DockSpeech.isSupported() ? 'Voice ready' : 'Voice unavailable';
-    if (on && interimText) {
-      el.listenBannerText.textContent = interimText;
-    } else if (on) {
-      el.listenBannerText.textContent = 'Listening… say “48 by 40 by 48, 1200”';
-    }
-  }
-
-  async function startSpeak({ mode }) {
-    if (!DockSpeech.isSupported()) {
-      toast('Speech needs Chrome or Safari (https or localhost)');
-      return;
-    }
-    if (state.listening) {
-      DockSpeech.stopListening();
-      return;
-    }
-
-    const single = mode === 'active';
-    el.parseHint.textContent = single
-      ? `Listening for ${fieldLabel(state.activeField)} only…`
-      : 'Listening for H W D weight…';
-
-    try {
-      setListeningUI(true);
-      const parsed = await DockSpeech.listenOnce({
-        onStart: () => setListeningUI(true),
-        onEnd: () => setListeningUI(false),
-        onInterim: (t) => setListeningUI(true, t),
-      });
-
-      applyParsed(parsed, { singleField: single ? state.activeField : null });
-    } catch (err) {
-      setListeningUI(false);
-      const msg = String(err && err.message ? err.message : err);
-      if (msg === 'no-speech') toast('No speech heard — try again or use the pad');
-      else if (msg === 'not-allowed' || msg.includes('not-allowed')) {
-        toast('Mic blocked — allow microphone, or use number pad');
-      } else if (msg === 'Speech recognition is not supported in this browser.') {
-        toast('Speech not supported in this browser');
-      } else {
-        toast('Speech failed — use number pad');
-        el.parseHint.textContent = `Speech error: ${msg}`;
-      }
-    }
-  }
-
-  function applyParsed(parsed, { singleField }) {
-    if (singleField) {
-      const n = parsed.rawNumbers[0];
-      if (n == null) {
-        toast('Could not hear a number');
-        el.parseHint.textContent = `Heard: “${parsed.transcript}”`;
-        return;
-      }
-      state[singleField] = n;
-      state.padBuffer = String(n);
-      updateDimsUI();
-      el.parseHint.textContent = `Set ${fieldLabel(singleField)} = ${n}  (heard “${parsed.transcript}”)`;
-      return;
-    }
-
-    if (parsed.h != null) state.h = parsed.h;
-    if (parsed.w != null) state.w = parsed.w;
-    if (parsed.d != null) state.d = parsed.d;
-    if (parsed.weight != null) state.weight = parsed.weight;
-    state.padBuffer = '';
-    updateDimsUI();
-
-    const parts = [];
-    if (parsed.h != null) parts.push(`H ${parsed.h}`);
-    if (parsed.w != null) parts.push(`W ${parsed.w}`);
-    if (parsed.d != null) parts.push(`D ${parsed.d}`);
-    if (parsed.weight != null) parts.push(`${parsed.weight} lbs`);
-
-    if (!parts.length) {
-      el.parseHint.textContent = `Heard “${parsed.transcript}” — no numbers found`;
-      toast('No numbers found — try again');
-      return;
-    }
-
-    el.parseHint.textContent = `Got ${parts.join(' · ')}  (heard “${parsed.transcript}”)`;
-    // Advance focus to first missing
-    if (state.weight == null) selectField('weight', { clearBuffer: true });
-    else selectField('h', { clearBuffer: true });
-  }
-
-  function bindPieceSequenceWatchers() {
-    const sync = () => {
-      syncPieceSequenceFromStorage();
-      syncDestinationFromPro();
-    };
-    el.pro.addEventListener('change', sync);
-    el.pro.addEventListener('blur', sync);
-    el.trailerNumber.addEventListener('change', sync);
-    el.trailerNumber.addEventListener('blur', sync);
-  }
-
-  function bindDestination() {
-    if (!el.destination) return;
-    if (el.editDestinationBtn) {
-      el.editDestinationBtn.addEventListener('click', () => {
-        setDestinationLocked(false);
-        if (el.destination) {
-          el.destination.focus();
-          el.destination.select();
-        }
-        toast('Destination unlocked — edit and Accept to save');
-      });
-    }
-  }
-
-  /**
-   * When PRO already has a saved destination, fill and lock the field.
-   * New PRO (or no destination yet) stays editable.
-   */
-  function syncDestinationFromPro() {
-    if (!el.destination) return;
-    const pro = el.pro.value.trim();
-    if (!pro) {
-      setDestinationLocked(false);
-      return;
-    }
-    const dest = DockStorage.getProDestination(pro);
-    if (dest) {
-      el.destination.value = dest;
-      setDestinationLocked(true);
-    } else {
-      // New / unknown PRO — unlock; clear field only if it was locked to another PRO
-      if (state.destinationLocked) {
-        el.destination.value = '';
-      }
-      setDestinationLocked(false);
-    }
-  }
-
-  function setDestinationLocked(locked) {
-    state.destinationLocked = !!locked;
-    if (!el.destination) return;
-    el.destination.readOnly = state.destinationLocked;
-    el.destination.classList.toggle('dest-locked', state.destinationLocked);
-    el.destination.setAttribute('aria-readonly', state.destinationLocked ? 'true' : 'false');
-    if (el.destinationLockRow) {
-      el.destinationLockRow.classList.toggle('hidden', !state.destinationLocked);
-    }
-    if (el.destinationLockedMsg && state.destinationLocked) {
-      const d = el.destination.value.trim() || '—';
-      el.destinationLockedMsg.textContent =
-        `Going to: ${d} — same for every piece of this PRO.`;
-    }
-  }
-
-  /**
-   * Normalize piece input before Accept:
-   * - "1/5" or "3/5" → {a,b}
-   * - bare "5" when starting a new sequence → treat as 1/5
-   */
-  function normalizePieceInput(raw, { allowBareTotal }) {
-    const s = String(raw || '').trim();
-    if (!s) return { ok: false, reason: 'Enter piece (e.g. 1/5 or total 5)' };
-
-    const frac = DockStorage.parsePieceFraction(s);
-    if (frac) return { ok: true, a: frac.a, b: frac.b, display: `${frac.a}/${frac.b}` };
-
-    if (allowBareTotal && /^\d+$/.test(s)) {
-      const n = Number(s);
-      if (!Number.isInteger(n) || n < 1) {
-        return { ok: false, reason: 'Piece total must be a whole number ≥ 1' };
-      }
-      return { ok: true, a: 1, b: n, display: `1/${n}`, fromBareTotal: true };
-    }
-
-    return { ok: false, reason: 'Piece must look like 1/5 (or type total pieces, e.g. 5)' };
-  }
-
-  function setPieceLocked(locked) {
-    state.pieceLocked = !!locked;
-    if (el.piece) {
-      el.piece.readOnly = state.pieceLocked;
-      el.piece.classList.toggle('piece-locked', state.pieceLocked);
-      el.piece.setAttribute('aria-readonly', state.pieceLocked ? 'true' : 'false');
-      el.piece.title = state.pieceLocked
-        ? 'Piece is locked until this shipment sequence finishes'
-        : '';
-    }
-    if (el.pieceSlashBtn) {
-      el.pieceSlashBtn.disabled = state.pieceLocked;
-    }
-  }
-
-  /**
-   * If this PRO+trailer already has an incomplete multi-piece sequence,
-   * force next k/n and lock the piece field.
-   */
-  function syncPieceSequenceFromStorage() {
-    const pro = el.pro.value.trim();
-    const trailerNumber = el.trailerNumber.value.trim();
-    if (!pro || !trailerNumber) {
-      return;
-    }
-
-    const info = DockStorage.nextPieceForProOnTrailer(pro, trailerNumber);
-    if (info.count > 0 && info.total != null && info.count < info.total) {
-      el.piece.value = `${info.nextNum}/${info.total}`;
-      setPieceLocked(true);
-      el.parseHint.textContent =
-        `Continue PRO ${pro}: enter piece ${info.nextNum}/${info.total} next (in order).`;
-      return;
-    }
-
-    if (state.pieceLocked) {
-      setPieceLocked(false);
-    }
-  }
-
-  function clearSlotSelection() {
-    state.section = null;
-    state.level = null;
-    state.lateral = null;
-    el.sectionChips.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
-    el.levelChips.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
-    el.lateralChips.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
-    updateSlotPreview();
-  }
-
-  function clearDimsAndWeight() {
-    state.h = null;
-    state.w = null;
-    state.d = null;
-    state.weight = null;
-    state.padBuffer = '';
-    updateDimsUI();
-    selectField('h', { clearBuffer: true });
-  }
-
-  /**
-   * After Accept for k/n: keep PRO + trailer; clear dims/weight + slot;
-   * auto-set (k+1)/n when k < n (locked); clear piece when finished.
-   */
-  function prepareNextPieceAfterAccept(a, b) {
-    clearDimsAndWeight();
-    clearSlotSelection();
-
-    if (b > 1 && a < b) {
-      el.piece.value = `${a + 1}/${b}`;
-      setPieceLocked(true);
-      // Destination stays locked for remaining pieces
-      syncDestinationFromPro();
-      el.parseHint.textContent =
-        `Saved ${a}/${b}. Next: ${a + 1}/${b} — same PRO, trailer & destination; enter size & slot.`;
-    } else {
-      el.piece.value = '';
-      setPieceLocked(false);
-      // Leave PRO/trailer/door/destination filled so driver can clear when ready;
-      // destination stays locked for this PRO until they change PRO.
-      syncDestinationFromPro();
-      el.parseHint.textContent =
-        b === 1
-          ? 'Shipment complete (1/1). Enter a new PRO when ready.'
-          : `Shipment complete (${a}/${b}). Enter a new PRO when ready.`;
-    }
-  }
-
-  function onAccept() {
-    const pro = el.pro.value.trim();
-    const trailerNumber = el.trailerNumber.value.trim();
-    const pieceRaw = el.piece.value.trim();
-
-    if (!pro) {
-      toast('Enter a PRO number');
-      el.pro.focus();
-      return;
-    }
-    if (!pieceRaw) {
-      toast('Enter piece (e.g. 1/5 or total 5)');
-      el.piece.focus();
-      return;
-    }
-    if (!trailerNumber) {
-      toast('Enter trailer number');
-      el.trailerNumber.focus();
-      return;
-    }
-    const doorNumber = el.doorNumber ? el.doorNumber.value.trim() : '';
-    if (!doorNumber) {
-      toast('Enter door number');
-      if (el.doorNumber) el.doorNumber.focus();
-      return;
-    }
-
-    const destination = el.destination ? el.destination.value.trim() : '';
-    if (!destination) {
-      toast('Enter where this PRO is going (destination)');
-      if (el.destination) {
-        setDestinationLocked(false);
-        el.destination.focus();
-      }
-      return;
-    }
-
-    // Existing pieces for this PRO on this trailer determine required next numerator
-    const seq = DockStorage.nextPieceForProOnTrailer(pro, trailerNumber);
-    const startingFresh = seq.count === 0;
-    const normalized = normalizePieceInput(pieceRaw, { allowBareTotal: startingFresh });
-    if (!normalized.ok) {
-      toast(normalized.reason);
-      el.piece.focus();
-      return;
-    }
-
-    const { a, b, display } = normalized;
-
-    // Forced sequential entry when multi-piece (b > 1): must be next in order
-    if (b > 1) {
-      const required = seq.nextNum; // count + 1 (or 1 if none)
-      if (a !== required) {
-        toast(
-          required === 1
-            ? `Enter pieces in order — start with 1/${b}`
-            : `Enter pieces in order — next is ${required}/${b}`
-        );
-        // If mid-sequence, snap field back to required
-        if (seq.count > 0 && seq.total != null) {
-          el.piece.value = `${required}/${seq.total || b}`;
-          setPieceLocked(true);
-        }
-        return;
-      }
-      // Denominator must match an in-progress sequence
-      if (seq.count > 0 && seq.total != null && b !== seq.total) {
-        toast(`This PRO is ${seq.total} pieces — use ${required}/${seq.total}`);
-        el.piece.value = `${required}/${seq.total}`;
-        setPieceLocked(true);
-        return;
-      }
-    } else {
-      // 1/1 — only valid when no prior pieces yet for this PRO+trailer (or continuing? no, 1/1 is single)
-      if (seq.count > 0) {
-        toast(`PRO already has ${seq.count} piece(s) on this trailer — continue the sequence`);
-        syncPieceSequenceFromStorage();
-        return;
-      }
-    }
-
-    if (state.section == null || !state.level || !state.lateral) {
-      toast('Pick section, level, and lateral');
-      return;
-    }
-    if (state.h == null || state.w == null || state.d == null) {
-      toast('Need H, W, and D — speak, preset, or pad');
-      return;
-    }
-    if (state.weight == null) {
-      toast('Enter weight (lbs)');
-      selectField('weight', { clearBuffer: true });
-      return;
-    }
-
-    // Soft check for BOL same-trailer rule (MVP warns; does not hard-block)
-    const existing = DockStorage.entriesForPro(pro);
-    const priorTrailers = DockStorage.trailerNumbersForPro(pro);
-    if (existing.length) {
-      if (priorTrailers.length && !priorTrailers.includes(trailerNumber)) {
-        const prior = priorTrailers.join(', ');
-        el.parseHint.textContent =
-          `Warning: PRO ${pro} was on trailer ${prior} — same PRO must stay on one trailer (you entered ${trailerNumber}).`;
-        toast(`Same PRO was on trailer ${prior}`);
-      } else if (!startingFresh) {
-        el.parseHint.textContent =
-          `Note: PRO ${pro} already has ${existing.length} piece(s) on trailer ${trailerNumber} — keep on same trailer.`;
-      }
-    }
-
-    // Persist normalized fraction (e.g. bare "5" → "1/5")
-    el.piece.value = display;
-
-    DockStorage.saveEntry({
-      pro,
-      pieceFraction: display,
-      trailerNumber,
-      doorNumber,
-      destination,
-      section: state.section,
-      level: state.level,
-      lateral: state.lateral,
-      h: state.h,
-      w: state.w,
-      d: state.d,
-      weight: state.weight,
-    });
-
-    // Lock destination for remaining pieces of this PRO
-    if (el.destination) {
-      el.destination.value = destination;
-      setDestinationLocked(true);
-    }
-
-    renderRecent();
-    refreshLoadoutTrailerPicker();
-    if (state.view === 'loadout' && state.loadoutTrailer === trailerNumber) {
-      renderLoadout(trailerNumber);
-    }
-    if (state.view === 'dock') {
-      if (state.dockSection === 'inbound') renderDock();
-      else if (state.dockSection === 'outbound') renderOutboundList();
-      else if (state.dockSection === 'plan') renderPlan();
-    }
-    toast(`Saved PRO ${pro} · ${display} · to ${destination} · door ${doorNumber} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
-
-    prepareNextPieceAfterAccept(a, b);
-  }
-
-  function renderRecent() {
-    const entries = DockStorage.readAll();
-    if (!entries.length) {
-      el.recentList.innerHTML = '<div class="empty-state">No entries yet — Accept one to see it here.</div>';
-      return;
-    }
-
-    // Show newest first, but visually group by PRO using helper (BOL rule)
-    const groups = DockStorage.groupsByPro(entries);
-    // Preserve recent order: iterate entries, emit group header when PRO changes in display of top N
-    const recent = entries.slice(0, 40);
-    const seenHeader = new Set();
-    const frag = document.createDocumentFragment();
-
-    // Alternate simpler approach: list items, with a small PRO group badge
-    // Build ordered unique PROs by first appearance in recent
-    const proOrder = [];
-    recent.forEach((e) => {
-      if (!proOrder.includes(e.pro)) proOrder.push(e.pro);
-    });
-
-    proOrder.forEach((pro) => {
-      const wrap = document.createElement('div');
-      wrap.className = 'pro-group';
-      const head = document.createElement('div');
-      head.className = 'pro-group-head';
-      const title = document.createElement('div');
-      title.className = 'pro-group-title';
-      const count = (groups[pro] || []).length;
-      const trailers = DockStorage.trailerNumbersForPro(pro);
-      const trailerNote = trailers.length
-        ? `trailer ${trailers.join(', ')}`
-        : 'same trailer';
-      const dest = DockStorage.getProDestination(pro);
-      const destNote = dest ? ` · → ${dest}` : ' · no destination yet';
-      title.textContent = `PRO ${pro} · ${count} piece(s) · ${trailerNote}${destNote}`;
-      head.appendChild(title);
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className = 'btn tiny muted-btn edit-pro-btn';
-      editBtn.textContent = 'Edit bill';
-      editBtn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        openEditPro(pro);
-      });
-      head.appendChild(editBtn);
-      wrap.appendChild(head);
-
-      recent
-        .filter((e) => e.pro === pro)
-        .forEach((e) => {
-          wrap.appendChild(renderEntryCard(e));
-        });
-      frag.appendChild(wrap);
-    });
-
-    el.recentList.innerHTML = '';
-    el.recentList.appendChild(frag);
-  }
-
-  function renderEntryCard(e) {
-    const div = document.createElement('div');
-    div.className = 'entry';
-    const trailerDisp = e.trailerNumber
-      ? escapeHtml(e.trailerNumber)
-      : '—';
-    const doorDisp = e.doorNumber
-      ? escapeHtml(e.doorNumber)
-      : '—';
-    const dest = DockStorage.getProDestination(e.pro);
-    const destLine = dest
-      ? `<div class="entry-dest">Going to: ${escapeHtml(dest)}</div>`
-      : `<div class="entry-dest entry-dest-missing">No destination yet</div>`;
-    div.innerHTML = `
-      <div class="entry-top">
-        <span class="entry-pro">${escapeHtml(e.pro)} · ${escapeHtml(e.pieceFraction)}</span>
-        <span class="entry-slot">${escapeHtml(e.slotLabel)}</span>
-      </div>
-      <div class="entry-trailer">Door ${doorDisp} · Trailer ${trailerDisp}</div>
-      ${destLine}
-      <div class="entry-dims">${fmt(e.h)} × ${fmt(e.w)} × ${fmt(e.d)} in · ${fmt(e.weight)} lbs</div>
-      <div class="entry-meta">${escapeHtml(DockStorage.formatTimeLocal(e.timestamp))}</div>
-    `;
-    return div;
-  }
-
-  function fmt(n) {
-    return n == null ? '—' : String(n);
-  }
-
-  function escapeHtml(s) {
-    return String(s)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-
-  function setPanelVisible(panel, on) {
-    if (!panel) return;
-    panel.classList.toggle('hidden', !on);
-    if (on) panel.removeAttribute('hidden');
-    else panel.setAttribute('hidden', '');
-  }
-
-  function bindViewTabs() {
-    if (!el.tabEntry || !el.tabLoadout) return;
-    el.tabEntry.addEventListener('click', () => showView('entry'));
-    el.tabLoadout.addEventListener('click', () => showView('loadout'));
-    if (el.tabDock) el.tabDock.addEventListener('click', () => showView('dock'));
-  }
-
-  function bindDockSubnav() {
-    if (el.dockSubInbound) {
-      el.dockSubInbound.addEventListener('click', () => showDockSection('inbound'));
-    }
-    if (el.dockSubOutbound) {
-      el.dockSubOutbound.addEventListener('click', () => showDockSection('outbound'));
-    }
-    if (el.dockSubPlan) {
-      el.dockSubPlan.addEventListener('click', () => showDockSection('plan'));
-    }
-  }
-
-  function showDockSection(section) {
-    state.dockSection = section;
-    const panels = {
-      inbound: el.dockPanelInbound,
-      outbound: el.dockPanelOutbound,
-      plan: el.dockPanelPlan,
-    };
-    const tabs = {
-      inbound: el.dockSubInbound,
-      outbound: el.dockSubOutbound,
-      plan: el.dockSubPlan,
-    };
-    Object.keys(panels).forEach((key) => {
-      setPanelVisible(panels[key], key === section);
-    });
-    Object.keys(tabs).forEach((key) => {
-      const tab = tabs[key];
-      if (!tab) return;
-      const on = key === section;
-      tab.classList.toggle('active', on);
-      tab.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    if (section === 'inbound') renderDock();
-    if (section === 'outbound') renderOutboundList();
-    if (section === 'plan') renderPlan();
-  }
-
-  function showView(name) {
-    state.view = name;
-    const views = {
-      entry: el.viewEntry,
-      loadout: el.viewLoadout,
-      dock: el.viewDock,
-    };
-    const tabs = {
-      entry: el.tabEntry,
-      loadout: el.tabLoadout,
-      dock: el.tabDock,
-    };
-    Object.keys(views).forEach((key) => {
-      setPanelVisible(views[key], key === name);
-    });
-    Object.keys(tabs).forEach((key) => {
-      const tab = tabs[key];
-      if (!tab) return;
-      const on = key === name;
-      tab.classList.toggle('active', on);
-      tab.setAttribute('aria-selected', on ? 'true' : 'false');
-    });
-    if (name === 'loadout') {
-      refreshLoadoutTrailerPicker();
-      if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
-      if (!el.loadoutTrailerInput.value.trim() && el.trailerNumber.value.trim()) {
-        el.loadoutTrailerInput.value = el.trailerNumber.value.trim();
-      }
-    }
-    if (name === 'dock') {
-      // Ensure current Dock subsection panel is visible and populated
-      showDockSection(state.dockSection || 'inbound');
-    }
-  }
-
-  function bindLoadout() {
-    if (!el.loadoutShowBtn) return;
-    el.loadoutShowBtn.addEventListener('click', () => {
-      const t = el.loadoutTrailerInput.value.trim();
-      if (!t) {
-        toast('Enter a trailer number');
-        el.loadoutTrailerInput.focus();
-        return;
-      }
-      state.loadoutTrailer = t;
-      highlightLoadoutChips(t);
-      renderLoadout(t);
-    });
-    el.loadoutTrailerInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        el.loadoutShowBtn.click();
-      }
-    });
-  }
-
-  function refreshLoadoutTrailerPicker() {
-    if (!el.loadoutTrailerChips) return;
-    const trailers = DockStorage.allTrailerNumbers();
-    // datalist
-    if (el.loadoutTrailerList) {
-      el.loadoutTrailerList.innerHTML = '';
-      trailers.forEach((t) => {
-        const opt = document.createElement('option');
-        opt.value = t;
-        el.loadoutTrailerList.appendChild(opt);
-      });
-    }
-    el.loadoutTrailerChips.innerHTML = '';
-    if (!trailers.length) {
-      const hint = document.createElement('p');
-      hint.className = 'hint';
-      hint.style.margin = '0';
-      hint.textContent = 'No saved trailers yet — log freight first, or type a number above.';
-      el.loadoutTrailerChips.appendChild(hint);
-      return;
-    }
-    trailers.forEach((t) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'trailer-chip';
-      b.textContent = t;
-      b.dataset.value = t;
-      if (t === state.loadoutTrailer) b.classList.add('active');
-      b.addEventListener('click', () => {
-        el.loadoutTrailerInput.value = t;
-        state.loadoutTrailer = t;
-        highlightLoadoutChips(t);
-        renderLoadout(t);
-      });
-      el.loadoutTrailerChips.appendChild(b);
-    });
-  }
-
-  function highlightLoadoutChips(value) {
-    if (!el.loadoutTrailerChips) return;
-    el.loadoutTrailerChips.querySelectorAll('.trailer-chip').forEach((c) => {
-      c.classList.toggle('active', c.dataset.value === value);
-    });
-  }
-
-  function renderLoadout(trailerNumber) {
-    const t = String(trailerNumber || '').trim();
-    state.loadoutTrailer = t;
-    const groups = DockStorage.loadOutByTrailer(t);
-    const allPieces = groups.reduce((n, g) => n + g.pieces.length, 0);
-
-    let weightSum = 0;
-    let weightCount = 0;
-    groups.forEach((g) => {
-      g.pieces.forEach((e) => {
-        if (e.weight != null && !Number.isNaN(Number(e.weight))) {
-          weightSum += Number(e.weight);
-          weightCount += 1;
-        }
-      });
-    });
-
-    el.loadoutSummaryCard.classList.remove('hidden');
-    el.sumTrailer.textContent = t || '—';
-    el.sumPros.textContent = String(groups.length);
-    el.sumPieces.textContent = String(allPieces);
-    el.sumWeight.textContent = weightCount
-      ? `${weightSum.toLocaleString()} lbs`
-      : '—';
-
-    if (!groups.length) {
-      el.loadoutList.innerHTML =
-        '<div class="empty-state">Nothing on this trailer yet.<br/>Log freight with this trailer number, then come back here.</div>';
-      return;
-    }
-
-    const frag = document.createDocumentFragment();
-    groups.forEach((g) => {
-      const wrap = document.createElement('div');
-      wrap.className = 'loadout-pro';
-
-      const head = document.createElement('div');
-      head.className = 'loadout-pro-head';
-      const title = document.createElement('h3');
-      title.className = 'loadout-pro-title';
-      title.textContent = `Bill (PRO) ${g.pro}`;
-      head.appendChild(title);
-      const editBtn = document.createElement('button');
-      editBtn.type = 'button';
-      editBtn.className = 'btn tiny muted-btn edit-pro-btn';
-      editBtn.textContent = 'Edit bill';
-      editBtn.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        openEditPro(g.pro);
-      });
-      head.appendChild(editBtn);
-      wrap.appendChild(head);
-
-      const dest = g.destination || DockStorage.getProDestination(g.pro);
-      const destEl = document.createElement('div');
-      destEl.className = 'loadout-pro-dest';
-      destEl.textContent = dest ? `Going to: ${dest}` : 'No destination yet — tap Edit bill';
-      wrap.appendChild(destEl);
-
-      const meta = document.createElement('div');
-      meta.className = 'loadout-pro-meta';
-      meta.textContent = `${g.pieces.length} piece${g.pieces.length === 1 ? '' : 's'}`;
-      wrap.appendChild(meta);
-
-      g.pieces.forEach((e) => {
-        const piece = document.createElement('div');
-        piece.className = 'loadout-piece';
-        const slot = e.slotLabel || DockStorage.formatSlot(e.section, e.level, e.lateral);
-        const size =
-          e.h == null && e.w == null && e.d == null
-            ? 'Size —'
-            : `${fmt(e.h)} × ${fmt(e.w)} × ${fmt(e.d)} in`;
-        const wt = e.weight == null ? 'Weight —' : `${fmt(e.weight)} lbs`;
-        piece.innerHTML = `
-          <div class="loadout-piece-top">
-            <span class="loadout-piece-frac">Piece ${escapeHtml(e.pieceFraction || '—')}</span>
-            <span class="loadout-piece-slot">${escapeHtml(slot)}</span>
-          </div>
-          <div class="loadout-piece-dims">${escapeHtml(size)}</div>
-          <div class="loadout-piece-weight">${escapeHtml(wt)}</div>
-        `;
-        wrap.appendChild(piece);
-      });
-
-      frag.appendChild(wrap);
-    });
-
-    el.loadoutList.innerHTML = '';
-    el.loadoutList.appendChild(frag);
-  }
-
-
-  function bindDock() {
-    if (!el.dockBackBtn) return;
-    el.dockBackBtn.addEventListener('click', () => {
-      if (state.dockLevel === 'pieces') {
-        state.dockLevel = 'pros';
-        state.dockPro = '';
-      } else if (state.dockLevel === 'pros') {
-        state.dockLevel = 'doors';
-        state.dockDoor = '';
-        state.dockPro = '';
-      }
-      renderDock();
-    });
-  }
-
-  function renderDock() {
-    if (!el.dockBoard) return;
-    const showBack = state.dockLevel !== 'doors';
-    el.dockBackBtn.classList.toggle('hidden', !showBack);
-
-    if (state.dockLevel === 'doors') {
-      if (el.dockHint) {
-        el.dockHint.textContent =
-          'Doors that have a trailer from your logged freight. Tap a door to see bills (PROs). Viewing only.';
-      }
-      renderDockDoors();
-      return;
-    }
-    if (state.dockLevel === 'pros') {
-      if (el.dockHint) {
-        el.dockHint.textContent =
-          `Door ${state.dockDoor} — tap a bill (PRO) to see pieces and locations. Viewing only.`;
-      }
-      renderDockPros();
-      return;
-    }
-    if (el.dockHint) {
-      el.dockHint.textContent =
-        `PRO ${state.dockPro} at door ${state.dockDoor} — pieces with location. Tap Edit bill to change destination, door, or trailer.`;
-    }
-    renderDockPieces();
-  }
-
-  function renderDockDoors() {
-    const rows = DockStorage.doorsBoard();
-    if (!rows.length) {
-      el.dockBoard.innerHTML =
-        '<div class="empty-state">No doors yet — log freight with a door number first.</div>';
-      return;
-    }
-    const frag = document.createDocumentFragment();
-    rows.forEach((row) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'dock-door-row';
-      const trailer = row.trailerNumber || '—';
-      const counts = `${row.proCount} bill${row.proCount === 1 ? '' : 's'} · ${row.pieceCount} piece${row.pieceCount === 1 ? '' : 's'}`;
-      btn.innerHTML = `
-        <span class="dock-door-main">
-          <span class="dock-door-num">Door ${escapeHtml(row.doorNumber)}</span>
-          <span class="dock-door-trailer">Trailer ${escapeHtml(trailer)}</span>
-        </span>
-        <span class="dock-door-meta">${escapeHtml(counts)}</span>
-      `;
-      btn.addEventListener('click', () => {
-        state.dockDoor = row.doorNumber;
-        state.dockPro = '';
-        state.dockLevel = 'pros';
-        renderDock();
-      });
-      frag.appendChild(btn);
-    });
-    el.dockBoard.innerHTML = '';
-    el.dockBoard.appendChild(frag);
-  }
-
-  function renderDockPros() {
-    const data = DockStorage.dockProsAtDoor(state.dockDoor);
-    const head = document.createElement('div');
-    head.className = 'dock-context';
-    head.innerHTML = `
-      <div class="dock-context-title">Door ${escapeHtml(data.doorNumber)}</div>
-      <div class="dock-context-sub">Trailer ${escapeHtml(data.trailerNumber || '—')}</div>
-    `;
-
-    if (!data.groups.length) {
-      el.dockBoard.innerHTML = '';
-      el.dockBoard.appendChild(head);
-      const empty = document.createElement('div');
-      empty.className = 'empty-state';
-      empty.textContent = 'No bills on the trailer at this door.';
-      el.dockBoard.appendChild(empty);
-      return;
-    }
-
-    const frag = document.createDocumentFragment();
-    frag.appendChild(head);
-    data.groups.forEach((g) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'dock-pro-row';
-      const dest = g.destination || DockStorage.getProDestination(g.pro);
-      const destHtml = dest
-        ? `<span class="dock-pro-dest">Going to: ${escapeHtml(dest)}</span>`
-        : '';
-      btn.innerHTML = `
-        <span class="dock-pro-main">Bill (PRO) ${escapeHtml(g.pro)}</span>
-        ${destHtml}
-        <span class="dock-pro-meta">${g.pieces.length} piece${g.pieces.length === 1 ? '' : 's'}</span>
-      `;
-      btn.addEventListener('click', () => {
-        state.dockPro = g.pro;
-        state.dockLevel = 'pieces';
-        renderDock();
-      });
-      frag.appendChild(btn);
-    });
-    el.dockBoard.innerHTML = '';
-    el.dockBoard.appendChild(frag);
-  }
-
-  function renderDockPieces() {
-    const data = DockStorage.dockProsAtDoor(state.dockDoor);
-    const group = data.groups.find((g) => g.pro === state.dockPro);
-    const head = document.createElement('div');
-    head.className = 'dock-context';
-    const proDest = DockStorage.getProDestination(state.dockPro);
-    const destSub = proDest
-      ? ` · Going to ${escapeHtml(proDest)}`
-      : ' · no destination yet';
-    head.innerHTML = `
-      <div class="dock-context-top">
-        <div>
-          <div class="dock-context-title">PRO ${escapeHtml(state.dockPro)}</div>
-          <div class="dock-context-sub">Door ${escapeHtml(data.doorNumber)} · Trailer ${escapeHtml(data.trailerNumber || '—')}${destSub}</div>
-        </div>
-        <button type="button" class="btn tiny muted-btn edit-pro-btn" id="dockEditProBtn">Edit bill</button>
-      </div>
-    `;
-    el.dockBoard.innerHTML = '';
-    el.dockBoard.appendChild(head);
-    const dockEdit = head.querySelector('#dockEditProBtn');
-    if (dockEdit) {
-      dockEdit.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        openEditPro(state.dockPro);
-      });
-    }
-
-    if (!group || !group.pieces.length) {
-      const empty = document.createElement('div');
-      empty.className = 'empty-state';
-      empty.textContent = 'No pieces for this bill at this door.';
-      el.dockBoard.appendChild(empty);
-      return;
-    }
-
-    group.pieces.forEach((e) => {
-      const piece = document.createElement('div');
-      piece.className = 'dock-piece';
-      const slot = e.slotLabel || DockStorage.formatSlot(e.section, e.level, e.lateral);
-      const size =
-        e.h == null && e.w == null && e.d == null
-          ? 'Size —'
-          : `${fmt(e.h)} × ${fmt(e.w)} × ${fmt(e.d)} in`;
-      const wt = e.weight == null ? 'Weight —' : `${fmt(e.weight)} lbs`;
-      piece.innerHTML = `
-        <div class="dock-piece-top">
-          <span class="dock-piece-frac">Piece ${escapeHtml(e.pieceFraction || '—')}</span>
-          <span class="dock-piece-slot">${escapeHtml(slot)}</span>
-        </div>
-        <div class="dock-piece-dims">${escapeHtml(size)}</div>
-        <div class="dock-piece-weight">${escapeHtml(wt)}</div>
-      `;
-      el.dockBoard.appendChild(piece);
-    });
-  }
-
-  function bindOutbound() {
-    if (!el.outboundSaveBtn) return;
-    el.outboundSaveBtn.addEventListener('click', () => saveOutboundFromForm(false));
-    if (el.outboundOpenBtn) {
-      el.outboundOpenBtn.addEventListener('click', () => saveOutboundFromForm(true));
-    }
-    if (el.outboundTrailerInput) {
-      el.outboundTrailerInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          saveOutboundFromForm(false);
-        }
-      });
-    }
-  }
-
-  /**
-   * @param {boolean} forceOpen  if true, destination becomes "open"
-   */
-  function saveOutboundFromForm(forceOpen) {
-    if (!el.outboundTrailerInput) return;
-    const trailerNumber = el.outboundTrailerInput.value.trim();
-    if (!trailerNumber) {
-      toast('Enter outbound trailer number');
-      el.outboundTrailerInput.focus();
-      return;
-    }
-    const doorNumber = el.outboundDoorInput ? el.outboundDoorInput.value.trim() : '';
-    let destination = el.outboundDestInput ? el.outboundDestInput.value.trim() : '';
-    if (forceOpen) destination = 'open';
-    if (!destination) destination = 'open';
-
-    DockStorage.saveOutboundTrailer({
-      trailerNumber,
-      doorNumber,
-      destination,
-    });
-
-    el.outboundTrailerInput.value = '';
-    if (el.outboundDoorInput) el.outboundDoorInput.value = '';
-    if (el.outboundDestInput) el.outboundDestInput.value = '';
-    renderOutboundList();
-    toast(
-      destination === 'open'
-        ? `Outbound trailer ${trailerNumber} saved as open`
-        : `Outbound trailer ${trailerNumber} → ${destination}`
-    );
-  }
-
-  function renderOutboundList() {
-    if (!el.outboundList) return;
-    const list = DockStorage.readOutboundTrailers();
-    if (!list.length) {
-      el.outboundList.innerHTML =
-        '<div class="empty-state">No outbound trailers yet — register one above.</div>';
-      return;
-    }
-
-    const frag = document.createDocumentFragment();
-    list.forEach((row) => {
-      const div = document.createElement('div');
-      div.className = 'outbound-row';
-      const dest = String(row.destination || 'open').trim() || 'open';
-      const isOpen = dest.toLowerCase() === 'open';
-      const door = String(row.doorNumber || '').trim();
-      const doorText = door ? `Door ${door}` : 'Door not set yet';
-      div.innerHTML = `
-        <div class="outbound-row-top">
-          <span class="outbound-trailer">Trailer ${escapeHtml(row.trailerNumber)}</span>
-          <span class="outbound-dest${isOpen ? ' is-open' : ''}">${
-            isOpen ? 'Open' : escapeHtml(dest)
-          }</span>
-        </div>
-        <div class="outbound-meta">${escapeHtml(doorText)} · added ${escapeHtml(
-          DockStorage.formatTimeLocal(row.createdAt)
-        )}</div>
-        <div class="outbound-row-actions">
-          <button type="button" class="btn tiny muted-btn" data-remove="${escapeHtml(row.id)}">Remove</button>
-        </div>
-      `;
-      const rm = div.querySelector('[data-remove]');
-      if (rm) {
-        rm.addEventListener('click', () => {
-          DockStorage.removeOutboundTrailer(row.id);
-          renderOutboundList();
-          toast(`Removed outbound trailer ${row.trailerNumber}`);
-        });
-      }
-      frag.appendChild(div);
-    });
-    el.outboundList.innerHTML = '';
-    el.outboundList.appendChild(frag);
-  }
-
-
-  function bindEditPro() {
-    if (!el.editProOverlay) return;
-    if (el.editProCancelBtn) {
-      el.editProCancelBtn.addEventListener('click', () => closeEditPro());
-    }
-    if (el.editProSaveBtn) {
-      el.editProSaveBtn.addEventListener('click', () => saveEditPro());
-    }
-    el.editProOverlay.addEventListener('click', (ev) => {
-      if (ev.target === el.editProOverlay) closeEditPro();
-    });
-    if (el.editProDestination) {
-      el.editProDestination.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-          e.preventDefault();
-          saveEditPro();
-        }
-      });
-    }
-  }
-
-  /**
-   * Open plain Edit bill sheet for a PRO already on the dock.
-   * Destination updates pros store; door/trailer update every piece of that PRO.
-   */
-  function openEditPro(pro) {
-    const key = String(pro || '').trim();
-    if (!key || !el.editProOverlay) return;
-    state.editingPro = key;
-    const dest = DockStorage.getProDestination(key);
-    const pieces = DockStorage.entriesForPro(key);
-    const trailers = DockStorage.trailerNumbersForPro(key);
-    let door = '';
-    for (const e of pieces) {
-      const d = String(e.doorNumber || '').trim();
-      if (d) {
-        door = d;
-        break;
-      }
-    }
-    if (el.editProNumber) el.editProNumber.value = key;
-    if (el.editProDestination) el.editProDestination.value = dest || '';
-    if (el.editProTrailer) el.editProTrailer.value = trailers[0] || '';
-    if (el.editProDoor) el.editProDoor.value = door;
-    el.editProOverlay.classList.remove('hidden');
-    el.editProOverlay.removeAttribute('hidden');
-    if (el.editProDestination) {
-      setTimeout(() => {
-        el.editProDestination.focus();
-        el.editProDestination.select();
-      }, 50);
-    }
-  }
-
-  function closeEditPro() {
-    state.editingPro = '';
-    if (!el.editProOverlay) return;
-    el.editProOverlay.classList.add('hidden');
-    el.editProOverlay.setAttribute('hidden', '');
-  }
-
-  function saveEditPro() {
-    const pro = state.editingPro || (el.editProNumber && el.editProNumber.value.trim()) || '';
-    if (!pro) {
-      toast('No PRO to edit');
-      return;
-    }
-    const destination = el.editProDestination ? el.editProDestination.value.trim() : '';
-    const trailerNumber = el.editProTrailer ? el.editProTrailer.value.trim() : '';
-    const doorNumber = el.editProDoor ? el.editProDoor.value.trim() : '';
-
-    const result = DockStorage.updateProBill(pro, {
-      destination,
-      trailerNumber,
-      doorNumber,
-    });
-    if (!result) {
-      toast('Could not update this bill');
-      return;
-    }
-
-    closeEditPro();
-    refreshAfterProEdit(pro);
-    // Keep entry form in sync if driver is still on this PRO
-    if (el.pro && el.pro.value.trim() === pro) {
-      syncDestinationFromPro();
-      if (el.trailerNumber && trailerNumber) el.trailerNumber.value = trailerNumber;
-      if (el.doorNumber) el.doorNumber.value = doorNumber;
-    }
-    const destMsg = result.destination
-      ? `→ ${result.destination}`
-      : 'destination cleared';
-    toast(`Updated PRO ${pro} ${destMsg}`);
-  }
-
-  function refreshAfterProEdit(pro) {
-    renderRecent();
-    if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
-    refreshLoadoutTrailerPicker();
-    if (state.view === 'dock') {
-      if (state.dockSection === 'inbound') renderDock();
-      else if (state.dockSection === 'outbound') renderOutboundList();
-      else if (state.dockSection === 'plan') renderPlan();
-    }
-    syncPieceSequenceFromStorage();
-  }
-
-
-  function bindPlan() {
-    if (el.loadDemoInboundBtn) {
-      el.loadDemoInboundBtn.addEventListener('click', () => onLoadDemoInbound());
-    }
-    if (el.runLoadPlanBtn) {
-      el.runLoadPlanBtn.addEventListener('click', () => onRunLoadPlan());
-    }
-    if (el.clearPlanBtn) {
-      el.clearPlanBtn.addEventListener('click', () => {
-        if (!DockStorage.readLoadPlan()) {
-          toast('No plan to clear');
-          return;
-        }
-        if (!confirm('Clear the saved load plan from this device?')) return;
-        DockStorage.clearLoadPlan();
-        renderPlan();
-        toast('Plan cleared');
-      });
-    }
-  }
-
-  function onLoadDemoInbound() {
-    if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.seedDemoInbound) {
-      toast('Demo planner not loaded');
-      return;
-    }
-    const existing = DockStorage.readAll().length;
-    const msg = existing
-      ? `Replace all ${existing} logged piece(s) with demo inbound freight (~5 trailers)?\n\nThis clears freight + last plan. Outbound stubs for the 5 cities are added if missing.`
-      : 'Load demo inbound freight (~5 trailers at doors, mixed destinations)?\n\nOutbound stubs for the 5 cities are added if missing.';
-    if (!confirm(msg)) return;
-
-    const result = DockLoadPlan.seedDemoInbound();
-    state.dockLevel = 'doors';
-    state.dockDoor = '';
-    state.dockPro = '';
-    state.loadoutTrailer = '';
-    renderRecent();
-    refreshLoadoutTrailerPicker();
-    renderOutboundList();
-    renderPlan();
-    if (state.view === 'dock' && state.dockSection === 'inbound') renderDock();
-    if (el.planStatusHint) {
-      el.planStatusHint.textContent =
-        `Demo loaded: ${result.inboundTrailers} inbound trailers · ${result.proCount} PROs · ${result.pieceCount} pieces` +
-        (result.outboundCreated ? ` · ${result.outboundCreated} outbound stub(s) created` : '');
-    }
-    toast(
-      `Demo inbound: ${result.pieceCount} pieces on ${result.inboundTrailers} trailers`
-    );
-  }
-
-  function onRunLoadPlan() {
-    if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.runLoadPlan) {
-      toast('Demo planner not loaded');
-      return;
-    }
-    const plan = DockLoadPlan.runLoadPlan();
-    renderPlan();
-    renderOutboundList();
-    const s = plan.summary || {};
-    if (el.planStatusHint) {
-      el.planStatusHint.textContent = s.note
-        ? `Demo planner: ${s.moveCount || 0} moves · ${s.outboundCount || 0} outbound · ${s.note}`
-        : `Demo planner finished: ${s.moveCount || 0} moves`;
-    }
-    if (!(s.moveCount > 0)) {
-      toast(s.note || 'Nothing to plan');
-      return;
-    }
-    toast(`Demo planner: ${s.moveCount} moves → ${s.outboundCount} outbound`);
-  }
-
-  function renderPlan() {
-    const plan = DockStorage.readLoadPlan();
-    renderPlanSummary(plan);
-    renderPlanMoves(plan);
-    renderPlanOutbound(plan);
-  }
-
-  function renderPlanSummary(plan) {
-    if (!el.planSummary) return;
-    if (!plan || !(plan.moves && plan.moves.length) && !(plan.outboundLoadouts && plan.outboundLoadouts.length)) {
-      const note = plan && plan.summary && plan.summary.note
-        ? `<div class="empty-state">${escapeHtml(plan.summary.note)}</div>`
-        : '<div class="empty-state">No plan yet — load demo inbound, then run the demo planner.</div>';
-      el.planSummary.innerHTML = note;
-      return;
-    }
-    const s = plan.summary || {};
-    const when = plan.createdAt
-      ? DockStorage.formatTimeLocal(plan.createdAt)
-      : '—';
-    el.planSummary.innerHTML = `
-      <div class="plan-summary-grid">
-        <div class="summary-row"><span class="summary-label">Planner</span><span class="summary-value">${escapeHtml(plan.label || plan.planner || 'demo')}</span></div>
-        <div class="summary-row"><span class="summary-label">Saved</span><span class="summary-value">${escapeHtml(when)}</span></div>
-        <div class="summary-row"><span class="summary-label">Moves</span><span class="summary-value">${escapeHtml(String(s.moveCount != null ? s.moveCount : (plan.moves || []).length))}</span></div>
-        <div class="summary-row"><span class="summary-label">PROs</span><span class="summary-value">${escapeHtml(String(s.proCount != null ? s.proCount : '—'))}</span></div>
-        <div class="summary-row"><span class="summary-label">Outbound</span><span class="summary-value">${escapeHtml(String(s.outboundCount != null ? s.outboundCount : (plan.outboundLoadouts || []).length))}</span></div>
-        <div class="summary-row"><span class="summary-label">Skipped</span><span class="summary-value">${escapeHtml(String(s.skippedNoDest || 0))} no dest</span></div>
-      </div>
-      <p class="hint plan-note">${escapeHtml(s.note || '')}</p>
-    `;
-  }
-
-  function renderPlanMoves(plan) {
-    if (!el.planMoveList) return;
-    const moves = (plan && plan.moves) || [];
-    if (!moves.length) {
-      el.planMoveList.innerHTML =
-        '<div class="empty-state">Moves appear here after you run the plan.</div>';
-      return;
-    }
-    const frag = document.createDocumentFragment();
-    moves.forEach((m, idx) => {
-      const div = document.createElement('div');
-      div.className = 'plan-move-row';
-      const fromDoor = (m.from && m.from.door) || '—';
-      const fromTr = (m.from && m.from.trailer) || '—';
-      const fromSlot = (m.from && m.from.slot) || '—';
-      const toTr = (m.to && m.to.trailer) || '—';
-      const toSlot = (m.to && m.to.slot) || '—';
-      const dest = m.destination || '';
-      div.innerHTML = `
-        <div class="plan-move-top">
-          <span class="plan-move-num">#${idx + 1}</span>
-          <span class="plan-move-pro">PRO ${escapeHtml(m.pro || '—')} · ${escapeHtml(m.pieceFraction || '—')}</span>
-        </div>
-        <div class="plan-move-dest">${escapeHtml(dest || '—')}</div>
-        <div class="plan-move-path">
-          <span class="plan-from">Door ${escapeHtml(fromDoor)} · Trl ${escapeHtml(fromTr)} · ${escapeHtml(fromSlot)}</span>
-          <span class="plan-arrow" aria-hidden="true">→</span>
-          <span class="plan-to">Trl ${escapeHtml(toTr)} · ${escapeHtml(toSlot)}</span>
-        </div>
-      `;
-      frag.appendChild(div);
-    });
-    el.planMoveList.innerHTML = '';
-    el.planMoveList.appendChild(frag);
-  }
-
-  function renderPlanOutbound(plan) {
-    if (!el.planOutboundList) return;
-    const loads = (plan && plan.outboundLoadouts) || [];
-    if (!loads.length) {
-      el.planOutboundList.innerHTML =
-        '<div class="empty-state">Planned outbound load-outs appear here after you run the plan.</div>';
-      return;
-    }
-    const frag = document.createDocumentFragment();
-    loads.forEach((load) => {
-      const wrap = document.createElement('div');
-      wrap.className = 'plan-out-trailer';
-      const door = load.doorNumber ? ` · Door ${load.doorNumber}` : '';
-      const wt =
-        load.totalWeight != null
-          ? ` · ${Number(load.totalWeight).toLocaleString()} lbs`
-          : '';
-      const head = document.createElement('div');
-      head.className = 'plan-out-head';
-      head.innerHTML = `
-        <div class="plan-out-title">Trailer ${escapeHtml(load.trailerNumber)} → ${escapeHtml(load.destination || '—')}</div>
-        <div class="plan-out-meta">${load.proCount || 0} bill${(load.proCount || 0) === 1 ? '' : 's'} · ${load.pieceCount || 0} piece${(load.pieceCount || 0) === 1 ? '' : 's'}${escapeHtml(door)}${escapeHtml(wt)}</div>
-      `;
-      wrap.appendChild(head);
-
-      (load.groups || []).forEach((g) => {
-        const gEl = document.createElement('div');
-        gEl.className = 'plan-out-pro';
-        const gHead = document.createElement('div');
-        gHead.className = 'plan-out-pro-title';
-        gHead.textContent = `Bill (PRO) ${g.pro}`;
-        gEl.appendChild(gHead);
-        (g.pieces || []).forEach((p) => {
-          const piece = document.createElement('div');
-          piece.className = 'plan-out-piece';
-          const size =
-            p.h == null && p.w == null && p.d == null
-              ? 'Size —'
-              : `${fmt(p.h)} × ${fmt(p.w)} × ${fmt(p.d)} in`;
-          const wts = p.weight == null ? 'Weight —' : `${fmt(p.weight)} lbs`;
-          piece.innerHTML = `
-            <div class="plan-out-piece-top">
-              <span>Piece ${escapeHtml(p.pieceFraction || '—')}</span>
-              <span class="plan-out-slot">${escapeHtml(p.slot || '—')}</span>
-            </div>
-            <div class="plan-out-piece-dims">${escapeHtml(size)} · ${escapeHtml(wts)}</div>
-            <div class="plan-out-piece-from">from Door ${escapeHtml(p.fromDoor || '—')} / Trl ${escapeHtml(p.fromTrailer || '—')} / ${escapeHtml(p.fromSlot || '—')}</div>
-          `;
-          gEl.appendChild(piece);
-        });
-        wrap.appendChild(gEl);
-      });
-      frag.appendChild(wrap);
-    });
-    el.planOutboundList.innerHTML = '';
-    el.planOutboundList.appendChild(frag);
-  }
-
-  let toastTimer = null;
-  function toast(msg) {
-    el.toast.textContent = msg;
-    el.toast.classList.remove('hidden');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => el.toast.classList.add('hidden'), 2800);
-  }
-
-  function registerServiceWorker() {
-    if (!('serviceWorker' in navigator)) return;
-    // Only register when served over http(s) — not file://
-    if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js').catch(() => {
-      /* offline cache optional */
-    });
-  }
-
-  // Expose parse for quick console tests
-  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, renderPlan, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro, openEditPro, closeEditPro, runLoadPlan: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.runLoadPlan(), seedDemoInbound: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.seedDemoInbound() };
-
-  init();
-})();
+Line wrap
+	/**
+	 * Dock App — main UI controller
+	 * Permanent rule reminder: same PRO => same trailer (see storage.js groupsByPro).
+	 */
+	(function () {
+	  'use strict';
+	
+
+	  // Dim mapping: H = vertical height; W = length (first footprint dim in the
+	  // named size, e.g. 48 in "48×40"); D = width (second footprint dim, e.g. 40).
+	  // Pallet/skid presets fill W×D only (height varies) — leave H null.
+	  // Drums, pails, IBC totes, Gaylord include a standard H.
+	  const PRESETS = [
+	    { id: 'gma', label: 'GMA 48×40', sub: 'W×D 48×40 — fills W×D only', h: null, w: 48, d: 40, footprintOnly: true },
+	    { id: 'p4848', label: '48×48', sub: 'W×D 48×48 — fills W×D only', h: null, w: 48, d: 48, footprintOnly: true },
+	    { id: 'half', label: 'Half pallet', sub: 'W×D 48×20 — fills W×D only', h: null, w: 48, d: 20, footprintOnly: true },
+	    { id: 'euro', label: 'Euro', sub: 'W×D 47×32 — fills W×D only', h: null, w: 47, d: 32, footprintOnly: true },
+	    { id: 'drum55', label: '55-gal drum', sub: 'H×W×D 35×23×23 — includes height', h: 35, w: 23, d: 23 },
+	    { id: 'drum30', label: '30-gal drum', sub: 'H×W×D 30×19×19 — includes height', h: 30, w: 19, d: 19 },
+	    { id: 'bucket5', label: '5-gal bucket', sub: 'H×W×D 15×12×12 — includes height', h: 15, w: 12, d: 12 },
+	    { id: 'ibc', label: 'IBC 275', sub: 'H×W×D 46×48×40 — includes height', h: 46, w: 48, d: 40 },
+	    { id: 'gaylord', label: 'Gaylord', sub: 'H×W×D 48×40×36 — includes height', h: 48, w: 40, d: 36 },
+	    { id: 'last', label: 'Custom / Last used', sub: 'Restore last Accept', last: true },
+	  ];
+	
+
+	  const state = {
+	    section: null,
+	    level: null,
+	    lateral: null,
+	    h: null,
+	    w: null,
+	    d: null,
+	    weight: null,
+	    activeField: 'h',
+	    listening: false,
+	    padBuffer: '',
+	    view: 'entry', // 'entry' | 'loadout' | 'dock'
+	    dockSection: 'inbound', // 'inbound' | 'outbound' | 'plan'
+	    loadoutTrailer: '',
+	    pieceLocked: false, // mid-sequence: piece field forced to k/n
+	    destinationLocked: false, // PRO already has a destination — reuse until edited
+	    dockLevel: 'doors', // 'doors' | 'pros' | 'pieces'
+	    dockDoor: '',
+	    dockPro: '',
+	    editingPro: '', // PRO open in Edit bill sheet
+	    confirmPending: null, // { action: 'loadDemo'|'clearPlan' }
+	  };
+	
+
+	  const el = {
+	    pro: document.getElementById('proInput'),
+	    piece: document.getElementById('pieceInput'),
+	    pieceSlashBtn: document.getElementById('pieceSlashBtn'),
+	    trailerNumber: document.getElementById('trailerNumberInput'),
+	    doorNumber: document.getElementById('doorNumberInput'),
+	    sectionChips: document.getElementById('sectionChips'),
+	    levelChips: document.getElementById('levelChips'),
+	    lateralChips: document.getElementById('lateralChips'),
+	    slotPreview: document.getElementById('slotPreview'),
+	    presetGrid: document.getElementById('presetGrid'),
+	    speakBtn: document.getElementById('speakBtn'),
+	    respeakBtn: document.getElementById('respeakBtn'),
+	    acceptBtn: document.getElementById('acceptBtn'),
+	    valH: document.getElementById('valH'),
+	    valW: document.getElementById('valW'),
+	    valD: document.getElementById('valD'),
+	    valWeight: document.getElementById('valWeight'),
+	    tileH: document.getElementById('tileH'),
+	    tileW: document.getElementById('tileW'),
+	    tileD: document.getElementById('tileD'),
+	    tileWeight: document.getElementById('tileWeight'),
+	    numpad: document.getElementById('numpad'),
+	    activeFieldLabel: document.getElementById('activeFieldLabel'),
+	    recentList: document.getElementById('recentList'),
+	    clearListBtn: document.getElementById('clearListBtn'),
+	    speechStatus: document.getElementById('speechStatus'),
+	    speechStatusText: document.getElementById('speechStatusText'),
+	    listenDot: document.getElementById('listenDot'),
+	    listenBanner: document.getElementById('listenBanner'),
+	    listenBannerText: document.getElementById('listenBannerText'),
+	    parseHint: document.getElementById('parseHint'),
+	    toast: document.getElementById('toast'),
+	    tabEntry: document.getElementById('tabEntry'),
+	    tabLoadout: document.getElementById('tabLoadout'),
+	    tabDock: document.getElementById('tabDock'),
+	    viewEntry: document.getElementById('viewEntry'),
+	    viewLoadout: document.getElementById('viewLoadout'),
+	    viewDock: document.getElementById('viewDock'),
+	    dockBoard: document.getElementById('dockBoard'),
+	    dockBackBtn: document.getElementById('dockBackBtn'),
+	    dockHint: document.getElementById('dockHint'),
+	    loadoutTrailerInput: document.getElementById('loadoutTrailerInput'),
+	    loadoutTrailerList: document.getElementById('loadoutTrailerList'),
+	    loadoutTrailerChips: document.getElementById('loadoutTrailerChips'),
+	    loadoutShowBtn: document.getElementById('loadoutShowBtn'),
+	    loadoutSummaryCard: document.getElementById('loadoutSummaryCard'),
+	    loadoutList: document.getElementById('loadoutList'),
+	    sumTrailer: document.getElementById('sumTrailer'),
+	    sumPros: document.getElementById('sumPros'),
+	    sumPieces: document.getElementById('sumPieces'),
+	    sumWeight: document.getElementById('sumWeight'),
+	    destination: document.getElementById('destinationInput'),
+	    destinationLockRow: document.getElementById('destinationLockRow'),
+	    destinationLockedMsg: document.getElementById('destinationLockedMsg'),
+	    editDestinationBtn: document.getElementById('editDestinationBtn'),
+	    dockSubInbound: document.getElementById('dockSubInbound'),
+	    dockSubOutbound: document.getElementById('dockSubOutbound'),
+	    dockSubPlan: document.getElementById('dockSubPlan'),
+	    dockPanelInbound: document.getElementById('dockPanelInbound'),
+	    dockPanelOutbound: document.getElementById('dockPanelOutbound'),
+	    dockPanelPlan: document.getElementById('dockPanelPlan'),
+	    outboundTrailerInput: document.getElementById('outboundTrailerInput'),
+	    outboundDoorInput: document.getElementById('outboundDoorInput'),
+	    outboundDestInput: document.getElementById('outboundDestInput'),
+	    outboundOpenBtn: document.getElementById('outboundOpenBtn'),
+	    outboundSaveBtn: document.getElementById('outboundSaveBtn'),
+	    outboundList: document.getElementById('outboundList'),
+	    editProOverlay: document.getElementById('editProOverlay'),
+	    editProNumber: document.getElementById('editProNumber'),
+	    editProDestination: document.getElementById('editProDestination'),
+	    editProTrailer: document.getElementById('editProTrailer'),
+	    editProDoor: document.getElementById('editProDoor'),
+	    editProCancelBtn: document.getElementById('editProCancelBtn'),
+	    editProSaveBtn: document.getElementById('editProSaveBtn'),
+	    loadDemoInboundBtn: document.getElementById('loadDemoInboundBtn'),
+	    runLoadPlanBtn: document.getElementById('runLoadPlanBtn'),
+	    clearPlanBtn: document.getElementById('clearPlanBtn'),
+	    planStatusHint: document.getElementById('planStatusHint'),
+	    planSummary: document.getElementById('planSummary'),
+	    planMoveList: document.getElementById('planMoveList'),
+	    planOutboundList: document.getElementById('planOutboundList'),
+	    confirmOverlay: document.getElementById('confirmOverlay'),
+	    confirmHeading: document.getElementById('confirm-heading'),
+	    confirmMessage: document.getElementById('confirmMessage'),
+	    confirmCancelBtn: document.getElementById('confirmCancelBtn'),
+	    confirmOkBtn: document.getElementById('confirmOkBtn'),
+	  };
+	
+
+	  function init() {
+	    buildSectionChips();
+	    buildLevelChips();
+	    buildLateralChips();
+	    buildPresets();
+	    bindDimTiles();
+	    bindNumpad();
+	    bindActions();
+	    bindViewTabs();
+	    bindDockSubnav();
+	    bindLoadout();
+	    bindDock();
+	    bindOutbound();
+	    bindPlan();
+	    bindDestination();
+	    bindEditPro();
+	    bindConfirmSheet();
+	    updateDimsUI();
+	    updateSlotPreview();
+	    selectField('h', { clearBuffer: true });
+	    renderRecent();
+	    refreshLoadoutTrailerPicker();
+	    renderOutboundList();
+	    renderPlan();
+	    setupSpeechStatus();
+	    bindPieceSequenceWatchers();
+	    syncPieceSequenceFromStorage();
+	    syncDestinationFromPro();
+	    registerServiceWorker();
+	  }
+	
+
+	  function buildSectionChips() {
+	    el.sectionChips.innerHTML = '';
+	    for (let i = 1; i <= 12; i++) {
+	      const b = document.createElement('button');
+	      b.type = 'button';
+	      b.className = 'chip';
+	      b.textContent = String(i);
+	      b.dataset.value = String(i);
+	      b.addEventListener('click', () => {
+	        state.section = i;
+	        highlightChips(el.sectionChips, String(i));
+	        updateSlotPreview();
+	      });
+	      el.sectionChips.appendChild(b);
+	    }
+	  }
+	
+
+	  function buildLevelChips() {
+	    el.levelChips.innerHTML = '';
+	    ['A', 'B', 'C'].forEach((lv) => {
+	      const b = document.createElement('button');
+	      b.type = 'button';
+	      b.className = 'chip';
+	      b.textContent = lv;
+	      b.dataset.value = lv;
+	      b.addEventListener('click', () => {
+	        state.level = lv;
+	        highlightChips(el.levelChips, lv);
+	        updateSlotPreview();
+	      });
+	      el.levelChips.appendChild(b);
+	    });
+	  }
+	
+
+	  function buildLateralChips() {
+	    el.lateralChips.innerHTML = '';
+	    ['Left', 'Middle', 'Right'].forEach((side) => {
+	      const b = document.createElement('button');
+	      b.type = 'button';
+	      b.className = 'chip';
+	      b.textContent = side;
+	      b.dataset.value = side;
+	      b.addEventListener('click', () => {
+	        state.lateral = side;
+	        highlightChips(el.lateralChips, side);
+	        updateSlotPreview();
+	      });
+	      el.lateralChips.appendChild(b);
+	    });
+	  }
+	
+
+	  function highlightChips(container, value) {
+	    container.querySelectorAll('.chip').forEach((c) => {
+	      c.classList.toggle('active', c.dataset.value === value);
+	    });
+	  }
+	
+
+	  function updateSlotPreview() {
+	    const s = state.section != null ? state.section : '—';
+	    const l = state.level || '—';
+	    const lat = state.lateral || '—';
+	    el.slotPreview.textContent = `${s}/${l}/${lat}`;
+	  }
+	
+
+	  function buildPresets() {
+	    el.presetGrid.innerHTML = '';
+	    PRESETS.forEach((p) => {
+	      const b = document.createElement('button');
+	      b.type = 'button';
+	      b.className = 'preset-btn';
+	      b.innerHTML = `<strong>${p.label}</strong><span>${p.sub}</span>`;
+	      b.addEventListener('click', () => applyPreset(p));
+	      el.presetGrid.appendChild(b);
+	    });
+	  }
+	
+
+	  function applyPreset(p) {
+	    if (p.last) {
+	      const last = DockStorage.getLastUsed();
+	      if (!last) {
+	        toast('No last-used size yet — Accept an entry first');
+	        return;
+	      }
+	      state.h = last.h;
+	      state.w = last.w;
+	      state.d = last.d;
+	      // Weight left editable; restore if present but still allow override
+	      state.weight = last.weight;
+	      state.padBuffer = '';
+	      updateDimsUI();
+	      selectField('weight', { clearBuffer: true });
+	      el.parseHint.textContent = 'Restored last used dimensions';
+	      return;
+	    }
+	    // Pallet/skid: footprint only (W×D). Drums/totes: full H×W×D. Weight always empty.
+	    state.h = p.footprintOnly ? null : p.h;
+	    state.w = p.w;
+	    state.d = p.d;
+	    state.weight = null;
+	    state.padBuffer = '';
+	    updateDimsUI();
+	    if (p.footprintOnly) {
+	      selectField('h', { clearBuffer: true });
+	      el.parseHint.textContent = `Preset: ${p.label} — W×D filled; enter height & weight`;
+	    } else {
+	      selectField('weight', { clearBuffer: true });
+	      el.parseHint.textContent = `Preset: ${p.label} — includes height; enter weight`;
+	    }
+	  }
+	
+
+	  function bindDimTiles() {
+	    const tiles = [
+	      [el.tileH, 'h'],
+	      [el.tileW, 'w'],
+	      [el.tileD, 'd'],
+	      [el.tileWeight, 'weight'],
+	    ];
+	    tiles.forEach(([node, field]) => {
+	      node.addEventListener('click', () => {
+	        selectField(field, { clearBuffer: true });
+	        // Tap field = option to re-speak just that value
+	        if (DockSpeech.isSupported()) {
+	          el.parseHint.textContent = `Selected ${fieldLabel(field)} — type on pad or tap Speak / Re-speak`;
+	        }
+	      });
+	    });
+	  }
+	
+
+	  function fieldLabel(field) {
+	    return { h: 'Height', w: 'Width', d: 'Depth', weight: 'Weight' }[field] || field;
+	  }
+	
+
+	  function selectField(field, opts = {}) {
+	    state.activeField = field;
+	    if (opts.clearBuffer) state.padBuffer = '';
+	    [el.tileH, el.tileW, el.tileD, el.tileWeight].forEach((t) => t.classList.remove('selected'));
+	    const map = { h: el.tileH, w: el.tileW, d: el.tileD, weight: el.tileWeight };
+	    map[field].classList.add('selected');
+	    const unit = field === 'weight' ? 'lbs' : 'in';
+	    el.activeFieldLabel.textContent = `Editing ${fieldLabel(field)} (${unit})`;
+	  }
+	
+
+	  function updateDimsUI() {
+	    el.valH.textContent = state.h == null ? '—' : String(state.h);
+	    el.valW.textContent = state.w == null ? '—' : String(state.w);
+	    el.valD.textContent = state.d == null ? '—' : String(state.d);
+	    el.valWeight.textContent = state.weight == null ? '—' : String(state.weight);
+	  }
+	
+
+	  function bindNumpad() {
+	    el.numpad.addEventListener('click', (e) => {
+	      const btn = e.target.closest('button[data-key]');
+	      if (!btn) return;
+	      const key = btn.dataset.key;
+	      if (key === 'clear') {
+	        state.padBuffer = '';
+	        state[state.activeField] = null;
+	        updateDimsUI();
+	        return;
+	      }
+	      if (key === 'back') {
+	        state.padBuffer = state.padBuffer.slice(0, -1);
+	        state[state.activeField] = state.padBuffer === '' ? null : Number(state.padBuffer);
+	        updateDimsUI();
+	        return;
+	      }
+	      // digit
+	      if (state.padBuffer.length >= 6) return;
+	      state.padBuffer += key;
+	      state[state.activeField] = Number(state.padBuffer);
+	      updateDimsUI();
+	    });
+	  }
+	
+
+	
+
+	  function insertSlashIntoPiece() {
+	    if (state.pieceLocked) return;
+	    const input = el.piece;
+	    if (!input) return;
+	    const slash = '/';
+	    const start = input.selectionStart;
+	    const end = input.selectionEnd;
+	    if (typeof start === 'number' && typeof end === 'number') {
+	      const before = input.value.slice(0, start);
+	      const after = input.value.slice(end);
+	      input.value = before + slash + after;
+	      const pos = start + 1;
+	      input.setSelectionRange(pos, pos);
+	    } else {
+	      input.value = (input.value || '') + slash;
+	    }
+	    input.focus();
+	  }
+	
+
+	  function bindActions() {
+	    if (el.pieceSlashBtn) {
+	      el.pieceSlashBtn.addEventListener('click', insertSlashIntoPiece);
+	    }
+	    el.speakBtn.addEventListener('click', () => startSpeak({ mode: 'all' }));
+	    el.respeakBtn.addEventListener('click', () => startSpeak({ mode: 'active' }));
+	    el.acceptBtn.addEventListener('click', onAccept);
+	    el.clearListBtn.addEventListener('click', () => {
+	      if (!confirm('Clear all saved entries and the load plan on this device?')) return;
+	      DockStorage.clearAll();
+	      DockStorage.clearLoadPlan();
+	      setPieceLocked(false);
+	      el.piece.value = '';
+	      renderRecent();
+	      renderPlan();
+	      renderOutboundList();
+	      refreshLoadoutTrailerPicker();
+	      if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
+	      if (state.view === 'dock') {
+	        if (state.dockSection === 'inbound') renderDock();
+	        else if (state.dockSection === 'outbound') renderOutboundList();
+	        else if (state.dockSection === 'plan') renderPlan();
+	      }
+	      toast('All entries and plan cleared');
+	    });
+	  }
+	
+
+	  function setupSpeechStatus() {
+	    if (!DockSpeech.isSupported()) {
+	      el.speechStatus.classList.add('unsupported');
+	      el.speechStatusText.textContent = 'Voice unavailable';
+	      el.speakBtn.disabled = false; // still clickable to show toast
+	      el.parseHint.textContent =
+	        'Voice not supported here — use presets or the number pad. (Chrome/Safari + https or localhost usually required.)';
+	    } else {
+	      el.speechStatusText.textContent = 'Voice ready';
+	    }
+	  }
+	
+
+	  function setListeningUI(on, interimText) {
+	    state.listening = on;
+	    el.speechStatus.classList.toggle('listening', on);
+	    el.listenBanner.classList.toggle('hidden', !on);
+	    el.speechStatusText.textContent = on ? 'Listening…' : DockSpeech.isSupported() ? 'Voice ready' : 'Voice unavailable';
+	    if (on && interimText) {
+	      el.listenBannerText.textContent = interimText;
+	    } else if (on) {
+	      el.listenBannerText.textContent = 'Listening… say “48 by 40 by 48, 1200”';
+	    }
+	  }
+	
+
+	  async function startSpeak({ mode }) {
+	    if (!DockSpeech.isSupported()) {
+	      toast('Speech needs Chrome or Safari (https or localhost)');
+	      return;
+	    }
+	    if (state.listening) {
+	      DockSpeech.stopListening();
+	      return;
+	    }
+	
+
+	    const single = mode === 'active';
+	    el.parseHint.textContent = single
+	      ? `Listening for ${fieldLabel(state.activeField)} only…`
+	      : 'Listening for H W D weight…';
+	
+
+	    try {
+	      setListeningUI(true);
+	      const parsed = await DockSpeech.listenOnce({
+	        onStart: () => setListeningUI(true),
+	        onEnd: () => setListeningUI(false),
+	        onInterim: (t) => setListeningUI(true, t),
+	      });
+	
+
+	      applyParsed(parsed, { singleField: single ? state.activeField : null });
+	    } catch (err) {
+	      setListeningUI(false);
+	      const msg = String(err && err.message ? err.message : err);
+	      if (msg === 'no-speech') toast('No speech heard — try again or use the pad');
+	      else if (msg === 'not-allowed' || msg.includes('not-allowed')) {
+	        toast('Mic blocked — allow microphone, or use number pad');
+	      } else if (msg === 'Speech recognition is not supported in this browser.') {
+	        toast('Speech not supported in this browser');
+	      } else {
+	        toast('Speech failed — use number pad');
+	        el.parseHint.textContent = `Speech error: ${msg}`;
+	      }
+	    }
+	  }
+	
+
+	  function applyParsed(parsed, { singleField }) {
+	    if (singleField) {
+	      const n = parsed.rawNumbers[0];
+	      if (n == null) {
+	        toast('Could not hear a number');
+	        el.parseHint.textContent = `Heard: “${parsed.transcript}”`;
+	        return;
+	      }
+	      state[singleField] = n;
+	      state.padBuffer = String(n);
+	      updateDimsUI();
+	      el.parseHint.textContent = `Set ${fieldLabel(singleField)} = ${n}  (heard “${parsed.transcript}”)`;
+	      return;
+	    }
+	
+
+	    if (parsed.h != null) state.h = parsed.h;
+	    if (parsed.w != null) state.w = parsed.w;
+	    if (parsed.d != null) state.d = parsed.d;
+	    if (parsed.weight != null) state.weight = parsed.weight;
+	    state.padBuffer = '';
+	    updateDimsUI();
+	
+
+	    const parts = [];
+	    if (parsed.h != null) parts.push(`H ${parsed.h}`);
+	    if (parsed.w != null) parts.push(`W ${parsed.w}`);
+	    if (parsed.d != null) parts.push(`D ${parsed.d}`);
+	    if (parsed.weight != null) parts.push(`${parsed.weight} lbs`);
+	
+
+	    if (!parts.length) {
+	      el.parseHint.textContent = `Heard “${parsed.transcript}” — no numbers found`;
+	      toast('No numbers found — try again');
+	      return;
+	    }
+	
+
+	    el.parseHint.textContent = `Got ${parts.join(' · ')}  (heard “${parsed.transcript}”)`;
+	    // Advance focus to first missing
+	    if (state.weight == null) selectField('weight', { clearBuffer: true });
+	    else selectField('h', { clearBuffer: true });
+	  }
+	
+
+	  function bindPieceSequenceWatchers() {
+	    const sync = () => {
+	      syncPieceSequenceFromStorage();
+	      syncDestinationFromPro();
+	    };
+	    el.pro.addEventListener('change', sync);
+	    el.pro.addEventListener('blur', sync);
+	    el.trailerNumber.addEventListener('change', sync);
+	    el.trailerNumber.addEventListener('blur', sync);
+	  }
+	
+
+	  function bindDestination() {
+	    if (!el.destination) return;
+	    if (el.editDestinationBtn) {
+	      el.editDestinationBtn.addEventListener('click', () => {
+	        setDestinationLocked(false);
+	        if (el.destination) {
+	          el.destination.focus();
+	          el.destination.select();
+	        }
+	        toast('Destination unlocked — edit and Accept to save');
+	      });
+	    }
+	  }
+	
+
+	  /**
+	   * When PRO already has a saved destination, fill and lock the field.
+	   * New PRO (or no destination yet) stays editable.
+	   */
+	  function syncDestinationFromPro() {
+	    if (!el.destination) return;
+	    const pro = el.pro.value.trim();
+	    if (!pro) {
+	      setDestinationLocked(false);
+	      return;
+	    }
+	    const dest = DockStorage.getProDestination(pro);
+	    if (dest) {
+	      el.destination.value = dest;
+	      setDestinationLocked(true);
+	    } else {
+	      // New / unknown PRO — unlock; clear field only if it was locked to another PRO
+	      if (state.destinationLocked) {
+	        el.destination.value = '';
+	      }
+	      setDestinationLocked(false);
+	    }
+	  }
+	
+
+	  function setDestinationLocked(locked) {
+	    state.destinationLocked = !!locked;
+	    if (!el.destination) return;
+	    el.destination.readOnly = state.destinationLocked;
+	    el.destination.classList.toggle('dest-locked', state.destinationLocked);
+	    el.destination.setAttribute('aria-readonly', state.destinationLocked ? 'true' : 'false');
+	    if (el.destinationLockRow) {
+	      el.destinationLockRow.classList.toggle('hidden', !state.destinationLocked);
+	    }
+	    if (el.destinationLockedMsg && state.destinationLocked) {
+	      const d = el.destination.value.trim() || '—';
+	      el.destinationLockedMsg.textContent =
+	        `Going to: ${d} — same for every piece of this PRO.`;
+	    }
+	  }
+	
+
+	  /**
+	   * Normalize piece input before Accept:
+	   * - "1/5" or "3/5" → {a,b}
+	   * - bare "5" when starting a new sequence → treat as 1/5
+	   */
+	  function normalizePieceInput(raw, { allowBareTotal }) {
+	    const s = String(raw || '').trim();
+	    if (!s) return { ok: false, reason: 'Enter piece (e.g. 1/5 or total 5)' };
+	
+
+	    const frac = DockStorage.parsePieceFraction(s);
+	    if (frac) return { ok: true, a: frac.a, b: frac.b, display: `${frac.a}/${frac.b}` };
+	
+
+	    if (allowBareTotal && /^\d+$/.test(s)) {
+	      const n = Number(s);
+	      if (!Number.isInteger(n) || n < 1) {
+	        return { ok: false, reason: 'Piece total must be a whole number ≥ 1' };
+	      }
+	      return { ok: true, a: 1, b: n, display: `1/${n}`, fromBareTotal: true };
+	    }
+	
+
+	    return { ok: false, reason: 'Piece must look like 1/5 (or type total pieces, e.g. 5)' };
+	  }
+	
+
+	  function setPieceLocked(locked) {
+	    state.pieceLocked = !!locked;
+	    if (el.piece) {
+	      el.piece.readOnly = state.pieceLocked;
+	      el.piece.classList.toggle('piece-locked', state.pieceLocked);
+	      el.piece.setAttribute('aria-readonly', state.pieceLocked ? 'true' : 'false');
+	      el.piece.title = state.pieceLocked
+	        ? 'Piece is locked until this shipment sequence finishes'
+	        : '';
+	    }
+	    if (el.pieceSlashBtn) {
+	      el.pieceSlashBtn.disabled = state.pieceLocked;
+	    }
+	  }
+	
+
+	  /**
+	   * If this PRO+trailer already has an incomplete multi-piece sequence,
+	   * force next k/n and lock the piece field.
+	   */
+	  function syncPieceSequenceFromStorage() {
+	    const pro = el.pro.value.trim();
+	    const trailerNumber = el.trailerNumber.value.trim();
+	    if (!pro || !trailerNumber) {
+	      return;
+	    }
+	
+
+	    const info = DockStorage.nextPieceForProOnTrailer(pro, trailerNumber);
+	    if (info.count > 0 && info.total != null && info.count < info.total) {
+	      el.piece.value = `${info.nextNum}/${info.total}`;
+	      setPieceLocked(true);
+	      el.parseHint.textContent =
+	        `Continue PRO ${pro}: enter piece ${info.nextNum}/${info.total} next (in order).`;
+	      return;
+	    }
+	
+
+	    if (state.pieceLocked) {
+	      setPieceLocked(false);
+	    }
+	  }
+	
+
+	  function clearSlotSelection() {
+	    state.section = null;
+	    state.level = null;
+	    state.lateral = null;
+	    el.sectionChips.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
+	    el.levelChips.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
+	    el.lateralChips.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
+	    updateSlotPreview();
+	  }
+	
+
+	  function clearDimsAndWeight() {
+	    state.h = null;
+	    state.w = null;
+	    state.d = null;
+	    state.weight = null;
+	    state.padBuffer = '';
+	    updateDimsUI();
+	    selectField('h', { clearBuffer: true });
+	  }
+	
+
+	  /**
+	   * After Accept for k/n: keep PRO + trailer; clear dims/weight + slot;
+	   * auto-set (k+1)/n when k < n (locked); clear piece when finished.
+	   */
+	  function prepareNextPieceAfterAccept(a, b) {
+	    clearDimsAndWeight();
+	    clearSlotSelection();
+	
+
+	    if (b > 1 && a < b) {
+	      el.piece.value = `${a + 1}/${b}`;
+	      setPieceLocked(true);
+	      // Destination stays locked for remaining pieces
+	      syncDestinationFromPro();
+	      el.parseHint.textContent =
+	        `Saved ${a}/${b}. Next: ${a + 1}/${b} — same PRO, trailer & destination; enter size & slot.`;
+	    } else {
+	      el.piece.value = '';
+	      setPieceLocked(false);
+	      // Leave PRO/trailer/door/destination filled so driver can clear when ready;
+	      // destination stays locked for this PRO until they change PRO.
+	      syncDestinationFromPro();
+	      el.parseHint.textContent =
+	        b === 1
+	          ? 'Shipment complete (1/1). Enter a new PRO when ready.'
+	          : `Shipment complete (${a}/${b}). Enter a new PRO when ready.`;
+	    }
+	  }
+	
+
+	  function onAccept() {
+	    const pro = el.pro.value.trim();
+	    const trailerNumber = el.trailerNumber.value.trim();
+	    const pieceRaw = el.piece.value.trim();
+	
+
+	    if (!pro) {
+	      toast('Enter a PRO number');
+	      el.pro.focus();
+	      return;
+	    }
+	    if (!pieceRaw) {
+	      toast('Enter piece (e.g. 1/5 or total 5)');
+	      el.piece.focus();
+	      return;
+	    }
+	    if (!trailerNumber) {
+	      toast('Enter trailer number');
+	      el.trailerNumber.focus();
+	      return;
+	    }
+	    const doorNumber = el.doorNumber ? el.doorNumber.value.trim() : '';
+	    if (!doorNumber) {
+	      toast('Enter door number');
+	      if (el.doorNumber) el.doorNumber.focus();
+	      return;
+	    }
+	
+
+	    const destination = el.destination ? el.destination.value.trim() : '';
+	    if (!destination) {
+	      toast('Enter where this PRO is going (destination)');
+	      if (el.destination) {
+	        setDestinationLocked(false);
+	        el.destination.focus();
+	      }
+	      return;
+	    }
+	
+
+	    // Existing pieces for this PRO on this trailer determine required next numerator
+	    const seq = DockStorage.nextPieceForProOnTrailer(pro, trailerNumber);
+	    const startingFresh = seq.count === 0;
+	    const normalized = normalizePieceInput(pieceRaw, { allowBareTotal: startingFresh });
+	    if (!normalized.ok) {
+	      toast(normalized.reason);
+	      el.piece.focus();
+	      return;
+	    }
+	
+
+	    const { a, b, display } = normalized;
+	
+
+	    // Forced sequential entry when multi-piece (b > 1): must be next in order
+	    if (b > 1) {
+	      const required = seq.nextNum; // count + 1 (or 1 if none)
+	      if (a !== required) {
+	        toast(
+	          required === 1
+	            ? `Enter pieces in order — start with 1/${b}`
+	            : `Enter pieces in order — next is ${required}/${b}`
+	        );
+	        // If mid-sequence, snap field back to required
+	        if (seq.count > 0 && seq.total != null) {
+	          el.piece.value = `${required}/${seq.total || b}`;
+	          setPieceLocked(true);
+	        }
+	        return;
+	      }
+	      // Denominator must match an in-progress sequence
+	      if (seq.count > 0 && seq.total != null && b !== seq.total) {
+	        toast(`This PRO is ${seq.total} pieces — use ${required}/${seq.total}`);
+	        el.piece.value = `${required}/${seq.total}`;
+	        setPieceLocked(true);
+	        return;
+	      }
+	    } else {
+	      // 1/1 — only valid when no prior pieces yet for this PRO+trailer (or continuing? no, 1/1 is single)
+	      if (seq.count > 0) {
+	        toast(`PRO already has ${seq.count} piece(s) on this trailer — continue the sequence`);
+	        syncPieceSequenceFromStorage();
+	        return;
+	      }
+	    }
+	
+
+	    if (state.section == null || !state.level || !state.lateral) {
+	      toast('Pick section, level, and lateral');
+	      return;
+	    }
+	    if (state.h == null || state.w == null || state.d == null) {
+	      toast('Need H, W, and D — speak, preset, or pad');
+	      return;
+	    }
+	    if (state.weight == null) {
+	      toast('Enter weight (lbs)');
+	      selectField('weight', { clearBuffer: true });
+	      return;
+	    }
+	
+
+	    // Soft check for BOL same-trailer rule (MVP warns; does not hard-block)
+	    const existing = DockStorage.entriesForPro(pro);
+	    const priorTrailers = DockStorage.trailerNumbersForPro(pro);
+	    if (existing.length) {
+	      if (priorTrailers.length && !priorTrailers.includes(trailerNumber)) {
+	        const prior = priorTrailers.join(', ');
+	        el.parseHint.textContent =
+	          `Warning: PRO ${pro} was on trailer ${prior} — same PRO must stay on one trailer (you entered ${trailerNumber}).`;
+	        toast(`Same PRO was on trailer ${prior}`);
+	      } else if (!startingFresh) {
+	        el.parseHint.textContent =
+	          `Note: PRO ${pro} already has ${existing.length} piece(s) on trailer ${trailerNumber} — keep on same trailer.`;
+	      }
+	    }
+	
+
+	    // Persist normalized fraction (e.g. bare "5" → "1/5")
+	    el.piece.value = display;
+	
+
+	    DockStorage.saveEntry({
+	      pro,
+	      pieceFraction: display,
+	      trailerNumber,
+	      doorNumber,
+	      destination,
+	      section: state.section,
+	      level: state.level,
+	      lateral: state.lateral,
+	      h: state.h,
+	      w: state.w,
+	      d: state.d,
+	      weight: state.weight,
+	    });
+	
+
+	    // Lock destination for remaining pieces of this PRO
+	    if (el.destination) {
+	      el.destination.value = destination;
+	      setDestinationLocked(true);
+	    }
+	
+
+	    renderRecent();
+	    refreshLoadoutTrailerPicker();
+	    if (state.view === 'loadout' && state.loadoutTrailer === trailerNumber) {
+	      renderLoadout(trailerNumber);
+	    }
+	    if (state.view === 'dock') {
+	      if (state.dockSection === 'inbound') renderDock();
+	      else if (state.dockSection === 'outbound') renderOutboundList();
+	      else if (state.dockSection === 'plan') renderPlan();
+	    }
+	    toast(`Saved PRO ${pro} · ${display} · to ${destination} · door ${doorNumber} · trailer ${trailerNumber} @ ${state.section}/${state.level}/${state.lateral}`);
+	
+
+	    prepareNextPieceAfterAccept(a, b);
+	  }
+	
+
+	  function renderRecent() {
+	    const entries = DockStorage.readAll();
+	    if (!entries.length) {
+	      el.recentList.innerHTML = '<div class="empty-state">No entries yet — Accept one to see it here.</div>';
+	      return;
+	    }
+	
+
+	    // Show newest first, but visually group by PRO using helper (BOL rule)
+	    const groups = DockStorage.groupsByPro(entries);
+	    // Preserve recent order: iterate entries, emit group header when PRO changes in display of top N
+	    const recent = entries.slice(0, 40);
+	    const seenHeader = new Set();
+	    const frag = document.createDocumentFragment();
+	
+
+	    // Alternate simpler approach: list items, with a small PRO group badge
+	    // Build ordered unique PROs by first appearance in recent
+	    const proOrder = [];
+	    recent.forEach((e) => {
+	      if (!proOrder.includes(e.pro)) proOrder.push(e.pro);
+	    });
+	
+
+	    proOrder.forEach((pro) => {
+	      const wrap = document.createElement('div');
+	      wrap.className = 'pro-group';
+	      const head = document.createElement('div');
+	      head.className = 'pro-group-head';
+	      const title = document.createElement('div');
+	      title.className = 'pro-group-title';
+	      const count = (groups[pro] || []).length;
+	      const trailers = DockStorage.trailerNumbersForPro(pro);
+	      const trailerNote = trailers.length
+	        ? `trailer ${trailers.join(', ')}`
+	        : 'same trailer';
+	      const dest = DockStorage.getProDestination(pro);
+	      const destNote = dest ? ` · → ${dest}` : ' · no destination yet';
+	      title.textContent = `PRO ${pro} · ${count} piece(s) · ${trailerNote}${destNote}`;
+	      head.appendChild(title);
+	      const editBtn = document.createElement('button');
+	      editBtn.type = 'button';
+	      editBtn.className = 'btn tiny muted-btn edit-pro-btn';
+	      editBtn.textContent = 'Edit bill';
+	      editBtn.addEventListener('click', (ev) => {
+	        ev.preventDefault();
+	        ev.stopPropagation();
+	        openEditPro(pro);
+	      });
+	      head.appendChild(editBtn);
+	      wrap.appendChild(head);
+	
+
+	      recent
+	        .filter((e) => e.pro === pro)
+	        .forEach((e) => {
+	          wrap.appendChild(renderEntryCard(e));
+	        });
+	      frag.appendChild(wrap);
+	    });
+	
+
+	    el.recentList.innerHTML = '';
+	    el.recentList.appendChild(frag);
+	  }
+	
+
+	  function renderEntryCard(e) {
+	    const div = document.createElement('div');
+	    div.className = 'entry';
+	    const trailerDisp = e.trailerNumber
+	      ? escapeHtml(e.trailerNumber)
+	      : '—';
+	    const doorDisp = e.doorNumber
+	      ? escapeHtml(e.doorNumber)
+	      : '—';
+	    const dest = DockStorage.getProDestination(e.pro);
+	    const destLine = dest
+	      ? `<div class="entry-dest">Going to: ${escapeHtml(dest)}</div>`
+	      : `<div class="entry-dest entry-dest-missing">No destination yet</div>`;
+	    div.innerHTML = `
+	      <div class="entry-top">
+	        <span class="entry-pro">${escapeHtml(e.pro)} · ${escapeHtml(e.pieceFraction)}</span>
+	        <span class="entry-slot">${escapeHtml(e.slotLabel)}</span>
+	      </div>
+	      <div class="entry-trailer">Door ${doorDisp} · Trailer ${trailerDisp}</div>
+	      ${destLine}
+	      <div class="entry-dims">${fmt(e.h)} × ${fmt(e.w)} × ${fmt(e.d)} in · ${fmt(e.weight)} lbs</div>
+	      <div class="entry-meta">${escapeHtml(DockStorage.formatTimeLocal(e.timestamp))}</div>
+	    `;
+	    return div;
+	  }
+	
+
+	  function fmt(n) {
+	    return n == null ? '—' : String(n);
+	  }
+	
+
+	  function escapeHtml(s) {
+	    return String(s)
+	      .replace(/&/g, '&amp;')
+	      .replace(/</g, '&lt;')
+	      .replace(/>/g, '&gt;')
+	      .replace(/"/g, '&quot;');
+	  }
+	
+
+	
+
+	  function setPanelVisible(panel, on) {
+	    if (!panel) return;
+	    panel.classList.toggle('hidden', !on);
+	    if (on) panel.removeAttribute('hidden');
+	    else panel.setAttribute('hidden', '');
+	  }
+	
+
+	  function bindViewTabs() {
+	    if (!el.tabEntry || !el.tabLoadout) return;
+	    el.tabEntry.addEventListener('click', () => showView('entry'));
+	    el.tabLoadout.addEventListener('click', () => showView('loadout'));
+	    if (el.tabDock) el.tabDock.addEventListener('click', () => showView('dock'));
+	  }
+	
+
+	  function bindDockSubnav() {
+	    if (el.dockSubInbound) {
+	      el.dockSubInbound.addEventListener('click', () => showDockSection('inbound'));
+	    }
+	    if (el.dockSubOutbound) {
+	      el.dockSubOutbound.addEventListener('click', () => showDockSection('outbound'));
+	    }
+	    if (el.dockSubPlan) {
+	      el.dockSubPlan.addEventListener('click', () => showDockSection('plan'));
+	    }
+	  }
+	
+
+	  function showDockSection(section) {
+	    state.dockSection = section;
+	    const panels = {
+	      inbound: el.dockPanelInbound,
+	      outbound: el.dockPanelOutbound,
+	      plan: el.dockPanelPlan,
+	    };
+	    const tabs = {
+	      inbound: el.dockSubInbound,
+	      outbound: el.dockSubOutbound,
+	      plan: el.dockSubPlan,
+	    };
+	    Object.keys(panels).forEach((key) => {
+	      setPanelVisible(panels[key], key === section);
+	    });
+	    Object.keys(tabs).forEach((key) => {
+	      const tab = tabs[key];
+	      if (!tab) return;
+	      const on = key === section;
+	      tab.classList.toggle('active', on);
+	      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+	    });
+	    if (section === 'inbound') renderDock();
+	    if (section === 'outbound') renderOutboundList();
+	    if (section === 'plan') renderPlan();
+	  }
+	
+
+	  function showView(name) {
+	    state.view = name;
+	    const views = {
+	      entry: el.viewEntry,
+	      loadout: el.viewLoadout,
+	      dock: el.viewDock,
+	    };
+	    const tabs = {
+	      entry: el.tabEntry,
+	      loadout: el.tabLoadout,
+	      dock: el.tabDock,
+	    };
+	    Object.keys(views).forEach((key) => {
+	      setPanelVisible(views[key], key === name);
+	    });
+	    Object.keys(tabs).forEach((key) => {
+	      const tab = tabs[key];
+	      if (!tab) return;
+	      const on = key === name;
+	      tab.classList.toggle('active', on);
+	      tab.setAttribute('aria-selected', on ? 'true' : 'false');
+	    });
+	    if (name === 'loadout') {
+	      refreshLoadoutTrailerPicker();
+	      if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
+	      if (!el.loadoutTrailerInput.value.trim() && el.trailerNumber.value.trim()) {
+	        el.loadoutTrailerInput.value = el.trailerNumber.value.trim();
+	      }
+	    }
+	    if (name === 'dock') {
+	      // Ensure current Dock subsection panel is visible and populated
+	      showDockSection(state.dockSection || 'inbound');
+	    }
+	  }
+	
+
+	  function bindLoadout() {
+	    if (!el.loadoutShowBtn) return;
+	    el.loadoutShowBtn.addEventListener('click', () => {
+	      const t = el.loadoutTrailerInput.value.trim();
+	      if (!t) {
+	        toast('Enter a trailer number');
+	        el.loadoutTrailerInput.focus();
+	        return;
+	      }
+	      state.loadoutTrailer = t;
+	      highlightLoadoutChips(t);
+	      renderLoadout(t);
+	    });
+	    el.loadoutTrailerInput.addEventListener('keydown', (e) => {
+	      if (e.key === 'Enter') {
+	        e.preventDefault();
+	        el.loadoutShowBtn.click();
+	      }
+	    });
+	  }
+	
+
+	  function refreshLoadoutTrailerPicker() {
+	    if (!el.loadoutTrailerChips) return;
+	    const trailers = DockStorage.allTrailerNumbers();
+	    // datalist
+	    if (el.loadoutTrailerList) {
+	      el.loadoutTrailerList.innerHTML = '';
+	      trailers.forEach((t) => {
+	        const opt = document.createElement('option');
+	        opt.value = t;
+	        el.loadoutTrailerList.appendChild(opt);
+	      });
+	    }
+	    el.loadoutTrailerChips.innerHTML = '';
+	    if (!trailers.length) {
+	      const hint = document.createElement('p');
+	      hint.className = 'hint';
+	      hint.style.margin = '0';
+	      hint.textContent = 'No saved trailers yet — log freight first, or type a number above.';
+	      el.loadoutTrailerChips.appendChild(hint);
+	      return;
+	    }
+	    trailers.forEach((t) => {
+	      const b = document.createElement('button');
+	      b.type = 'button';
+	      b.className = 'trailer-chip';
+	      b.textContent = t;
+	      b.dataset.value = t;
+	      if (t === state.loadoutTrailer) b.classList.add('active');
+	      b.addEventListener('click', () => {
+	        el.loadoutTrailerInput.value = t;
+	        state.loadoutTrailer = t;
+	        highlightLoadoutChips(t);
+	        renderLoadout(t);
+	      });
+	      el.loadoutTrailerChips.appendChild(b);
+	    });
+	  }
+	
+
+	  function highlightLoadoutChips(value) {
+	    if (!el.loadoutTrailerChips) return;
+	    el.loadoutTrailerChips.querySelectorAll('.trailer-chip').forEach((c) => {
+	      c.classList.toggle('active', c.dataset.value === value);
+	    });
+	  }
+	
+
+	  function renderLoadout(trailerNumber) {
+	    const t = String(trailerNumber || '').trim();
+	    state.loadoutTrailer = t;
+	    const groups = DockStorage.loadOutByTrailer(t);
+	    const allPieces = groups.reduce((n, g) => n + g.pieces.length, 0);
+	
+
+	    let weightSum = 0;
+	    let weightCount = 0;
+	    groups.forEach((g) => {
+	      g.pieces.forEach((e) => {
+	        if (e.weight != null && !Number.isNaN(Number(e.weight))) {
+	          weightSum += Number(e.weight);
+	          weightCount += 1;
+	        }
+	      });
+	    });
+	
+
+	    el.loadoutSummaryCard.classList.remove('hidden');
+	    el.sumTrailer.textContent = t || '—';
+	    el.sumPros.textContent = String(groups.length);
+	    el.sumPieces.textContent = String(allPieces);
+	    el.sumWeight.textContent = weightCount
+	      ? `${weightSum.toLocaleString()} lbs`
+	      : '—';
+	
+
+	    if (!groups.length) {
+	      el.loadoutList.innerHTML =
+	        '<div class="empty-state">Nothing on this trailer yet.<br/>Log freight with this trailer number, then come back here.</div>';
+	      return;
+	    }
+	
+
+	    const frag = document.createDocumentFragment();
+	    groups.forEach((g) => {
+	      const wrap = document.createElement('div');
+	      wrap.className = 'loadout-pro';
+	
+
+	      const head = document.createElement('div');
+	      head.className = 'loadout-pro-head';
+	      const title = document.createElement('h3');
+	      title.className = 'loadout-pro-title';
+	      title.textContent = `Bill (PRO) ${g.pro}`;
+	      head.appendChild(title);
+	      const editBtn = document.createElement('button');
+	      editBtn.type = 'button';
+	      editBtn.className = 'btn tiny muted-btn edit-pro-btn';
+	      editBtn.textContent = 'Edit bill';
+	      editBtn.addEventListener('click', (ev) => {
+	        ev.preventDefault();
+	        ev.stopPropagation();
+	        openEditPro(g.pro);
+	      });
+	      head.appendChild(editBtn);
+	      wrap.appendChild(head);
+	
+
+	      const dest = g.destination || DockStorage.getProDestination(g.pro);
+	      const destEl = document.createElement('div');
+	      destEl.className = 'loadout-pro-dest';
+	      destEl.textContent = dest ? `Going to: ${dest}` : 'No destination yet — tap Edit bill';
+	      wrap.appendChild(destEl);
+	
+
+	      const meta = document.createElement('div');
+	      meta.className = 'loadout-pro-meta';
+	      meta.textContent = `${g.pieces.length} piece${g.pieces.length === 1 ? '' : 's'}`;
+	      wrap.appendChild(meta);
+	
+
+	      g.pieces.forEach((e) => {
+	        const piece = document.createElement('div');
+	        piece.className = 'loadout-piece';
+	        const slot = e.slotLabel || DockStorage.formatSlot(e.section, e.level, e.lateral);
+	        const size =
+	          e.h == null && e.w == null && e.d == null
+	            ? 'Size —'
+	            : `${fmt(e.h)} × ${fmt(e.w)} × ${fmt(e.d)} in`;
+	        const wt = e.weight == null ? 'Weight —' : `${fmt(e.weight)} lbs`;
+	        piece.innerHTML = `
+	          <div class="loadout-piece-top">
+	            <span class="loadout-piece-frac">Piece ${escapeHtml(e.pieceFraction || '—')}</span>
+	            <span class="loadout-piece-slot">${escapeHtml(slot)}</span>
+	          </div>
+	          <div class="loadout-piece-dims">${escapeHtml(size)}</div>
+	          <div class="loadout-piece-weight">${escapeHtml(wt)}</div>
+	        `;
+	        wrap.appendChild(piece);
+	      });
+	
+
+	      frag.appendChild(wrap);
+	    });
+	
+
+	    el.loadoutList.innerHTML = '';
+	    el.loadoutList.appendChild(frag);
+	  }
+	
+
+	
+
+	  function bindDock() {
+	    if (!el.dockBackBtn) return;
+	    el.dockBackBtn.addEventListener('click', () => {
+	      if (state.dockLevel === 'pieces') {
+	        state.dockLevel = 'pros';
+	        state.dockPro = '';
+	      } else if (state.dockLevel === 'pros') {
+	        state.dockLevel = 'doors';
+	        state.dockDoor = '';
+	        state.dockPro = '';
+	      }
+	      renderDock();
+	    });
+	  }
+	
+
+	  function renderDock() {
+	    if (!el.dockBoard) return;
+	    const showBack = state.dockLevel !== 'doors';
+	    el.dockBackBtn.classList.toggle('hidden', !showBack);
+	
+
+	    if (state.dockLevel === 'doors') {
+	      if (el.dockHint) {
+	        el.dockHint.textContent =
+	          'Doors that have a trailer from your logged freight. Tap a door to see bills (PROs). Viewing only.';
+	      }
+	      renderDockDoors();
+	      return;
+	    }
+	    if (state.dockLevel === 'pros') {
+	      if (el.dockHint) {
+	        el.dockHint.textContent =
+	          `Door ${state.dockDoor} — tap a bill (PRO) to see pieces and locations. Viewing only.`;
+	      }
+	      renderDockPros();
+	      return;
+	    }
+	    if (el.dockHint) {
+	      el.dockHint.textContent =
+	        `PRO ${state.dockPro} at door ${state.dockDoor} — pieces with location. Tap Edit bill to change destination, door, or trailer.`;
+	    }
+	    renderDockPieces();
+	  }
+	
+
+	  function renderDockDoors() {
+	    const rows = DockStorage.doorsBoard();
+	    if (!rows.length) {
+	      el.dockBoard.innerHTML =
+	        '<div class="empty-state">No doors yet — log freight with a door number first.</div>';
+	      return;
+	    }
+	    const frag = document.createDocumentFragment();
+	    rows.forEach((row) => {
+	      const btn = document.createElement('button');
+	      btn.type = 'button';
+	      btn.className = 'dock-door-row';
+	      const trailer = row.trailerNumber || '—';
+	      const counts = `${row.proCount} bill${row.proCount === 1 ? '' : 's'} · ${row.pieceCount} piece${row.pieceCount === 1 ? '' : 's'}`;
+	      btn.innerHTML = `
+	        <span class="dock-door-main">
+	          <span class="dock-door-num">Door ${escapeHtml(row.doorNumber)}</span>
+	          <span class="dock-door-trailer">Trailer ${escapeHtml(trailer)}</span>
+	        </span>
+	        <span class="dock-door-meta">${escapeHtml(counts)}</span>
+	      `;
+	      btn.addEventListener('click', () => {
+	        state.dockDoor = row.doorNumber;
+	        state.dockPro = '';
+	        state.dockLevel = 'pros';
+	        renderDock();
+	      });
+	      frag.appendChild(btn);
+	    });
+	    el.dockBoard.innerHTML = '';
+	    el.dockBoard.appendChild(frag);
+	  }
+	
+
+	  function renderDockPros() {
+	    const data = DockStorage.dockProsAtDoor(state.dockDoor);
+	    const head = document.createElement('div');
+	    head.className = 'dock-context';
+	    head.innerHTML = `
+	      <div class="dock-context-title">Door ${escapeHtml(data.doorNumber)}</div>
+	      <div class="dock-context-sub">Trailer ${escapeHtml(data.trailerNumber || '—')}</div>
+	    `;
+	
+
+	    if (!data.groups.length) {
+	      el.dockBoard.innerHTML = '';
+	      el.dockBoard.appendChild(head);
+	      const empty = document.createElement('div');
+	      empty.className = 'empty-state';
+	      empty.textContent = 'No bills on the trailer at this door.';
+	      el.dockBoard.appendChild(empty);
+	      return;
+	    }
+	
+
+	    const frag = document.createDocumentFragment();
+	    frag.appendChild(head);
+	    data.groups.forEach((g) => {
+	      const btn = document.createElement('button');
+	      btn.type = 'button';
+	      btn.className = 'dock-pro-row';
+	      const dest = g.destination || DockStorage.getProDestination(g.pro);
+	      const destHtml = dest
+	        ? `<span class="dock-pro-dest">Going to: ${escapeHtml(dest)}</span>`
+	        : '';
+	      btn.innerHTML = `
+	        <span class="dock-pro-main">Bill (PRO) ${escapeHtml(g.pro)}</span>
+	        ${destHtml}
+	        <span class="dock-pro-meta">${g.pieces.length} piece${g.pieces.length === 1 ? '' : 's'}</span>
+	      `;
+	      btn.addEventListener('click', () => {
+	        state.dockPro = g.pro;
+	        state.dockLevel = 'pieces';
+	        renderDock();
+	      });
+	      frag.appendChild(btn);
+	    });
+	    el.dockBoard.innerHTML = '';
+	    el.dockBoard.appendChild(frag);
+	  }
+	
+
+	  function renderDockPieces() {
+	    const data = DockStorage.dockProsAtDoor(state.dockDoor);
+	    const group = data.groups.find((g) => g.pro === state.dockPro);
+	    const head = document.createElement('div');
+	    head.className = 'dock-context';
+	    const proDest = DockStorage.getProDestination(state.dockPro);
+	    const destSub = proDest
+	      ? ` · Going to ${escapeHtml(proDest)}`
+	      : ' · no destination yet';
+	    head.innerHTML = `
+	      <div class="dock-context-top">
+	        <div>
+	          <div class="dock-context-title">PRO ${escapeHtml(state.dockPro)}</div>
+	          <div class="dock-context-sub">Door ${escapeHtml(data.doorNumber)} · Trailer ${escapeHtml(data.trailerNumber || '—')}${destSub}</div>
+	        </div>
+	        <button type="button" class="btn tiny muted-btn edit-pro-btn" id="dockEditProBtn">Edit bill</button>
+	      </div>
+	    `;
+	    el.dockBoard.innerHTML = '';
+	    el.dockBoard.appendChild(head);
+	    const dockEdit = head.querySelector('#dockEditProBtn');
+	    if (dockEdit) {
+	      dockEdit.addEventListener('click', (ev) => {
+	        ev.preventDefault();
+	        openEditPro(state.dockPro);
+	      });
+	    }
+	
+
+	    if (!group || !group.pieces.length) {
+	      const empty = document.createElement('div');
+	      empty.className = 'empty-state';
+	      empty.textContent = 'No pieces for this bill at this door.';
+	      el.dockBoard.appendChild(empty);
+	      return;
+	    }
+	
+
+	    group.pieces.forEach((e) => {
+	      const piece = document.createElement('div');
+	      piece.className = 'dock-piece';
+	      const slot = e.slotLabel || DockStorage.formatSlot(e.section, e.level, e.lateral);
+	      const size =
+	        e.h == null && e.w == null && e.d == null
+	          ? 'Size —'
+	          : `${fmt(e.h)} × ${fmt(e.w)} × ${fmt(e.d)} in`;
+	      const wt = e.weight == null ? 'Weight —' : `${fmt(e.weight)} lbs`;
+	      piece.innerHTML = `
+	        <div class="dock-piece-top">
+	          <span class="dock-piece-frac">Piece ${escapeHtml(e.pieceFraction || '—')}</span>
+	          <span class="dock-piece-slot">${escapeHtml(slot)}</span>
+	        </div>
+	        <div class="dock-piece-dims">${escapeHtml(size)}</div>
+	        <div class="dock-piece-weight">${escapeHtml(wt)}</div>
+	      `;
+	      el.dockBoard.appendChild(piece);
+	    });
+	  }
+	
+
+	  function bindOutbound() {
+	    if (!el.outboundSaveBtn) return;
+	    el.outboundSaveBtn.addEventListener('click', () => saveOutboundFromForm(false));
+	    if (el.outboundOpenBtn) {
+	      el.outboundOpenBtn.addEventListener('click', () => saveOutboundFromForm(true));
+	    }
+	    if (el.outboundTrailerInput) {
+	      el.outboundTrailerInput.addEventListener('keydown', (e) => {
+	        if (e.key === 'Enter') {
+	          e.preventDefault();
+	          saveOutboundFromForm(false);
+	        }
+	      });
+	    }
+	  }
+	
+
+	  /**
+	   * @param {boolean} forceOpen  if true, destination becomes "open"
+	   */
+	  function saveOutboundFromForm(forceOpen) {
+	    if (!el.outboundTrailerInput) return;
+	    const trailerNumber = el.outboundTrailerInput.value.trim();
+	    if (!trailerNumber) {
+	      toast('Enter outbound trailer number');
+	      el.outboundTrailerInput.focus();
+	      return;
+	    }
+	    const doorNumber = el.outboundDoorInput ? el.outboundDoorInput.value.trim() : '';
+	    let destination = el.outboundDestInput ? el.outboundDestInput.value.trim() : '';
+	    if (forceOpen) destination = 'open';
+	    if (!destination) destination = 'open';
+	
+
+	    DockStorage.saveOutboundTrailer({
+	      trailerNumber,
+	      doorNumber,
+	      destination,
+	    });
+	
+
+	    el.outboundTrailerInput.value = '';
+	    if (el.outboundDoorInput) el.outboundDoorInput.value = '';
+	    if (el.outboundDestInput) el.outboundDestInput.value = '';
+	    renderOutboundList();
+	    toast(
+	      destination === 'open'
+	        ? `Outbound trailer ${trailerNumber} saved as open`
+	        : `Outbound trailer ${trailerNumber} → ${destination}`
+	    );
+	  }
+	
+
+	  function renderOutboundList() {
+	    if (!el.outboundList) return;
+	    const list = DockStorage.readOutboundTrailers();
+	    if (!list.length) {
+	      el.outboundList.innerHTML =
+	        '<div class="empty-state">No outbound trailers yet — register one above.</div>';
+	      return;
+	    }
+	
+
+	    const frag = document.createDocumentFragment();
+	    list.forEach((row) => {
+	      const div = document.createElement('div');
+	      div.className = 'outbound-row';
+	      const dest = String(row.destination || 'open').trim() || 'open';
+	      const isOpen = dest.toLowerCase() === 'open';
+	      const door = String(row.doorNumber || '').trim();
+	      const doorText = door ? `Door ${door}` : 'Door not set yet';
+	      div.innerHTML = `
+	        <div class="outbound-row-top">
+	          <span class="outbound-trailer">Trailer ${escapeHtml(row.trailerNumber)}</span>
+	          <span class="outbound-dest${isOpen ? ' is-open' : ''}">${
+	            isOpen ? 'Open' : escapeHtml(dest)
+	          }</span>
+	        </div>
+	        <div class="outbound-meta">${escapeHtml(doorText)} · added ${escapeHtml(
+	          DockStorage.formatTimeLocal(row.createdAt)
+	        )}</div>
+	        <div class="outbound-row-actions">
+	          <button type="button" class="btn tiny muted-btn" data-remove="${escapeHtml(row.id)}">Remove</button>
+	        </div>
+	      `;
+	      const rm = div.querySelector('[data-remove]');
+	      if (rm) {
+	        rm.addEventListener('click', () => {
+	          DockStorage.removeOutboundTrailer(row.id);
+	          renderOutboundList();
+	          toast(`Removed outbound trailer ${row.trailerNumber}`);
+	        });
+	      }
+	      frag.appendChild(div);
+	    });
+	    el.outboundList.innerHTML = '';
+	    el.outboundList.appendChild(frag);
+	  }
+	
+
+	
+
+	  function bindEditPro() {
+	    if (!el.editProOverlay) return;
+	    if (el.editProCancelBtn) {
+	      el.editProCancelBtn.addEventListener('click', () => closeEditPro());
+	    }
+	    if (el.editProSaveBtn) {
+	      el.editProSaveBtn.addEventListener('click', () => saveEditPro());
+	    }
+	    el.editProOverlay.addEventListener('click', (ev) => {
+	      if (ev.target === el.editProOverlay) closeEditPro();
+	    });
+	    if (el.editProDestination) {
+	      el.editProDestination.addEventListener('keydown', (e) => {
+	        if (e.key === 'Enter') {
+	          e.preventDefault();
+	          saveEditPro();
+	        }
+	      });
+	    }
+	  }
+	
+
+	  /**
+	   * Open plain Edit bill sheet for a PRO already on the dock.
+	   * Destination updates pros store; door/trailer update every piece of that PRO.
+	   */
+	  function openEditPro(pro) {
+	    const key = String(pro || '').trim();
+	    if (!key || !el.editProOverlay) return;
+	    state.editingPro = key;
+	    const dest = DockStorage.getProDestination(key);
+	    const pieces = DockStorage.entriesForPro(key);
+	    const trailers = DockStorage.trailerNumbersForPro(key);
+	    let door = '';
+	    for (const e of pieces) {
+	      const d = String(e.doorNumber || '').trim();
+	      if (d) {
+	        door = d;
+	        break;
+	      }
+	    }
+	    if (el.editProNumber) el.editProNumber.value = key;
+	    if (el.editProDestination) el.editProDestination.value = dest || '';
+	    if (el.editProTrailer) el.editProTrailer.value = trailers[0] || '';
+	    if (el.editProDoor) el.editProDoor.value = door;
+	    el.editProOverlay.classList.remove('hidden');
+	    el.editProOverlay.removeAttribute('hidden');
+	    if (el.editProDestination) {
+	      setTimeout(() => {
+	        el.editProDestination.focus();
+	        el.editProDestination.select();
+	      }, 50);
+	    }
+	  }
+	
+
+	  function closeEditPro() {
+	    state.editingPro = '';
+	    if (!el.editProOverlay) return;
+	    el.editProOverlay.classList.add('hidden');
+	    el.editProOverlay.setAttribute('hidden', '');
+	  }
+	
+
+	  function saveEditPro() {
+	    const pro = state.editingPro || (el.editProNumber && el.editProNumber.value.trim()) || '';
+	    if (!pro) {
+	      toast('No PRO to edit');
+	      return;
+	    }
+	    const destination = el.editProDestination ? el.editProDestination.value.trim() : '';
+	    const trailerNumber = el.editProTrailer ? el.editProTrailer.value.trim() : '';
+	    const doorNumber = el.editProDoor ? el.editProDoor.value.trim() : '';
+	
+
+	    const result = DockStorage.updateProBill(pro, {
+	      destination,
+	      trailerNumber,
+	      doorNumber,
+	    });
+	    if (!result) {
+	      toast('Could not update this bill');
+	      return;
+	    }
+	
+
+	    closeEditPro();
+	    refreshAfterProEdit(pro);
+	    // Keep entry form in sync if driver is still on this PRO
+	    if (el.pro && el.pro.value.trim() === pro) {
+	      syncDestinationFromPro();
+	      if (el.trailerNumber && trailerNumber) el.trailerNumber.value = trailerNumber;
+	      if (el.doorNumber) el.doorNumber.value = doorNumber;
+	    }
+	    const destMsg = result.destination
+	      ? `→ ${result.destination}`
+	      : 'destination cleared';
+	    toast(`Updated PRO ${pro} ${destMsg}`);
+	  }
+	
+
+	  function refreshAfterProEdit(pro) {
+	    renderRecent();
+	    if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
+	    refreshLoadoutTrailerPicker();
+	    if (state.view === 'dock') {
+	      if (state.dockSection === 'inbound') renderDock();
+	      else if (state.dockSection === 'outbound') renderOutboundList();
+	      else if (state.dockSection === 'plan') renderPlan();
+	    }
+	    syncPieceSequenceFromStorage();
+	  }
+	
+
+	
+
+	  function bindConfirmSheet() {
+	    if (!el.confirmOverlay) return;
+	    if (el.confirmCancelBtn) {
+	      el.confirmCancelBtn.addEventListener('click', () => closeConfirmSheet());
+	    }
+	    if (el.confirmOkBtn) {
+	      el.confirmOkBtn.addEventListener('click', () => onConfirmSheetOk());
+	    }
+	    el.confirmOverlay.addEventListener('click', (ev) => {
+	      if (ev.target === el.confirmOverlay) closeConfirmSheet();
+	    });
+	  }
+	
+
+	  /**
+	   * In-app confirm sheet — never uses window.confirm (unreliable on phones / PWAs).
+	   * Opening the sheet is immediate feedback (<100ms).
+	   */
+	  function openConfirmSheet({ title, message, action }) {
+	    if (!el.confirmOverlay) {
+	      toast('Confirm UI missing');
+	      return;
+	    }
+	    state.confirmPending = { action };
+	    if (el.confirmHeading) el.confirmHeading.textContent = title || 'Confirm';
+	    if (el.confirmMessage) el.confirmMessage.textContent = message || '';
+	    el.confirmOverlay.classList.remove('hidden');
+	    el.confirmOverlay.removeAttribute('hidden');
+	    if (el.confirmOkBtn) {
+	      setTimeout(() => el.confirmOkBtn.focus(), 40);
+	    }
+	  }
+	
+
+	  function closeConfirmSheet() {
+	    state.confirmPending = null;
+	    if (!el.confirmOverlay) return;
+	    el.confirmOverlay.classList.add('hidden');
+	    el.confirmOverlay.setAttribute('hidden', '');
+	  }
+	
+
+	  function onConfirmSheetOk() {
+	    const pending = state.confirmPending;
+	    closeConfirmSheet();
+	    if (!pending || !pending.action) return;
+	    if (pending.action === 'seedDemoInbound' || pending.action === 'loadDemo') {
+	      runSeedDemoInbound();
+	      return;
+	    }
+	    if (pending.action === 'clearPlan') {
+	      if (typeof doClearPlan === 'function') doClearPlan();
+	      else {
+	        DockStorage.clearLoadPlan();
+	        renderPlan();
+	        toast('Plan cleared');
+	      }
+	      return;
+	    }
+	  }
+	
+
+	  function bindPlan() {
+	    if (el.loadDemoInboundBtn) {
+	      el.loadDemoInboundBtn.addEventListener('click', () => onLoadDemoInbound());
+	    }
+	    if (el.runLoadPlanBtn) {
+	      el.runLoadPlanBtn.addEventListener('click', () => onRunLoadPlan());
+	    }
+	    if (el.clearPlanBtn) {
+	      el.clearPlanBtn.addEventListener('click', () => onClearPlan());
+	    }
+	  }
+	
+
+	  function onClearPlan() {
+	    if (!DockStorage.readLoadPlan()) {
+	      toast('No plan to clear');
+	      return;
+	    }
+	    openConfirmSheet({
+	      title: 'Clear plan',
+	      message: 'Clear the saved load plan from this device? Logged freight stays; only the plan is removed.',
+	      action: 'clearPlan',
+	    });
+	  }
+	
+
+	  function doClearPlan() {
+	    try {
+	      DockStorage.clearLoadPlan();
+	      renderPlan();
+	      if (el.planStatusHint) el.planStatusHint.textContent = 'Plan cleared.';
+	      toast('Plan cleared');
+	    } catch (err) {
+	      const msg = String(err && err.message ? err.message : err);
+	      toast(`Clear plan failed: ${msg}`);
+	    }
+	  }
+	
+
+	  function onLoadDemoInbound() {
+	    toast('Opening confirm…');
+	    if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.seedDemoInbound) {
+	      toast('Demo planner not loaded — try a hard refresh');
+	      return;
+	    }
+	    const existing = DockStorage.readAll().length;
+	    const msg = existing
+	      ? `Replace all ${existing} logged piece(s) with demo inbound freight (~5 trailers)? This clears freight + last plan. Outbound stubs for the 5 cities are added if missing.`
+	      : 'Load demo inbound freight (~5 trailers at doors, mixed destinations)? Outbound stubs for the 5 cities are added if missing.';
+	    openConfirmSheet({
+	      title: 'Load demo inbound trailers',
+	      message: msg,
+	      action: 'seedDemoInbound',
+	    });
+	  }
+	
+
+	  function runSeedDemoInbound() {
+	    try {
+	      const result = DockLoadPlan.seedDemoInbound();
+	      state.dockLevel = 'doors';
+	      state.dockDoor = '';
+	      state.dockPro = '';
+	      state.loadoutTrailer = '';
+	      renderRecent();
+	      refreshLoadoutTrailerPicker();
+	      renderOutboundList();
+	      renderPlan();
+	      if (state.view === 'dock' && state.dockSection === 'inbound') renderDock();
+	      if (state.view === 'dock' && state.dockSection === 'outbound') renderOutboundList();
+	      if (el.planStatusHint) {
+	        el.planStatusHint.textContent =
+	          `Demo loaded: ${result.inboundTrailers} inbound trailers · ${result.proCount} PROs · ${result.pieceCount} pieces` +
+	          (result.outboundCreated ? ` · ${result.outboundCreated} outbound stub(s) created` : '');
+	      }
+	      toast(
+	        `Demo inbound: ${result.pieceCount} pieces on ${result.inboundTrailers} trailers`
+	      );
+	    } catch (err) {
+	      console.error(err);
+	      toast(`Demo seed failed: ${err && err.message ? err.message : 'unknown error'}`);
+	    }
+	  }
+	
+
+	  function onRunLoadPlan() {
+	    if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.runLoadPlan) {
+	      toast('Demo planner not loaded');
+	      return;
+	    }
+	    const plan = DockLoadPlan.runLoadPlan();
+	    renderPlan();
+	    renderOutboundList();
+	    const s = plan.summary || {};
+	    if (el.planStatusHint) {
+	      el.planStatusHint.textContent = s.note
+	        ? `Demo planner: ${s.moveCount || 0} moves · ${s.outboundCount || 0} outbound · ${s.note}`
+	        : `Demo planner finished: ${s.moveCount || 0} moves`;
+	    }
+	    if (!(s.moveCount > 0)) {
+	      toast(s.note || 'Nothing to plan');
+	      return;
+	    }
+	    toast(`Demo planner: ${s.moveCount} moves → ${s.outboundCount} outbound`);
+	  }
+	
+
+	  function renderPlan() {
+	    const plan = DockStorage.readLoadPlan();
+	    renderPlanSummary(plan);
+	    renderPlanMoves(plan);
+	    renderPlanOutbound(plan);
+	  }
+	
+
+	  function renderPlanSummary(plan) {
+	    if (!el.planSummary) return;
+	    if (!plan || !(plan.moves && plan.moves.length) && !(plan.outboundLoadouts && plan.outboundLoadouts.length)) {
+	      const note = plan && plan.summary && plan.summary.note
+	        ? `<div class="empty-state">${escapeHtml(plan.summary.note)}</div>`
+	        : '<div class="empty-state">No plan yet — load demo inbound, then run the demo planner.</div>';
+	      el.planSummary.innerHTML = note;
+	      return;
+	    }
+	    const s = plan.summary || {};
+	    const when = plan.createdAt
+	      ? DockStorage.formatTimeLocal(plan.createdAt)
+	      : '—';
+	    el.planSummary.innerHTML = `
+	      <div class="plan-summary-grid">
+	        <div class="summary-row"><span class="summary-label">Planner</span><span class="summary-value">${escapeHtml(plan.label || plan.planner || 'demo')}</span></div>
+	        <div class="summary-row"><span class="summary-label">Saved</span><span class="summary-value">${escapeHtml(when)}</span></div>
+	        <div class="summary-row"><span class="summary-label">Moves</span><span class="summary-value">${escapeHtml(String(s.moveCount != null ? s.moveCount : (plan.moves || []).length))}</span></div>
+	        <div class="summary-row"><span class="summary-label">PROs</span><span class="summary-value">${escapeHtml(String(s.proCount != null ? s.proCount : '—'))}</span></div>
+	        <div class="summary-row"><span class="summary-label">Outbound</span><span class="summary-value">${escapeHtml(String(s.outboundCount != null ? s.outboundCount : (plan.outboundLoadouts || []).length))}</span></div>
+	        <div class="summary-row"><span class="summary-label">Skipped</span><span class="summary-value">${escapeHtml(String(s.skippedNoDest || 0))} no dest</span></div>
+	      </div>
+	      <p class="hint plan-note">${escapeHtml(s.note || '')}</p>
+	    `;
+	  }
+	
+
+	  function renderPlanMoves(plan) {
+	    if (!el.planMoveList) return;
+	    const moves = (plan && plan.moves) || [];
+	    if (!moves.length) {
+	      el.planMoveList.innerHTML =
+	        '<div class="empty-state">Moves appear here after you run the plan.</div>';
+	      return;
+	    }
+	    const frag = document.createDocumentFragment();
+	    moves.forEach((m, idx) => {
+	      const div = document.createElement('div');
+	      div.className = 'plan-move-row';
+	      const fromDoor = (m.from && m.from.door) || '—';
+	      const fromTr = (m.from && m.from.trailer) || '—';
+	      const fromSlot = (m.from && m.from.slot) || '—';
+	      const toTr = (m.to && m.to.trailer) || '—';
+	      const toSlot = (m.to && m.to.slot) || '—';
+	      const dest = m.destination || '';
+	      div.innerHTML = `
+	        <div class="plan-move-top">
+	          <span class="plan-move-num">#${idx + 1}</span>
+	          <span class="plan-move-pro">PRO ${escapeHtml(m.pro || '—')} · ${escapeHtml(m.pieceFraction || '—')}</span>
+	        </div>
+	        <div class="plan-move-dest">${escapeHtml(dest || '—')}</div>
+	        <div class="plan-move-path">
+	          <span class="plan-from">Door ${escapeHtml(fromDoor)} · Trl ${escapeHtml(fromTr)} · ${escapeHtml(fromSlot)}</span>
+	          <span class="plan-arrow" aria-hidden="true">→</span>
+	          <span class="plan-to">Trl ${escapeHtml(toTr)} · ${escapeHtml(toSlot)}</span>
+	        </div>
+	      `;
+	      frag.appendChild(div);
+	    });
+	    el.planMoveList.innerHTML = '';
+	    el.planMoveList.appendChild(frag);
+	  }
+	
+
+	  function renderPlanOutbound(plan) {
+	    if (!el.planOutboundList) return;
+	    const loads = (plan && plan.outboundLoadouts) || [];
+	    if (!loads.length) {
+	      el.planOutboundList.innerHTML =
+	        '<div class="empty-state">Planned outbound load-outs appear here after you run the plan.</div>';
+	      return;
+	    }
+	    const frag = document.createDocumentFragment();
+	    loads.forEach((load) => {
+	      const wrap = document.createElement('div');
+	      wrap.className = 'plan-out-trailer';
+	      const door = load.doorNumber ? ` · Door ${load.doorNumber}` : '';
+	      const wt =
+	        load.totalWeight != null
+	          ? ` · ${Number(load.totalWeight).toLocaleString()} lbs`
+	          : '';
+	      const head = document.createElement('div');
+	      head.className = 'plan-out-head';
+	      head.innerHTML = `
+	        <div class="plan-out-title">Trailer ${escapeHtml(load.trailerNumber)} → ${escapeHtml(load.destination || '—')}</div>
+	        <div class="plan-out-meta">${load.proCount || 0} bill${(load.proCount || 0) === 1 ? '' : 's'} · ${load.pieceCount || 0} piece${(load.pieceCount || 0) === 1 ? '' : 's'}${escapeHtml(door)}${escapeHtml(wt)}</div>
+	      `;
+	      wrap.appendChild(head);
+	
+
+	      (load.groups || []).forEach((g) => {
+	        const gEl = document.createElement('div');
+	        gEl.className = 'plan-out-pro';
+	        const gHead = document.createElement('div');
+	        gHead.className = 'plan-out-pro-title';
+	        gHead.textContent = `Bill (PRO) ${g.pro}`;
+	        gEl.appendChild(gHead);
+	        (g.pieces || []).forEach((p) => {
+	          const piece = document.createElement('div');
+	          piece.className = 'plan-out-piece';
+	          const size =
+	            p.h == null && p.w == null && p.d == null
+	              ? 'Size —'
+	              : `${fmt(p.h)} × ${fmt(p.w)} × ${fmt(p.d)} in`;
+	          const wts = p.weight == null ? 'Weight —' : `${fmt(p.weight)} lbs`;
+	          piece.innerHTML = `
+	            <div class="plan-out-piece-top">
+	              <span>Piece ${escapeHtml(p.pieceFraction || '—')}</span>
+	              <span class="plan-out-slot">${escapeHtml(p.slot || '—')}</span>
+	            </div>
+	            <div class="plan-out-piece-dims">${escapeHtml(size)} · ${escapeHtml(wts)}</div>
+	            <div class="plan-out-piece-from">from Door ${escapeHtml(p.fromDoor || '—')} / Trl ${escapeHtml(p.fromTrailer || '—')} / ${escapeHtml(p.fromSlot || '—')}</div>
+	          `;
+	          gEl.appendChild(piece);
+	        });
+	        wrap.appendChild(gEl);
+	      });
+	      frag.appendChild(wrap);
+	    });
+	    el.planOutboundList.innerHTML = '';
+	    el.planOutboundList.appendChild(frag);
+	  }
+	
+
+	  let toastTimer = null;
+	  function toast(msg) {
+	    el.toast.textContent = msg;
+	    el.toast.classList.remove('hidden');
+	    clearTimeout(toastTimer);
+	    toastTimer = setTimeout(() => el.toast.classList.add('hidden'), 2800);
+	  }
+	
+
+	  function registerServiceWorker() {
+	    if (!('serviceWorker' in navigator)) return;
+	    // Only register when served over http(s) — not file://
+	    if (!/^https?:$/.test(location.protocol)) return;
+	    navigator.serviceWorker.register('./sw.js').catch(() => {
+	      /* offline cache optional */
+	    });
+	  }
+	
+
+	  // Expose parse for quick console tests
+	  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, renderPlan, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro, openEditPro, closeEditPro, runLoadPlan: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.runLoadPlan(), seedDemoInbound: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.seedDemoInbound() };
+	
+
+	  init();
+	})();
+	

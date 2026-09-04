@@ -1,362 +1,406 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
-  <meta name="theme-color" content="#0b1220" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="description" content="Dock App — LTL freight log, dock inbound/outbound board, and demo high-and-tight load plan" />
-  <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="icon.svg" />
-  <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div id="app">
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark" aria-hidden="true">▮</span>
-        <div>
-          <h1>Dock App</h1>
-          <p class="tagline">Freight log · same PRO = same trailer</p>
-        </div>
-      </div>
-      <div id="speechStatus" class="speech-status" aria-live="polite">
-        <span class="dot" id="listenDot"></span>
-        <span id="speechStatusText">Voice ready</span>
-      </div>
-    </header>
+Line wrap
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+	  <meta charset="UTF-8" />
+	  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+	  <meta name="theme-color" content="#0b1220" />
+	  <meta name="apple-mobile-web-app-capable" content="yes" />
+	  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+	  <meta name="description" content="Dock App — LTL freight log, dock inbound/outbound board, and demo high-and-tight load plan" />
+	  <link rel="manifest" href="manifest.json" />
+	  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+	  <link rel="apple-touch-icon" href="icon.svg" />
+	  <title>Dock App</title>
+	  <link rel="stylesheet" href="styles.css" />
+	</head>
+	<body>
+	  <div id="app">
+	    <header class="topbar">
+	      <div class="brand">
+	        <span class="brand-mark" aria-hidden="true">▮</span>
+	        <div>
+	          <h1>Dock App</h1>
+	          <p class="tagline">Freight log · same PRO = same trailer</p>
+	        </div>
+	      </div>
+	      <div id="speechStatus" class="speech-status" aria-live="polite">
+	        <span class="dot" id="listenDot"></span>
+	        <span id="speechStatusText">Voice ready</span>
+	      </div>
+	    </header>
+	
 
-    <nav class="view-tabs" role="tablist" aria-label="App screens">
-      <button type="button" class="view-tab active" id="tabEntry" role="tab" aria-selected="true" aria-controls="viewEntry">
-        Log freight
-      </button>
-      <button type="button" class="view-tab" id="tabLoadout" role="tab" aria-selected="false" aria-controls="viewLoadout">
-        Trailer load-out
-      </button>
-      <button type="button" class="view-tab" id="tabDock" role="tab" aria-selected="false" aria-controls="viewDock">
-        Dock
-      </button>
-    </nav>
+	    <nav class="view-tabs" role="tablist" aria-label="App screens">
+	      <button type="button" class="view-tab active" id="tabEntry" role="tab" aria-selected="true" aria-controls="viewEntry">
+	        Log freight
+	      </button>
+	      <button type="button" class="view-tab" id="tabLoadout" role="tab" aria-selected="false" aria-controls="viewLoadout">
+	        Trailer load-out
+	      </button>
+	      <button type="button" class="view-tab" id="tabDock" role="tab" aria-selected="false" aria-controls="viewDock">
+	        Dock
+	      </button>
+	    </nav>
+	
 
-    <main class="content" id="viewEntry" role="tabpanel" aria-labelledby="tabEntry">
-      <!-- ID -->
-      <section class="card" aria-labelledby="id-heading">
-        <h2 id="id-heading">Shipment</h2>
-        <div class="row stack">
-          <label class="field">
-            <span>PRO number</span>
-            <input id="proInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 1234567" />
-          </label>
-          <div class="field piece-field">
-            <span>Piece (1/n … n/n in order)</span>
-            <div class="piece-row">
-              <input id="pieceInput" type="text" inputmode="text" autocomplete="off" placeholder="1/5 or 5" aria-label="Piece fraction" />
-              <button type="button" id="pieceSlashBtn" class="piece-slash-btn" aria-label="Insert slash" title="Insert /">/</button>
-            </div>
-            <p class="hint piece-seq-hint">Multi-piece: enter 1/n first (or just n), then 2/n… in order. Field locks mid-sequence.</p>
-          </div>
-        </div>
-        <div class="destination-block">
-          <label class="field destination-field">
-            <span>Where is it going? (destination)</span>
-            <input id="destinationInput" type="text" autocomplete="off" placeholder="City, terminal code, or free text" />
-          </label>
-          <div class="destination-lock-row hidden" id="destinationLockRow">
-            <p class="destination-locked-msg" id="destinationLockedMsg">Same destination for every piece of this PRO.</p>
-            <button type="button" id="editDestinationBtn" class="btn tiny muted-btn">Change destination</button>
-          </div>
-          <p class="hint">One destination per PRO — later pieces reuse it. City, terminal, or any short note is fine.</p>
-        </div>
-      </section>
+	    <main class="content" id="viewEntry" role="tabpanel" aria-labelledby="tabEntry">
+	      <!-- ID -->
+	      <section class="card" aria-labelledby="id-heading">
+	        <h2 id="id-heading">Shipment</h2>
+	        <div class="row stack">
+	          <label class="field">
+	            <span>PRO number</span>
+	            <input id="proInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 1234567" />
+	          </label>
+	          <div class="field piece-field">
+	            <span>Piece (1/n … n/n in order)</span>
+	            <div class="piece-row">
+	              <input id="pieceInput" type="text" inputmode="text" autocomplete="off" placeholder="1/5 or 5" aria-label="Piece fraction" />
+	              <button type="button" id="pieceSlashBtn" class="piece-slash-btn" aria-label="Insert slash" title="Insert /">/</button>
+	            </div>
+	            <p class="hint piece-seq-hint">Multi-piece: enter 1/n first (or just n), then 2/n… in order. Field locks mid-sequence.</p>
+	          </div>
+	        </div>
+	        <div class="destination-block">
+	          <label class="field destination-field">
+	            <span>Where is it going? (destination)</span>
+	            <input id="destinationInput" type="text" autocomplete="off" placeholder="City, terminal code, or free text" />
+	          </label>
+	          <div class="destination-lock-row hidden" id="destinationLockRow">
+	            <p class="destination-locked-msg" id="destinationLockedMsg">Same destination for every piece of this PRO.</p>
+	            <button type="button" id="editDestinationBtn" class="btn tiny muted-btn">Change destination</button>
+	          </div>
+	          <p class="hint">One destination per PRO — later pieces reuse it. City, terminal, or any short note is fine.</p>
+	        </div>
+	      </section>
+	
 
-      <!-- Slot -->
-      <section class="card" aria-labelledby="slot-heading">
-        <div class="card-head">
-          <h2 id="slot-heading">Trailer slot</h2>
-          <div class="slot-preview" id="slotPreview">—/—/—</div>
-        </div>
-        <label class="field trailer-number-field">
-          <span>Trailer number</span>
-          <input id="trailerNumberInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345" />
-        </label>
-        <label class="field trailer-number-field door-number-field">
-          <span>Door number</span>
-          <input id="doorNumberInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12" />
-        </label>
-        <p class="hint">Trailer number = which trailer. Door number = which dock door that trailer is at.</p>
-        <p class="hint">Section 1–12 · Level A–C · Left / Middle / Right</p>
+	      <!-- Slot -->
+	      <section class="card" aria-labelledby="slot-heading">
+	        <div class="card-head">
+	          <h2 id="slot-heading">Trailer slot</h2>
+	          <div class="slot-preview" id="slotPreview">—/—/—</div>
+	        </div>
+	        <label class="field trailer-number-field">
+	          <span>Trailer number</span>
+	          <input id="trailerNumberInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345" />
+	        </label>
+	        <label class="field trailer-number-field door-number-field">
+	          <span>Door number</span>
+	          <input id="doorNumberInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12" />
+	        </label>
+	        <p class="hint">Trailer number = which trailer. Door number = which dock door that trailer is at.</p>
+	        <p class="hint">Section 1–12 · Level A–C · Left / Middle / Right</p>
+	
 
-        <div class="slot-block">
-          <span class="slot-label">Section</span>
-          <div class="chip-grid sections" id="sectionChips" role="group" aria-label="Section 1 to 12"></div>
-        </div>
-        <div class="slot-block">
-          <span class="slot-label">Level</span>
-          <div class="chip-row" id="levelChips" role="group" aria-label="Level A B C"></div>
-        </div>
-        <div class="slot-block">
-          <span class="slot-label">Lateral</span>
-          <div class="chip-row" id="lateralChips" role="group" aria-label="Left Middle Right"></div>
-        </div>
-      </section>
+	        <div class="slot-block">
+	          <span class="slot-label">Section</span>
+	          <div class="chip-grid sections" id="sectionChips" role="group" aria-label="Section 1 to 12"></div>
+	        </div>
+	        <div class="slot-block">
+	          <span class="slot-label">Level</span>
+	          <div class="chip-row" id="levelChips" role="group" aria-label="Level A B C"></div>
+	        </div>
+	        <div class="slot-block">
+	          <span class="slot-label">Lateral</span>
+	          <div class="chip-row" id="lateralChips" role="group" aria-label="Left Middle Right"></div>
+	        </div>
+	      </section>
+	
 
-      <!-- Presets -->
-      <section class="card" aria-labelledby="preset-heading">
-        <h2 id="preset-heading">Size presets</h2>
-        <p class="hint">Pallets fill W×D only (enter height). Drums / pails / totes include height. Weight stays empty.</p>
-        <div class="preset-grid" id="presetGrid"></div>
-      </section>
+	      <!-- Presets -->
+	      <section class="card" aria-labelledby="preset-heading">
+	        <h2 id="preset-heading">Size presets</h2>
+	        <p class="hint">Pallets fill W×D only (enter height). Drums / pails / totes include height. Weight stays empty.</p>
+	        <div class="preset-grid" id="presetGrid"></div>
+	      </section>
+	
 
-      <!-- Dimensions -->
-      <section class="card dims-card" aria-labelledby="dims-heading">
-        <h2 id="dims-heading">Dimensions &amp; weight</h2>
-        <p class="hint">Inches and pounds only — units are locked.</p>
+	      <!-- Dimensions -->
+	      <section class="card dims-card" aria-labelledby="dims-heading">
+	        <h2 id="dims-heading">Dimensions &amp; weight</h2>
+	        <p class="hint">Inches and pounds only — units are locked.</p>
+	
 
-        <button type="button" id="speakBtn" class="btn speak-btn">
-          <span class="speak-icon" aria-hidden="true">🎤</span>
-          Speak Dimensions
-        </button>
+	        <button type="button" id="speakBtn" class="btn speak-btn">
+	          <span class="speak-icon" aria-hidden="true">🎤</span>
+	          Speak Dimensions
+	        </button>
+	
 
-        <div class="dim-grid" id="dimGrid">
-          <button type="button" class="dim-tile" data-field="h" id="tileH">
-            <span class="dim-label">H <small>in</small></span>
-            <span class="dim-value" id="valH">—</span>
-          </button>
-          <button type="button" class="dim-tile" data-field="w" id="tileW">
-            <span class="dim-label">W <small>in</small></span>
-            <span class="dim-value" id="valW">—</span>
-          </button>
-          <button type="button" class="dim-tile" data-field="d" id="tileD">
-            <span class="dim-label">D <small>in</small></span>
-            <span class="dim-value" id="valD">—</span>
-          </button>
-          <button type="button" class="dim-tile weight" data-field="weight" id="tileWeight">
-            <span class="dim-label">Weight <small>lbs</small></span>
-            <span class="dim-value" id="valWeight">—</span>
-          </button>
-        </div>
+	        <div class="dim-grid" id="dimGrid">
+	          <button type="button" class="dim-tile" data-field="h" id="tileH">
+	            <span class="dim-label">H <small>in</small></span>
+	            <span class="dim-value" id="valH">—</span>
+	          </button>
+	          <button type="button" class="dim-tile" data-field="w" id="tileW">
+	            <span class="dim-label">W <small>in</small></span>
+	            <span class="dim-value" id="valW">—</span>
+	          </button>
+	          <button type="button" class="dim-tile" data-field="d" id="tileD">
+	            <span class="dim-label">D <small>in</small></span>
+	            <span class="dim-value" id="valD">—</span>
+	          </button>
+	          <button type="button" class="dim-tile weight" data-field="weight" id="tileWeight">
+	            <span class="dim-label">Weight <small>lbs</small></span>
+	            <span class="dim-value" id="valWeight">—</span>
+	          </button>
+	        </div>
+	
 
-        <div class="btn-row">
-          <button type="button" id="acceptBtn" class="btn accept-btn">Accept</button>
-          <button type="button" id="respeakBtn" class="btn respeak-btn">Re-speak</button>
-        </div>
+	        <div class="btn-row">
+	          <button type="button" id="acceptBtn" class="btn accept-btn">Accept</button>
+	          <button type="button" id="respeakBtn" class="btn respeak-btn">Re-speak</button>
+	        </div>
+	
 
-        <div id="listenBanner" class="listen-banner hidden" role="status">
-          <span class="pulse"></span>
-          <span id="listenBannerText">Listening… say “48 by 40 by 48, 1200”</span>
-        </div>
-        <p id="parseHint" class="parse-hint" aria-live="polite"></p>
-      </section>
+	        <div id="listenBanner" class="listen-banner hidden" role="status">
+	          <span class="pulse"></span>
+	          <span id="listenBannerText">Listening… say “48 by 40 by 48, 1200”</span>
+	        </div>
+	        <p id="parseHint" class="parse-hint" aria-live="polite"></p>
+	      </section>
+	
 
-      <!-- Number pad -->
-      <section class="card pad-card" aria-labelledby="pad-heading">
-        <div class="card-head">
-          <h2 id="pad-heading">Number pad</h2>
-          <span class="active-field-label" id="activeFieldLabel">Tap a field above, then type</span>
-        </div>
-        <div class="numpad" id="numpad">
-          <button type="button" data-key="1">1</button>
-          <button type="button" data-key="2">2</button>
-          <button type="button" data-key="3">3</button>
-          <button type="button" data-key="4">4</button>
-          <button type="button" data-key="5">5</button>
-          <button type="button" data-key="6">6</button>
-          <button type="button" data-key="7">7</button>
-          <button type="button" data-key="8">8</button>
-          <button type="button" data-key="9">9</button>
-          <button type="button" data-key="clear" class="danger">C</button>
-          <button type="button" data-key="0">0</button>
-          <button type="button" data-key="back" class="muted">⌫</button>
-        </div>
-      </section>
+	      <!-- Number pad -->
+	      <section class="card pad-card" aria-labelledby="pad-heading">
+	        <div class="card-head">
+	          <h2 id="pad-heading">Number pad</h2>
+	          <span class="active-field-label" id="activeFieldLabel">Tap a field above, then type</span>
+	        </div>
+	        <div class="numpad" id="numpad">
+	          <button type="button" data-key="1">1</button>
+	          <button type="button" data-key="2">2</button>
+	          <button type="button" data-key="3">3</button>
+	          <button type="button" data-key="4">4</button>
+	          <button type="button" data-key="5">5</button>
+	          <button type="button" data-key="6">6</button>
+	          <button type="button" data-key="7">7</button>
+	          <button type="button" data-key="8">8</button>
+	          <button type="button" data-key="9">9</button>
+	          <button type="button" data-key="clear" class="danger">C</button>
+	          <button type="button" data-key="0">0</button>
+	          <button type="button" data-key="back" class="muted">⌫</button>
+	        </div>
+	      </section>
+	
 
-      <!-- Recent -->
-      <section class="card" aria-labelledby="recent-heading">
-        <div class="card-head">
-          <h2 id="recent-heading">Recent entries</h2>
-          <button type="button" id="clearListBtn" class="btn tiny muted-btn">Clear all</button>
-        </div>
-        <p class="hint bol-note">BOL rule: pieces with the same PRO belong on one trailer.</p>
-        <div id="recentList" class="recent-list"></div>
-      </section>
-    </main>
+	      <!-- Recent -->
+	      <section class="card" aria-labelledby="recent-heading">
+	        <div class="card-head">
+	          <h2 id="recent-heading">Recent entries</h2>
+	          <button type="button" id="clearListBtn" class="btn tiny muted-btn">Clear all</button>
+	        </div>
+	        <p class="hint bol-note">BOL rule: pieces with the same PRO belong on one trailer.</p>
+	        <div id="recentList" class="recent-list"></div>
+	      </section>
+	    </main>
+	
 
-    <main class="content loadout-view hidden" id="viewLoadout" role="tabpanel" aria-labelledby="tabLoadout" hidden>
-      <section class="card" aria-labelledby="loadout-pick-heading">
-        <h2 id="loadout-pick-heading">Which trailer?</h2>
-        <p class="hint">Pick a trailer you already used, or type a trailer number.</p>
-        <label class="field trailer-number-field">
-          <span>Trailer number</span>
-          <input id="loadoutTrailerInput" type="text" inputmode="numeric" autocomplete="off" list="loadoutTrailerList" placeholder="e.g. 12345" />
-          <datalist id="loadoutTrailerList"></datalist>
-        </label>
-        <div class="trailer-chip-row" id="loadoutTrailerChips" role="group" aria-label="Saved trailer numbers"></div>
-        <button type="button" id="loadoutShowBtn" class="btn accept-btn loadout-show-btn">Show load-out</button>
-      </section>
+	    <main class="content loadout-view hidden" id="viewLoadout" role="tabpanel" aria-labelledby="tabLoadout" hidden>
+	      <section class="card" aria-labelledby="loadout-pick-heading">
+	        <h2 id="loadout-pick-heading">Which trailer?</h2>
+	        <p class="hint">Pick a trailer you already used, or type a trailer number.</p>
+	        <label class="field trailer-number-field">
+	          <span>Trailer number</span>
+	          <input id="loadoutTrailerInput" type="text" inputmode="numeric" autocomplete="off" list="loadoutTrailerList" placeholder="e.g. 12345" />
+	          <datalist id="loadoutTrailerList"></datalist>
+	        </label>
+	        <div class="trailer-chip-row" id="loadoutTrailerChips" role="group" aria-label="Saved trailer numbers"></div>
+	        <button type="button" id="loadoutShowBtn" class="btn accept-btn loadout-show-btn">Show load-out</button>
+	      </section>
+	
 
-      <section class="card loadout-summary-card hidden" id="loadoutSummaryCard" aria-labelledby="loadout-summary-heading">
-        <h2 id="loadout-summary-heading">Trailer summary</h2>
-        <div class="loadout-summary" id="loadoutSummary">
-          <div class="summary-row"><span class="summary-label">Trailer</span><span class="summary-value" id="sumTrailer">—</span></div>
-          <div class="summary-row"><span class="summary-label">Bills (PROs)</span><span class="summary-value" id="sumPros">0</span></div>
-          <div class="summary-row"><span class="summary-label">Pieces</span><span class="summary-value" id="sumPieces">0</span></div>
-          <div class="summary-row"><span class="summary-label">Total weight</span><span class="summary-value" id="sumWeight">—</span></div>
-        </div>
-      </section>
+	      <section class="card loadout-summary-card hidden" id="loadoutSummaryCard" aria-labelledby="loadout-summary-heading">
+	        <h2 id="loadout-summary-heading">Trailer summary</h2>
+	        <div class="loadout-summary" id="loadoutSummary">
+	          <div class="summary-row"><span class="summary-label">Trailer</span><span class="summary-value" id="sumTrailer">—</span></div>
+	          <div class="summary-row"><span class="summary-label">Bills (PROs)</span><span class="summary-value" id="sumPros">0</span></div>
+	          <div class="summary-row"><span class="summary-label">Pieces</span><span class="summary-value" id="sumPieces">0</span></div>
+	          <div class="summary-row"><span class="summary-label">Total weight</span><span class="summary-value" id="sumWeight">—</span></div>
+	        </div>
+	      </section>
+	
 
-      <section class="card" aria-labelledby="loadout-list-heading">
-        <h2 id="loadout-list-heading">What is on this trailer</h2>
-        <p class="hint bol-note">Grouped by bill (PRO). Same PRO stays on one trailer.</p>
-        <div id="loadoutList" class="loadout-list">
-          <div class="empty-state">Pick a trailer number above to see its load-out.</div>
-        </div>
-      </section>
-    </main>
+	      <section class="card" aria-labelledby="loadout-list-heading">
+	        <h2 id="loadout-list-heading">What is on this trailer</h2>
+	        <p class="hint bol-note">Grouped by bill (PRO). Same PRO stays on one trailer.</p>
+	        <div id="loadoutList" class="loadout-list">
+	          <div class="empty-state">Pick a trailer number above to see its load-out.</div>
+	        </div>
+	      </section>
+	    </main>
+	
 
-    <main class="content dock-view hidden" id="viewDock" role="tabpanel" aria-labelledby="tabDock" hidden>
-      <nav class="dock-subnav" role="tablist" aria-label="Dock sections">
-        <button type="button" class="dock-subtab active" id="dockSubInbound" role="tab" aria-selected="true" aria-controls="dockPanelInbound">
-          Inbound
-        </button>
-        <button type="button" class="dock-subtab" id="dockSubOutbound" role="tab" aria-selected="false" aria-controls="dockPanelOutbound">
-          Outbound
-        </button>
-        <button type="button" class="dock-subtab" id="dockSubPlan" role="tab" aria-selected="false" aria-controls="dockPanelPlan">
-          Demo plan
-        </button>
-      </nav>
+	    <main class="content dock-view hidden" id="viewDock" role="tabpanel" aria-labelledby="tabDock" hidden>
+	      <nav class="dock-subnav" role="tablist" aria-label="Dock sections">
+	        <button type="button" class="dock-subtab active" id="dockSubInbound" role="tab" aria-selected="true" aria-controls="dockPanelInbound">
+	          Inbound
+	        </button>
+	        <button type="button" class="dock-subtab" id="dockSubOutbound" role="tab" aria-selected="false" aria-controls="dockPanelOutbound">
+	          Outbound
+	        </button>
+	        <button type="button" class="dock-subtab" id="dockSubPlan" role="tab" aria-selected="false" aria-controls="dockPanelPlan">
+	          Demo plan
+	        </button>
+	      </nav>
+	
 
-      <div class="dock-panels">
-        <div id="dockPanelInbound" class="dock-panel" role="tabpanel" aria-labelledby="dockSubInbound">
-          <section class="card demo-inbound-card" aria-labelledby="demo-inbound-heading">
-            <h2 id="demo-inbound-heading">Demo inbound trailers</h2>
-            <p class="hint">Generates <strong>5 high-and-tight inbound trailers</strong> for demo (doors + PROs + pieces). Destinations: Salt Lake City, Denver, San Antonio, Missoula Montana, Rapid City South Dakota. Whole PRO = one destination. Also creates outbound stubs for those cities if missing.</p>
-            <p class="hint bol-note">Confirm before wipe — this replaces all logged freight and the last plan on this device. Outbound registry is kept (stubs added).</p>
-            <button type="button" id="loadDemoInboundBtn" class="btn accept-btn demo-primary-btn">Load demo inbound trailers</button>
-          </section>
+	      <div class="dock-panels">
+	        <div id="dockPanelInbound" class="dock-panel" role="tabpanel" aria-labelledby="dockSubInbound">
+	          <section class="card demo-inbound-card" aria-labelledby="demo-inbound-heading">
+	            <h2 id="demo-inbound-heading">Demo inbound trailers</h2>
+	            <p class="hint">Generates <strong>5 high-and-tight inbound trailers</strong> for demo (doors + PROs + pieces). Destinations: Salt Lake City, Denver, San Antonio, Missoula Montana, Rapid City South Dakota. Whole PRO = one destination. Also creates outbound stubs for those cities if missing.</p>
+	            <p class="hint bol-note">Confirm before wipe — this replaces all logged freight and the last plan on this device. Outbound registry is kept (stubs added).</p>
+	            <button type="button" id="loadDemoInboundBtn" class="btn accept-btn demo-primary-btn">Load demo inbound trailers</button>
+	          </section>
+	
 
-          <section class="card" aria-labelledby="dock-board-heading">
-            <div class="card-head">
-              <h2 id="dock-board-heading">Dock doors</h2>
-              <button type="button" id="dockBackBtn" class="btn tiny muted-btn hidden">Back</button>
-            </div>
-            <p class="hint" id="dockHint">Doors that have a trailer from your logged freight. Tap a door to see bills (PROs). Viewing only.</p>
-            <div id="dockBoard" class="dock-board">
-              <div class="empty-state">No doors yet — log freight with a door number first.</div>
-            </div>
-          </section>
-        </div>
+	          <section class="card" aria-labelledby="dock-board-heading">
+	            <div class="card-head">
+	              <h2 id="dock-board-heading">Dock doors</h2>
+	              <button type="button" id="dockBackBtn" class="btn tiny muted-btn hidden">Back</button>
+	            </div>
+	            <p class="hint" id="dockHint">Doors that have a trailer from your logged freight. Tap a door to see bills (PROs). Viewing only.</p>
+	            <div id="dockBoard" class="dock-board">
+	              <div class="empty-state">No doors yet — log freight with a door number first.</div>
+	            </div>
+	          </section>
+	        </div>
+	
 
-        <div id="dockPanelOutbound" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubOutbound" hidden>
-          <section class="card" aria-labelledby="outbound-add-heading">
-            <h2 id="outbound-add-heading">Register outbound trailer</h2>
-            <p class="hint">Trailers you are loading out. Destination can be a place, or tap <strong>Open</strong> if not decided yet. Door is optional until the trailer is spotted.</p>
-            <label class="field trailer-number-field">
-              <span>Trailer number</span>
-              <input id="outboundTrailerInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345" />
-            </label>
-            <label class="field trailer-number-field door-number-field">
-              <span>Door number (optional)</span>
-              <input id="outboundDoorInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12 — leave blank if not spotted" />
-            </label>
-            <label class="field destination-field">
-              <span>Loading for (destination)</span>
-              <input id="outboundDestInput" type="text" autocomplete="off" placeholder="City, terminal, or leave and tap Open" />
-            </label>
-            <div class="outbound-dest-actions">
-              <button type="button" id="outboundOpenBtn" class="btn muted-btn outbound-open-btn">Open (no destination yet)</button>
-              <button type="button" id="outboundSaveBtn" class="btn accept-btn outbound-save-btn">Save outbound trailer</button>
-            </div>
-          </section>
+	        <div id="dockPanelOutbound" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubOutbound" hidden>
+	          <section class="card" aria-labelledby="outbound-add-heading">
+	            <h2 id="outbound-add-heading">Register outbound trailer</h2>
+	            <p class="hint">Trailers you are loading out. Destination can be a place, or tap <strong>Open</strong> if not decided yet. Door is optional until the trailer is spotted.</p>
+	            <label class="field trailer-number-field">
+	              <span>Trailer number</span>
+	              <input id="outboundTrailerInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345" />
+	            </label>
+	            <label class="field trailer-number-field door-number-field">
+	              <span>Door number (optional)</span>
+	              <input id="outboundDoorInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12 — leave blank if not spotted" />
+	            </label>
+	            <label class="field destination-field">
+	              <span>Loading for (destination)</span>
+	              <input id="outboundDestInput" type="text" autocomplete="off" placeholder="City, terminal, or leave and tap Open" />
+	            </label>
+	            <div class="outbound-dest-actions">
+	              <button type="button" id="outboundOpenBtn" class="btn muted-btn outbound-open-btn">Open (no destination yet)</button>
+	              <button type="button" id="outboundSaveBtn" class="btn accept-btn outbound-save-btn">Save outbound trailer</button>
+	            </div>
+	          </section>
+	
 
-          <section class="card" aria-labelledby="outbound-list-heading">
-            <h2 id="outbound-list-heading">Outbound trailers</h2>
-            <p class="hint">Plain list of trailers registered for outbound loading. Use <strong>Demo plan</strong> above to run the local load planner.</p>
-            <div id="outboundList" class="outbound-list">
-              <div class="empty-state">No outbound trailers yet — register one above.</div>
-            </div>
-          </section>
-        </div>
+	          <section class="card" aria-labelledby="outbound-list-heading">
+	            <h2 id="outbound-list-heading">Outbound trailers</h2>
+	            <p class="hint">Plain list of trailers registered for outbound loading. Use <strong>Demo plan</strong> above to run the local load planner.</p>
+	            <div id="outboundList" class="outbound-list">
+	              <div class="empty-state">No outbound trailers yet — register one above.</div>
+	            </div>
+	          </section>
+	        </div>
+	
 
-        <div id="dockPanelPlan" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubPlan" hidden>
-          <section class="card" aria-labelledby="plan-run-heading">
-            <h2 id="plan-run-heading">Load plan (demo planner)</h2>
-            <p class="hint">This is a <strong>local demo planner</strong> — not ChatGPT / cloud AI. It reads inbound dock freight, keeps same-PRO pieces together, prefers one outbound trailer per destination, and packs floor (A) then decks B/C into slots 1–12 × A–C × Left/Middle/Right.</p>
-            <p class="hint">Tip: generate freight first with <strong>Load demo inbound trailers</strong> on the Inbound section.</p>
-            <button type="button" id="runLoadPlanBtn" class="btn speak-btn demo-primary-btn">Run load plan (demo AI)</button>
-            <button type="button" id="clearPlanBtn" class="btn muted-btn demo-secondary-btn">Clear plan</button>
-            <p class="hint" id="planStatusHint" aria-live="polite"></p>
-          </section>
+	        <div id="dockPanelPlan" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubPlan" hidden>
+	          <section class="card" aria-labelledby="plan-run-heading">
+	            <h2 id="plan-run-heading">Load plan (demo planner)</h2>
+	            <p class="hint">This is a <strong>local demo planner</strong> — not ChatGPT / cloud AI. It reads inbound dock freight, keeps same-PRO pieces together, prefers one outbound trailer per destination, and packs floor (A) then decks B/C into slots 1–12 × A–C × Left/Middle/Right.</p>
+	            <p class="hint">Tip: generate freight first with <strong>Load demo inbound trailers</strong> on the Inbound section.</p>
+	            <button type="button" id="runLoadPlanBtn" class="btn speak-btn demo-primary-btn">Run load plan (demo AI)</button>
+	            <button type="button" id="clearPlanBtn" class="btn muted-btn demo-secondary-btn">Clear plan</button>
+	            <p class="hint" id="planStatusHint" aria-live="polite"></p>
+	          </section>
+	
 
-          <section class="card" aria-labelledby="plan-summary-heading">
-            <h2 id="plan-summary-heading">Plan summary</h2>
-            <div id="planSummary" class="plan-summary">
-              <div class="empty-state">No plan yet — load demo inbound on Inbound, then run the demo planner here.</div>
-            </div>
-          </section>
+	          <section class="card" aria-labelledby="plan-summary-heading">
+	            <h2 id="plan-summary-heading">Plan summary</h2>
+	            <div id="planSummary" class="plan-summary">
+	              <div class="empty-state">No plan yet — load demo inbound on Inbound, then run the demo planner here.</div>
+	            </div>
+	          </section>
+	
 
-          <section class="card" aria-labelledby="plan-moves-heading">
-            <h2 id="plan-moves-heading">Move list</h2>
-            <p class="hint">From door / inbound trailer / slot → outbound trailer / slot.</p>
-            <div id="planMoveList" class="plan-move-list">
-              <div class="empty-state">Moves appear here after you run the plan.</div>
-            </div>
-          </section>
+	          <section class="card" aria-labelledby="plan-moves-heading">
+	            <h2 id="plan-moves-heading">Move list</h2>
+	            <p class="hint">From door / inbound trailer / slot → outbound trailer / slot.</p>
+	            <div id="planMoveList" class="plan-move-list">
+	              <div class="empty-state">Moves appear here after you run the plan.</div>
+	            </div>
+	          </section>
+	
 
-          <section class="card" aria-labelledby="plan-out-heading">
-            <h2 id="plan-out-heading">Outbound load-outs (planned)</h2>
-            <p class="hint bol-note">Grouped by outbound trailer / destination. Same PRO stays on one trailer.</p>
-            <div id="planOutboundList" class="plan-outbound-list">
-              <div class="empty-state">Planned outbound load-outs appear here after you run the plan.</div>
-            </div>
-          </section>
-        </div>
-      </div>
-    </main>
+	          <section class="card" aria-labelledby="plan-out-heading">
+	            <h2 id="plan-out-heading">Outbound load-outs (planned)</h2>
+	            <p class="hint bol-note">Grouped by outbound trailer / destination. Same PRO stays on one trailer.</p>
+	            <div id="planOutboundList" class="plan-outbound-list">
+	              <div class="empty-state">Planned outbound load-outs appear here after you run the plan.</div>
+	            </div>
+	          </section>
+	        </div>
+	      </div>
+	    </main>
+	
 
-    <footer class="footer">
-      <span>Units: inches · lbs</span>
-      <span>Data stays on this device</span>
-    </footer>
-  </div>
+	    <footer class="footer">
+	      <span>Units: inches · lbs</span>
+	      <span>Data stays on this device</span>
+	    </footer>
+	  </div>
+	
 
-  <div id="toast" class="toast hidden" role="status"></div>
+	  <div id="toast" class="toast hidden" role="status"></div>
+	
 
-  <!-- Edit bill (PRO) sheet -->
-  <div id="editProOverlay" class="edit-pro-overlay hidden" hidden>
-    <div class="edit-pro-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-pro-heading">
-      <h2 id="edit-pro-heading">Edit bill (PRO)</h2>
-      <p class="hint">Change where this bill is going. Destination is shared by every piece. You can also fix door or trailer for all pieces of this bill — piece numbers stay the same.</p>
-      <label class="field">
-        <span>PRO number</span>
-        <input id="editProNumber" type="text" readonly class="readonly-field" />
-      </label>
-      <label class="field destination-field">
-        <span>Where is it going? (destination)</span>
-        <input id="editProDestination" type="text" autocomplete="off" placeholder="City, terminal code, or free text" />
-      </label>
-      <label class="field trailer-number-field">
-        <span>Trailer number (all pieces)</span>
-        <input id="editProTrailer" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345" />
-      </label>
-      <label class="field trailer-number-field door-number-field">
-        <span>Door number (all pieces)</span>
-        <input id="editProDoor" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12" />
-      </label>
-      <div class="edit-pro-actions">
-        <button type="button" id="editProCancelBtn" class="btn muted-btn">Cancel</button>
-        <button type="button" id="editProSaveBtn" class="btn accept-btn">Save</button>
-      </div>
-    </div>
-  </div>
+	  <!-- Edit bill (PRO) sheet -->
+	  <div id="editProOverlay" class="edit-pro-overlay hidden" hidden>
+	    <div class="edit-pro-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-pro-heading">
+	      <h2 id="edit-pro-heading">Edit bill (PRO)</h2>
+	      <p class="hint">Change where this bill is going. Destination is shared by every piece. You can also fix door or trailer for all pieces of this bill — piece numbers stay the same.</p>
+	      <label class="field">
+	        <span>PRO number</span>
+	        <input id="editProNumber" type="text" readonly class="readonly-field" />
+	      </label>
+	      <label class="field destination-field">
+	        <span>Where is it going? (destination)</span>
+	        <input id="editProDestination" type="text" autocomplete="off" placeholder="City, terminal code, or free text" />
+	      </label>
+	      <label class="field trailer-number-field">
+	        <span>Trailer number (all pieces)</span>
+	        <input id="editProTrailer" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12345" />
+	      </label>
+	      <label class="field trailer-number-field door-number-field">
+	        <span>Door number (all pieces)</span>
+	        <input id="editProDoor" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12" />
+	      </label>
+	      <div class="edit-pro-actions">
+	        <button type="button" id="editProCancelBtn" class="btn muted-btn">Cancel</button>
+	        <button type="button" id="editProSaveBtn" class="btn accept-btn">Save</button>
+	      </div>
+	    </div>
+	  </div>
+	
 
+	
 
-  <script src="storage.js"></script>
-  <script src="speech.js"></script>
-  <script src="loadPlan.js"></script>
-  <script src="app.js"></script>
-</body>
-</html>
+	  <!-- In-app confirm sheet (replaces window.confirm for demo / clear plan) -->
+	  <div id="confirmOverlay" class="edit-pro-overlay hidden" hidden>
+	    <div class="edit-pro-sheet" role="dialog" aria-modal="true" aria-labelledby="confirm-heading">
+	      <h2 id="confirm-heading">Confirm</h2>
+	      <p class="hint bol-note" id="confirmMessage"></p>
+	      <div class="edit-pro-actions">
+	        <button type="button" id="confirmCancelBtn" class="btn muted-btn">Cancel</button>
+	        <button type="button" id="confirmOkBtn" class="btn accept-btn">Confirm</button>
+	      </div>
+	    </div>
+	  </div>
+	
+
+	  <script src="storage.js"></script>
+	  <script src="speech.js"></script>
+	  <script src="loadPlan.js"></script>
+	  <script src="app.js"></script>
+	</body>
+	</html>
+	
