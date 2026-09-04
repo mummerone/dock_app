@@ -68,7 +68,7 @@ button {
   align-items: flex-start;
   gap: 12px;
   padding: 8px 4px 16px;
-  position: sticky;
+  position: static;
   top: 0;
   z-index: 20;
   background: linear-gradient(180deg, rgba(11, 18, 32, 0.98) 70%, rgba(11, 18, 32, 0));
@@ -692,7 +692,7 @@ button {
   gap: 8px;
   margin: 0 0 14px;
   padding: 0 2px;
-  position: sticky;
+  position: static;
   top: 64px;
   z-index: 18;
   background: linear-gradient(180deg, rgba(11, 18, 32, 0.98) 80%, rgba(11, 18, 32, 0));
@@ -1460,7 +1460,7 @@ button {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 12px;
-  position: sticky;
+  position: static;
   top: 128px;
   z-index: 17;
   background: linear-gradient(180deg, rgba(11, 18, 32, 0.98) 75%, rgba(11, 18, 32, 0));
