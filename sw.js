@@ -1,13 +1,13 @@
 /* Minimal offline cache for Dock App static assets */
-const CACHE = 'dock-app-v18';
+const CACHE = 'dock-app-v19';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css',
-  './app.js',
-  './speech.js',
-  './storage.js',
-  './loadPlan.js',
+  './styles.css?v=19',
+  './app.js?v=19',
+  './speech.js?v=19',
+  './storage.js?v=19',
+  './loadPlan.js?v=19',
   './manifest.json',
   './icon.svg',
 ];
@@ -26,15 +26,48 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+function isHtmlJsCss(request) {
+  if (request.mode === 'navigate' || request.destination === 'document') return true;
+  let path = '';
+  try {
+    path = new URL(request.url).pathname;
+  } catch {
+    return false;
+  }
+  if (path.endsWith('/') || /\/index\.html$/i.test(path)) return true;
+  return /\.(html|js|css)$/i.test(path);
+}
+
+function putInCache(request, response) {
+  if (!response || !response.ok) return;
+  const copy = response.clone();
+  caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
+
+  const networkFirst = () =>
+    fetch(req)
+      .then((res) => {
+        putInCache(req, res);
+        return res;
+      })
+      .catch(() =>
+        caches.match(req).then((cached) => cached || caches.match('./index.html'))
+      );
+
+  if (isHtmlJsCss(req)) {
+    event.respondWith(networkFirst());
+    return;
+  }
+
   event.respondWith(
     caches.match(req).then((cached) => {
       const network = fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(req, copy)).catch(() => {});
+          putInCache(req, res);
           return res;
         })
         .catch(() => cached);
