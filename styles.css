@@ -68,10 +68,10 @@ button {
   align-items: flex-start;
   gap: 12px;
   padding: 8px 4px 16px;
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: linear-gradient(180deg, rgba(11, 18, 32, 0.98) 70%, rgba(11, 18, 32, 0));
+  /* Not sticky — sticky chrome covered Demo plan moves while scrolling */
+  position: relative;
+  z-index: 5;
+  background: transparent;
 }
 
 .brand {
@@ -692,10 +692,9 @@ button {
   gap: 8px;
   margin: 0 0 14px;
   padding: 0 2px;
-  position: sticky;
-  top: 64px;
-  z-index: 18;
-  background: linear-gradient(180deg, rgba(11, 18, 32, 0.98) 80%, rgba(11, 18, 32, 0));
+  position: relative;
+  z-index: 4;
+  background: transparent;
   padding-bottom: 8px;
 }
 
@@ -723,6 +722,203 @@ button {
 }
 
 /* Trailer load-out view */
+.loadout-howto-card .loadout-howto {
+  margin: 10px 0 0;
+  padding-left: 1.25rem;
+  color: var(--muted);
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.loadout-howto li {
+  margin-bottom: 6px;
+}
+
+.loadout-howto strong {
+  color: var(--text);
+}
+
+.loadout-plan-banner {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--tile);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.loadout-plan-banner.is-empty {
+  border-color: var(--card-border);
+  color: var(--muted);
+}
+
+.trailer-chip-out {
+  border-color: var(--accent);
+}
+
+.chip-out-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  background: var(--accent);
+  color: var(--chip-on-text);
+  border-radius: 6px;
+  padding: 2px 6px;
+  margin-right: 2px;
+  vertical-align: middle;
+}
+
+.loadout-work-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.loadout-work-head h2 {
+  margin: 0;
+}
+
+.loadout-work-progress {
+  margin: 8px 0 12px;
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: var(--listen);
+}
+
+.loadout-work-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loadout-work-step {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: #0f1828;
+  border: 2px solid #2a3c58;
+  border-radius: 14px;
+  padding: 14px 16px;
+  color: var(--text);
+  min-height: 72px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.loadout-work-step:active {
+  transform: translateY(1px);
+}
+
+.loadout-work-step.is-done {
+  border-color: var(--ok);
+  opacity: 0.72;
+  background: #0c1f18;
+}
+
+.loadout-work-step-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.loadout-work-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--chip-on-text);
+  font-weight: 900;
+  font-size: 1.15rem;
+}
+
+.loadout-work-check {
+  font-weight: 900;
+  font-size: 1.25rem;
+  color: var(--ok);
+  min-width: 1.25rem;
+}
+
+.loadout-work-pro {
+  font-weight: 800;
+  font-size: 1.1rem;
+  flex: 1;
+}
+
+.loadout-work-dest {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+}
+
+.loadout-work-action {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.loadout-work-get,
+.loadout-work-put {
+  background: #132038;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.loadout-work-arrow {
+  display: none;
+}
+
+.loadout-work-meta {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.loadout-work-tap-hint {
+  margin-top: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.loadout-work-step.is-done .loadout-work-tap-hint {
+  color: var(--ok);
+}
+
+@media (min-width: 560px) {
+  .loadout-work-action {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .loadout-work-arrow {
+    display: inline;
+    font-weight: 900;
+    color: var(--accent);
+    padding: 0 4px;
+  }
+  .loadout-work-get,
+  .loadout-work-put {
+    flex: 1;
+    min-width: 180px;
+  }
+}
+
+
 .loadout-show-btn {
   width: 100%;
   margin-top: 14px;
@@ -1203,83 +1399,137 @@ button {
 .plan-outbound-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   margin-top: 10px;
 }
 
 .plan-moves-card {
-  scroll-margin-top: 140px;
+  scroll-margin-top: 24px;
 }
 
 #dockPanelPlan {
-  scroll-margin-top: 140px;
+  scroll-margin-top: 24px;
 }
 
-/* Grouped / collapsible move sections (by outbound trailer) */
+/* Grouped / collapsible move sections (by outbound trailer) — unmistakable headers */
 .plan-move-group {
-  background: #0c1524;
-  border: 1px solid #2a3c58;
-  border-radius: 14px;
+  background: #0a1220;
+  border: 2px solid #3a5478;
+  border-radius: 16px;
   overflow: hidden;
-  scroll-margin-top: 140px;
+  scroll-margin-top: 16px;
+  margin: 0;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.28);
+}
+
+.plan-move-group + .plan-move-group {
+  margin-top: 6px;
 }
 
 .plan-move-group-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  padding: 14px 16px;
+  display: block; /* Safari: flex on <summary> can break open/close */
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0;
   cursor: pointer;
   list-style: none;
   font-weight: 800;
-  background: #132038;
-  border-bottom: 1px solid transparent;
-  min-height: 52px;
+  background: linear-gradient(180deg, #243652 0%, #1a2a44 100%);
+  border-bottom: 2px solid #0b1220;
+  border-left: 6px solid var(--accent);
+  min-height: 64px;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.plan-move-group-head-inner {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px 14px;
+  min-height: 64px;
+}
+
+.plan-move-group-head::-webkit-details-marker,
+.plan-move-group-head::marker {
+  display: none;
+  content: '';
+}
+
+.plan-move-group > summary {
+  list-style: none;
 }
 
 .plan-move-group[open] > .plan-move-group-head {
-  border-bottom-color: #24344f;
+  border-bottom-color: #2a405c;
+  background: linear-gradient(180deg, #2a4060 0%, #1e3250 100%);
 }
 
-.plan-move-group-head::-webkit-details-marker {
-  display: none;
-}
-
-.plan-move-group-head::before {
-  content: '▸';
+.plan-move-group-chevron {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(245, 166, 35, 0.18);
   color: var(--accent);
+  font-size: 1.15rem;
   font-weight: 900;
-  margin-right: 4px;
+  line-height: 1;
 }
 
-.plan-move-group[open] > .plan-move-group-head::before {
-  content: '▾';
+.plan-move-group[open] > .plan-move-group-head .plan-move-group-chevron {
+  transform: rotate(90deg);
+}
+
+.plan-move-group-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.plan-move-group-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  line-height: 1.2;
 }
 
 .plan-move-group-title {
-  flex: 1 1 auto;
   color: var(--text);
-  font-size: 1rem;
+  font-size: 1.12rem;
   line-height: 1.25;
+  font-weight: 800;
 }
 
 .plan-move-group-count {
   flex: 0 0 auto;
-  font-size: 0.85rem;
-  font-weight: 800;
+  font-size: 0.9rem;
+  font-weight: 900;
   color: #0b1220;
   background: var(--accent);
   border-radius: 999px;
-  padding: 4px 10px;
+  padding: 8px 12px;
+  box-shadow: 0 2px 0 var(--accent-dim);
+  white-space: nowrap;
 }
 
 .plan-move-group-body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 10px 12px;
+  padding: 12px 10px 14px;
+  background: #0c1524;
 }
 
 .plan-move-row {
@@ -1406,20 +1656,28 @@ button {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 12px;
-  position: sticky;
-  top: 128px;
-  z-index: 17;
-  background: linear-gradient(180deg, rgba(11, 18, 32, 0.98) 75%, rgba(11, 18, 32, 0));
+  position: relative;
+  z-index: 3;
+  background: transparent;
   padding-bottom: 8px;
 }
 
-/* Demo plan: keep dock tabs in flow so sticky chrome does not cover the move list */
+/* Demo plan: disable sticky chrome so topbar/tabs never cover the move list */
+.plan-scroll-mode .topbar,
+.plan-scroll-mode .view-tabs,
+.plan-scroll-mode .dock-subnav,
 .dock-view.dock-plan-mode .dock-subnav {
   position: static;
   top: auto;
   z-index: auto;
   background: transparent;
   padding-bottom: 0;
+}
+
+.plan-scroll-mode .plan-moves-card,
+.plan-scroll-mode #dockPanelPlan,
+.plan-scroll-mode .plan-move-group {
+  scroll-margin-top: 16px;
 }
 
 .dock-subtab {
