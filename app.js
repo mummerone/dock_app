@@ -24,6 +24,8 @@
 
   /** localStorage: done marks for Trailer load-out work steps (per plan + trailer) */
   const LOADOUT_DONE_KEY = 'dockApp.loadoutDone.v1';
+  /** localStorage: done marks for Ground deck-build orders (per plan) */
+  const GROUND_DONE_KEY = 'dockApp.groundDone.v1';
 
   const state = {
     section: null,
@@ -37,7 +39,7 @@
     listening: false,
     padBuffer: '',
     view: 'entry', // 'entry' | 'loadout' | 'dock'
-    dockSection: 'inbound', // 'inbound' | 'outbound' | 'plan'
+    dockSection: 'inbound', // 'inbound' | 'outbound' | 'ground' | 'plan'
     loadoutTrailer: '',
     pieceLocked: false, // mid-sequence: piece field forced to k/n
     destinationLocked: false, // PRO already has a destination — reuse until edited
@@ -115,16 +117,24 @@
     editDestinationBtn: document.getElementById('editDestinationBtn'),
     dockSubInbound: document.getElementById('dockSubInbound'),
     dockSubOutbound: document.getElementById('dockSubOutbound'),
+    dockSubGround: document.getElementById('dockSubGround'),
     dockSubPlan: document.getElementById('dockSubPlan'),
     dockPanelInbound: document.getElementById('dockPanelInbound'),
     dockPanelOutbound: document.getElementById('dockPanelOutbound'),
+    dockPanelGround: document.getElementById('dockPanelGround'),
     dockPanelPlan: document.getElementById('dockPanelPlan'),
     outboundTrailerInput: document.getElementById('outboundTrailerInput'),
     outboundDoorInput: document.getElementById('outboundDoorInput'),
     outboundDestInput: document.getElementById('outboundDestInput'),
+    outboundCityFloorOnly: document.getElementById('outboundCityFloorOnly'),
     outboundOpenBtn: document.getElementById('outboundOpenBtn'),
     outboundSaveBtn: document.getElementById('outboundSaveBtn'),
     outboundList: document.getElementById('outboundList'),
+    loadoutReadyBanner: document.getElementById('loadoutReadyBanner'),
+    groundOrdersList: document.getElementById('groundOrdersList'),
+    groundOrdersHint: document.getElementById('groundOrdersHint'),
+    groundOrdersProgress: document.getElementById('groundOrdersProgress'),
+    groundClearDoneBtn: document.getElementById('groundClearDoneBtn'),
     editProOverlay: document.getElementById('editProOverlay'),
     editProNumber: document.getElementById('editProNumber'),
     editProDestination: document.getElementById('editProDestination'),
@@ -159,6 +169,7 @@
     bindLoadout();
     bindDock();
     bindOutbound();
+    bindGround();
     bindPlan();
     bindDestination();
     bindEditPro();
@@ -170,6 +181,7 @@
     refreshLoadoutTrailerPicker();
     updateLoadoutPlanBanner();
     renderOutboundList();
+    renderGround();
     renderPlan();
     setupSpeechStatus();
     bindPieceSequenceWatchers();
@@ -948,6 +960,9 @@
     if (el.dockSubOutbound) {
       el.dockSubOutbound.addEventListener('click', () => showDockSection('outbound'));
     }
+    if (el.dockSubGround) {
+      el.dockSubGround.addEventListener('click', () => showDockSection('ground'));
+    }
     if (el.dockSubPlan) {
       el.dockSubPlan.addEventListener('click', () => showDockSection('plan'));
     }
@@ -963,11 +978,13 @@
     const panels = {
       inbound: el.dockPanelInbound,
       outbound: el.dockPanelOutbound,
+      ground: el.dockPanelGround,
       plan: el.dockPanelPlan,
     };
     const tabs = {
       inbound: el.dockSubInbound,
       outbound: el.dockSubOutbound,
+      ground: el.dockSubGround,
       plan: el.dockSubPlan,
     };
     Object.keys(panels).forEach((key) => {
@@ -984,6 +1001,7 @@
     setPlanScrollMode(section === 'plan');
     if (section === 'inbound') renderDock();
     if (section === 'outbound') renderOutboundList();
+    if (section === 'ground') renderGround();
     if (section === 'plan') renderPlan();
   }
 
@@ -1093,6 +1111,11 @@
         const done = isLoadoutMoveDone(fp, t, moveKey);
         setLoadoutMoveDone(fp, t, moveKey, !done);
         renderLoadout(t);
+        // Refresh compact Ready to close hints elsewhere
+        if (state.view === 'dock') {
+          if (state.dockSection === 'outbound') renderOutboundList();
+          else if (state.dockSection === 'plan') renderPlan();
+        }
       });
     }
   }
@@ -1375,11 +1398,13 @@
             'No plan moves for this outbound yet. Go to Dock → Demo plan and tap Build load plan (demo).';
         }
         if (el.loadoutWorkProgress) el.loadoutWorkProgress.textContent = '';
+        setReadyToCloseBanner(false);
         return false;
       }
       el.loadoutWorkCard.classList.add('hidden');
       el.loadoutWorkList.innerHTML = '';
       if (el.loadoutWorkProgress) el.loadoutWorkProgress.textContent = '';
+      setReadyToCloseBanner(false);
       return false;
     }
 
@@ -1447,7 +1472,35 @@
     if (el.loadoutWorkProgress) {
       el.loadoutWorkProgress.textContent = `${doneCount} of ${moves.length} done`;
     }
+
+    // Ready to close: outbound only, Work list non-empty, all steps done
+    const allDone = role === 'outbound' && moves.length > 0 && doneCount === moves.length;
+    setReadyToCloseBanner(allDone);
     return true;
+  }
+
+  function setReadyToCloseBanner(show) {
+    const banner = el.loadoutReadyBanner;
+    if (!banner) return;
+    banner.classList.toggle('hidden', !show);
+    if (show) banner.removeAttribute('hidden');
+    else banner.setAttribute('hidden', '');
+  }
+
+  /** Progress for an outbound trailer Work list: {total, done, allDone} or null if no work. */
+  function outboundWorkProgress(plan, trailerNumber) {
+    const t = String(trailerNumber || '').trim();
+    if (!t || !isPlanPresent(plan)) return null;
+    const filtered = movesForSelectedTrailer(plan, t);
+    if (filtered.role !== 'outbound' || !filtered.moves.length) return null;
+    const fp = planFingerprint(plan);
+    let done = 0;
+    filtered.moves.forEach((m, i) => {
+      const key = moveDoneKey(m, filtered.planIndexes[i]);
+      if (isLoadoutMoveDone(fp, t, key)) done += 1;
+    });
+    const total = filtered.moves.length;
+    return { total, done, allDone: done === total && total > 0 };
   }
 
   function renderLoadoutInventory(groups, opts) {
@@ -1564,6 +1617,7 @@
         if (el.loadoutWorkList) el.loadoutWorkList.innerHTML = '';
       }
       if (el.loadoutWorkProgress) el.loadoutWorkProgress.textContent = '';
+      setReadyToCloseBanner(false);
       // Hide empty "What is on this trailer" card until a trailer is chosen
       if (el.loadoutInventoryCard) el.loadoutInventoryCard.classList.add('hidden');
       if (el.loadoutList) el.loadoutList.innerHTML = '';
@@ -1852,20 +1906,23 @@
     if (forceOpen) destination = 'open';
     if (!destination) destination = 'open';
 
+    const cityFloorOnly = !!(el.outboundCityFloorOnly && el.outboundCityFloorOnly.checked);
     DockStorage.saveOutboundTrailer({
       trailerNumber,
       doorNumber,
       destination,
+      cityFloorOnly,
     });
 
     el.outboundTrailerInput.value = '';
     if (el.outboundDoorInput) el.outboundDoorInput.value = '';
     if (el.outboundDestInput) el.outboundDestInput.value = '';
+    if (el.outboundCityFloorOnly) el.outboundCityFloorOnly.checked = false;
     renderOutboundList();
     toast(
       destination === 'open'
-        ? `Outbound trailer ${trailerNumber} saved as open`
-        : `Outbound trailer ${trailerNumber} → ${destination}`
+        ? `Outbound trailer ${trailerNumber} saved as open${cityFloorOnly ? ' · city floor-only' : ''}`
+        : `Outbound trailer ${trailerNumber} → ${destination}${cityFloorOnly ? ' · city floor-only' : ''}`
     );
   }
 
@@ -1878,14 +1935,20 @@
       return;
     }
 
+    const plan = DockStorage.readLoadPlan();
     const frag = document.createDocumentFragment();
     list.forEach((row) => {
       const div = document.createElement('div');
-      div.className = 'outbound-row';
+      div.className = 'outbound-row' + (row.cityFloorOnly ? ' is-city-floor' : '');
       const dest = String(row.destination || 'open').trim() || 'open';
       const isOpen = dest.toLowerCase() === 'open';
       const door = String(row.doorNumber || '').trim();
       const doorText = door ? `Door ${door}` : 'Door not set yet';
+      const cityChecked = row.cityFloorOnly ? 'checked' : '';
+      const progress = outboundWorkProgress(plan, row.trailerNumber);
+      const readyHint = progress && progress.allDone
+        ? '<div class="ready-to-close-hint" role="status">Ready to close</div>'
+        : '';
       div.innerHTML = `
         <div class="outbound-row-top">
           <span class="outbound-trailer">Trailer ${escapeHtml(row.trailerNumber)}</span>
@@ -1895,11 +1958,28 @@
         </div>
         <div class="outbound-meta">${escapeHtml(doorText)} · added ${escapeHtml(
           DockStorage.formatTimeLocal(row.createdAt)
-        )}</div>
+        )}${row.cityFloorOnly ? ' · City floor-only' : ''}</div>
+        ${readyHint}
+        <label class="city-toggle-label compact" for="city-${escapeHtml(row.id)}">
+          <input type="checkbox" id="city-${escapeHtml(row.id)}" data-city-toggle="${escapeHtml(row.id)}" ${cityChecked} />
+          <span>City load — floor only</span>
+        </label>
         <div class="outbound-row-actions">
           <button type="button" class="btn tiny muted-btn" data-remove="${escapeHtml(row.id)}">Remove</button>
         </div>
       `;
+      const toggle = div.querySelector('[data-city-toggle]');
+      if (toggle) {
+        toggle.addEventListener('change', () => {
+          DockStorage.updateOutboundTrailer(row.id, { cityFloorOnly: toggle.checked });
+          renderOutboundList();
+          toast(
+            toggle.checked
+              ? `Trailer ${row.trailerNumber}: city floor-only (rebuild plan to apply)`
+              : `Trailer ${row.trailerNumber}: linehaul decks OK (rebuild plan to apply)`
+          );
+        });
+      }
       const rm = div.querySelector('[data-remove]');
       if (rm) {
         rm.addEventListener('click', () => {
@@ -1914,6 +1994,170 @@
     el.outboundList.appendChild(frag);
   }
 
+
+  // ---------- Ground deck-build orders ----------
+
+  function readGroundDoneStore() {
+    try {
+      const raw = localStorage.getItem(GROUND_DONE_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeGroundDoneStore(store) {
+    try {
+      localStorage.setItem(GROUND_DONE_KEY, JSON.stringify(store));
+    } catch (_) {
+      /* ignore quota */
+    }
+  }
+
+  function groundDoneBucketKey(fingerprint) {
+    return String(fingerprint || '');
+  }
+
+  function isGroundOrderDone(fingerprint, orderId) {
+    const store = readGroundDoneStore();
+    const bucket = store[groundDoneBucketKey(fingerprint)];
+    return !!(bucket && bucket[orderId]);
+  }
+
+  function setGroundOrderDone(fingerprint, orderId, done) {
+    const store = readGroundDoneStore();
+    const key = groundDoneBucketKey(fingerprint);
+    if (!store[key]) store[key] = {};
+    if (done) store[key][orderId] = true;
+    else delete store[key][orderId];
+    if (!Object.keys(store[key]).length) delete store[key];
+    writeGroundDoneStore(store);
+  }
+
+  function clearGroundDone(fingerprint) {
+    const store = readGroundDoneStore();
+    delete store[groundDoneBucketKey(fingerprint)];
+    writeGroundDoneStore(store);
+  }
+
+  function bindGround() {
+    if (el.groundClearDoneBtn) {
+      el.groundClearDoneBtn.addEventListener('click', () => {
+        const plan = DockStorage.readLoadPlan();
+        const fp = planFingerprint(plan);
+        if (!fp) {
+          toast('No done marks to clear yet');
+          return;
+        }
+        clearGroundDone(fp);
+        renderGround();
+        toast('Cleared ground done marks');
+      });
+    }
+    if (el.groundOrdersList) {
+      el.groundOrdersList.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-ground-id]');
+        if (!btn) return;
+        const orderId = btn.getAttribute('data-ground-id');
+        const plan = DockStorage.readLoadPlan();
+        const fp = planFingerprint(plan);
+        if (!fp || !orderId) return;
+        const done = isGroundOrderDone(fp, orderId);
+        setGroundOrderDone(fp, orderId, !done);
+        renderGround();
+      });
+    }
+  }
+
+  function renderGround() {
+    if (!el.groundOrdersList) return;
+    const plan = DockStorage.readLoadPlan();
+    const orders =
+      typeof DockLoadPlan !== 'undefined' && DockLoadPlan.deriveGroundOrders
+        ? DockLoadPlan.deriveGroundOrders(plan)
+        : [];
+
+    if (!isPlanPresent(plan)) {
+      el.groundOrdersList.innerHTML =
+        '<div class="empty-state">No deck builds yet. Build a load plan first (non-city trailers may need decks).</div>';
+      if (el.groundOrdersHint) {
+        el.groundOrdersHint.textContent =
+          'Build a load plan on Demo plan first. Then come back here for deck-build orders.';
+      }
+      if (el.groundOrdersProgress) el.groundOrdersProgress.textContent = '';
+      return;
+    }
+
+    if (!orders.length) {
+      el.groundOrdersList.innerHTML =
+        '<div class="empty-state">No deck builds yet. Build a load plan first (non-city trailers may need decks).</div>';
+      if (el.groundOrdersHint) {
+        el.groundOrdersHint.textContent =
+          'This plan has no B/C freight (or all outbound trailers are city floor-only). Floor (A) only — no deck builds.';
+      }
+      if (el.groundOrdersProgress) el.groundOrdersProgress.textContent = '';
+      return;
+    }
+
+    if (el.groundOrdersHint) {
+      el.groundOrdersHint.textContent =
+        'Build these decks before stacking freight on B or C. One order per section. Tap when done.';
+    }
+
+    const fp = planFingerprint(plan);
+    let doneCount = 0;
+
+    // Group by trailer for readability
+    /** @type {Map<string, object[]>} */
+    const byTrailer = new Map();
+    orders.forEach((o) => {
+      const t = o.trailerNumber;
+      if (!byTrailer.has(t)) byTrailer.set(t, []);
+      byTrailer.get(t).push(o);
+    });
+
+    const frag = document.createDocumentFragment();
+    let globalNum = 0;
+    byTrailer.forEach((list, trailer) => {
+      const head = document.createElement('div');
+      head.className = 'ground-trailer-head';
+      const dest = (list[0] && list[0].destination) || '';
+      head.textContent = dest
+        ? `Trailer ${trailer} → ${dest}`
+        : `Trailer ${trailer}`;
+      frag.appendChild(head);
+
+      list.forEach((o) => {
+        globalNum += 1;
+        const done = isGroundOrderDone(fp, o.id);
+        if (done) doneCount += 1;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'ground-order-step' + (done ? ' is-done' : '');
+        btn.setAttribute('data-ground-id', o.id);
+        btn.setAttribute('role', 'listitem');
+        btn.setAttribute('aria-pressed', done ? 'true' : 'false');
+        btn.innerHTML = `
+          <div class="loadout-work-step-top">
+            <span class="loadout-work-num">${globalNum}</span>
+            <span class="loadout-work-check" aria-hidden="true">${done ? '✓' : ''}</span>
+            <span class="loadout-work-pro">${escapeHtml(o.label)}</span>
+          </div>
+          <div class="ground-order-detail">${escapeHtml(o.detail)}</div>
+          <div class="loadout-work-tap-hint">${done ? 'Done — tap to undo' : 'Tap when deck is built'}</div>
+        `;
+        frag.appendChild(btn);
+      });
+    });
+
+    el.groundOrdersList.innerHTML = '';
+    el.groundOrdersList.appendChild(frag);
+    if (el.groundOrdersProgress) {
+      el.groundOrdersProgress.textContent = `${doneCount} of ${orders.length} done`;
+    }
+  }
 
   function bindEditPro() {
     if (!el.editProOverlay) return;
@@ -2017,6 +2261,7 @@
     if (state.view === 'dock') {
       if (state.dockSection === 'inbound') renderDock();
       else if (state.dockSection === 'outbound') renderOutboundList();
+      else if (state.dockSection === 'ground') renderGround();
       else if (state.dockSection === 'plan') renderPlan();
     }
     syncPieceSequenceFromStorage();
@@ -2037,7 +2282,7 @@
   }
 
   /**
-   * In-app confirm sheet — never uses the browser confirm API (unreliable on phones / PWAs).
+   * In-app confirm sheet — never uses window.confirm (unreliable on phones / PWAs).
    * Opening the sheet is immediate feedback (<100ms).
    */
   function openConfirmSheet({ title, message, action }) {
@@ -2130,8 +2375,10 @@
       if (state.view === 'dock') {
         if (state.dockSection === 'inbound') renderDock();
         else if (state.dockSection === 'outbound') renderOutboundList();
+        else if (state.dockSection === 'ground') renderGround();
         else if (state.dockSection === 'plan') renderPlan();
       }
+      renderGround();
       toast('All freight and the load plan were cleared.');
     } catch (err) {
       console.error(err);
@@ -2143,6 +2390,7 @@
     try {
       DockStorage.clearLoadPlan();
       renderPlan();
+      renderGround();
       if (el.planStatusHint) el.planStatusHint.textContent = 'Plan cleared.';
       toast('Plan cleared');
       // Drop plan-only OUT chips; keep inbound freight chips
@@ -2194,9 +2442,11 @@
       refreshLoadoutTrailerPicker();
       renderOutboundList();
       renderPlan();
+      renderGround();
       if (state.view === 'loadout') renderLoadout('');
       if (state.view === 'dock' && state.dockSection === 'inbound') renderDock();
       if (state.view === 'dock' && state.dockSection === 'outbound') renderOutboundList();
+      if (state.view === 'dock' && state.dockSection === 'ground') renderGround();
       if (el.planStatusHint) {
         el.planStatusHint.textContent =
           `Demo loaded: ${result.inboundTrailers} inbound trailers · ${result.proCount} PROs · ${result.pieceCount} pieces` +
@@ -2219,6 +2469,7 @@
     const plan = DockLoadPlan.runLoadPlan();
     renderPlan();
     renderOutboundList();
+    renderGround();
     const s = plan.summary || {};
     const noteSafe = sanitizePlanNote(s.note || '');
     if (el.planStatusHint) {
@@ -2323,6 +2574,11 @@
         g.trailer && g.trailer !== '—'
           ? `Trailer ${g.trailer}`
           : `Destination ${g.destination}`;
+      const progress = outboundWorkProgress(plan, g.trailer);
+      const readyBit =
+        progress && progress.allDone
+          ? '<span class="ready-to-close-chip">Ready to close</span>'
+          : '';
       const summary = document.createElement('summary');
       summary.className = 'plan-move-group-head';
       // Inner flex row — Safari can break toggle if <summary> itself is display:flex
@@ -2332,6 +2588,7 @@
           <span class="plan-move-group-text">
             <span class="plan-move-group-label">Outbound group</span>
             <span class="plan-move-group-title">${escapeHtml(trailerLabel)} · ${escapeHtml(g.destination)}</span>
+            ${readyBit}
           </span>
           <span class="plan-move-group-count">${count} move${count === 1 ? '' : 's'}</span>
         </span>
@@ -2390,9 +2647,16 @@
           : '';
       const head = document.createElement('div');
       head.className = 'plan-out-head';
+      const cityBit = load.cityFloorOnly ? ' · City floor-only' : '';
+      const progress = outboundWorkProgress(plan, load.trailerNumber);
+      const readyLine =
+        progress && progress.allDone
+          ? '<div class="ready-to-close-hint">Ready to close</div>'
+          : '';
       head.innerHTML = `
         <div class="plan-out-title">Trailer ${escapeHtml(load.trailerNumber)} → ${escapeHtml(load.destination || '—')}</div>
-        <div class="plan-out-meta">${load.proCount || 0} bill${(load.proCount || 0) === 1 ? '' : 's'} · ${load.pieceCount || 0} piece${(load.pieceCount || 0) === 1 ? '' : 's'}${escapeHtml(door)}${escapeHtml(wt)}</div>
+        <div class="plan-out-meta">${load.proCount || 0} bill${(load.proCount || 0) === 1 ? '' : 's'} · ${load.pieceCount || 0} piece${(load.pieceCount || 0) === 1 ? '' : 's'}${escapeHtml(door)}${escapeHtml(wt)}${escapeHtml(cityBit)}</div>
+        ${readyLine}
       `;
       wrap.appendChild(head);
 
@@ -2441,13 +2705,13 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=22').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=23').catch(() => {
       /* offline cache optional */
     });
   }
 
   // Expose parse for quick console tests
-  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, renderPlan, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro, openEditPro, closeEditPro, runLoadPlan: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.runLoadPlan(), seedDemoInbound: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.seedDemoInbound() };
+  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, renderGround, renderPlan, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro, openEditPro, closeEditPro, runLoadPlan: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.runLoadPlan(), seedDemoInbound: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.seedDemoInbound() };
 
   init();
 })();

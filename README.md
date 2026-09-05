@@ -1,4 +1,3 @@
-
 # Dock App (MVP)
 
 A simple phone-friendly web tool for dock drivers. You type (or speak) a PRO number, piece count, where the bill is going (destination), trailer number, trailer slot, and the size/weight of each piece of freight. Under **Dock** you can view inbound doors, register outbound trailers, and run the demo load plan. Everything stays on your device — there is no login and no company server involved.
@@ -80,14 +79,15 @@ Use **Trailer load-out** to follow a go-get / put list without a developer.
 1. Tap **Trailer load-out** (next to **Log freight**).
 2. Tap a trailer chip — **OUT** chips are outbound trailers from the last load plan (e.g. after **Dock → Demo plan**). You can also type a number and tap **Show**.
 3. **Work list** (when a plan exists for that trailer): numbered steps with door, get-from slot, put-to slot, PRO and piece. Tap a step to mark it done; **Clear done** resets marks for this trailer + plan.
-4. **What is on this trailer**: inventory grouped by bill (PRO) with slots — same PRO stays on one trailer.
-5. No plan yet? Empty tips tell you to run **Dock → Demo plan** (or log freight first).
+4. **Ready to close**: on an **outbound** trailer, when every Work list step is done, a big banner appears (“All planned pieces are on this trailer. Spot-check, then close.”). Progress only while some steps remain; no banner if there is no Work list.
+5. **What is on this trailer**: inventory grouped by bill (PRO) with slots — same PRO stays on one trailer.
+6. No plan yet? Empty tips tell you to run **Dock → Demo plan** (or log freight first).
 
 Done marks stay on this device only (`localStorage`). The **Log freight** tab still works the same.
 
-## Dock (Inbound · Outbound · Demo plan)
+## Dock (Inbound · Outbound · Ground · Demo plan)
 
-One **Dock** tab covers inbound doors, outbound trailers, and the demo load planner. Inside Dock, use the big sub-nav buttons:
+One **Dock** tab covers inbound doors, outbound trailers, ground deck-build orders, and the demo load planner. Inside Dock, use the big sub-nav buttons:
 
 ### Inbound
 1. When you **Log freight**, also enter the **Door number** (the dock door where that trailer sits).
@@ -99,7 +99,14 @@ One **Dock** tab covers inbound doors, outbound trailers, and the demo load plan
 ### Outbound
 1. Tap **Dock** → **Outbound**.
 2. Register trailers you are loading out: trailer number, optional door, destination or **Open**.
-3. The list below shows registered outbound trailers.
+3. Check **City load — floor only** for local / serving-city loads (planner uses level A only — no decks B/C). You can also toggle this on each outbound row later; rebuild the plan to apply.
+4. The list below shows registered outbound trailers. When a trailer’s Work list is fully done, a compact **Ready to close** hint appears.
+
+### Ground
+1. Tap **Dock** → **Ground**.
+2. After you build a load plan, this list shows **deck-build orders** for the ground person: one per outbound section that needs freight on B or C (e.g. “Build deck · Section 2 · above ~45 in”).
+3. Tap an order when the deck is built (done marks stay on this device). City floor-only trailers produce **no** deck builds.
+4. Empty state: “No deck builds yet. Build a load plan first (non-city trailers may need decks).”
 
 ### Demo plan
 1. Tap **Dock** → **Demo plan**.
@@ -136,15 +143,18 @@ Works even if some pieces were logged before destination existed.
 7. Tap **Accept** — the entry is saved on this device and shows under Recent Entries.
 8. Tap **Trailer load-out** anytime for the work list (after a plan) or inventory on a chosen trailer.
 9. Tap **Dock** → **Inbound** for the door board (and **Load demo inbound trailers** at the top).
-10. Tap **Dock** → **Outbound** to register trailers you are loading out.
-11. Tap **Dock** → **Demo plan** to build the local demo load plan.
-12. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
+10. Tap **Dock** → **Outbound** to register trailers you are loading out (optional **City load — floor only**).
+11. Tap **Dock** → **Ground** for deck-build orders after a plan.
+12. Tap **Dock** → **Demo plan** to build the local demo load plan.
+13. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
+
+**Out of scope for this demo:** driver route / yard / in-transit status — the company provides those elsewhere.
 
 ---
 
 ## Files in this folder
 
-v22 Clear all uses in-app confirm sheet (no window.confirm); network-first SW (`dock-app-v22`).
+v23 Ground deck-build orders, Ready to close, City floor-only packing; network-first SW (`dock-app-v23`).
 
 
 | File | What it is |
@@ -156,7 +166,7 @@ v22 Clear all uses in-app confirm sheet (no window.confirm); network-first SW (`
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v22`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v23`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
@@ -166,33 +176,52 @@ v22 Clear all uses in-app confirm sheet (no window.confirm); network-first SW (`
 ## Caveats (please read)
 
 - **Voice (Web Speech API):** Works best in **Chrome** and **Safari**. Usually needs **https://** or **localhost**. May fail on Firefox or on plain HTTP LAN URLs. Use the number pad if voice is blocked.
-- **Data stays in this browser:** Entries are stored in `localStorage` on the device/browser you used. Clearing site data, using a different browser, or a different pho
--
-- ## Company readiness (honest gaps)
--
-- This app is a solid single-phone demo today: log freight, view the dock board, build a demo load plan, and follow the outbound Work list.
--
-- ### What stays on one phone
--
-- This browser stores logged freight, PRO destinations, doors and slots, outbound trailers, the load plan, Work list done marks, and last-used sizes. Another phone or browser, or clearing site data, means the data is empty or gone.
--
-- ### What a company would usually expect shared
--
-- A real deployment would share one live dock picture and progress across workers, with accounts and roles, backup and history, multi-terminal and multi-shift support, office tools such as printing and PRO search, and eventual TMS or EDI integration.
--
-- ### What this demo is already good for
--
-- It is useful for training the flow end-to-end, a single-worker phone demo, and proving rules such as same PRO staying on one trailer.
--
-- ### Sensible next step if you go beyond demo
--
-- The smallest real upgrade is a simple shared cloud save for one dock room. Full TMS, cloud AI planning, and fancy permissions should come after sharing works.
-- ne will not show the same list.
-- **No sync / no TMS:** This MVP does not talk to company billing software.
+- **Data stays in this browser:** Entries are stored in `localStorage` on the device/browser you used. Clearing site data, using a different browser, or a different phone will not show the same list.
+- **No sync / no TMS:** This MVP does not talk to company billing software. See **Company readiness** below for what a real company would expect next.
 - **Not a toy form:** Built for gloves and noise — large taps, high contrast — but it is still an MVP, not a full dock planning system.
 
 ---
 
+---
+
+## Company readiness (honest gaps)
+
+This app is a **solid single-phone demo** today: log freight → dock board → demo load plan → outbound Work list, with phone-friendly layout and clear empty states.
+
+### What stays on one phone
+
+Saved in this browser only (`localStorage`):
+
+- Logged freight (PROs, pieces, doors, slots)
+- Destinations on bills
+- Outbound trailer list
+- Load plan, Work list “done” marks, and Ground deck-build “done” marks
+- Last-used sizes for the number pad
+
+Another phone, another browser, or clearing site data = **empty / gone**. The footer already says “Data stays on this device.”
+
+### What a company would usually expect shared
+
+1. **One live dock picture** — clerk logs freight; forklift / outbound see the same doors, trailers, and Work list in real time  
+2. **Shared progress** — marking a Work list step done updates everyone, not just that phone  
+3. **Accounts and roles** — who can log, who can plan, who can only follow the Work list (not “anyone with the link”)  
+4. **Backup / history** — yesterday’s trailers don’t vanish if someone hits Clear all or loses a phone  
+5. **Multi-terminal / multi-shift** — more than one dock, handoff between shifts  
+6. **Office tools** — print or export a plan, search by PRO, maybe TMS/EDI later  
+
+### What this demo is already good for
+
+- Training the flow end-to-end  
+- Phone UI for a single worker or a sales / walkthrough demo  
+- Proving the rules (same PRO = same trailer, floor-then-deck packing, etc.)  
+
+### Sensible next step if you go beyond demo
+
+**Smallest real upgrade:** a simple shared cloud save (one dock “room,” all phones sync).  
+
+**Not first:** full TMS, cloud AI planner, fancy permissions — those come after sharing works.
+
+---
 ## Exact run command (copy/paste)
 
 From inside `dock_app_build`:

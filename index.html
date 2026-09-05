@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=22" />
+  <link rel="stylesheet" href="styles.css?v=23" />
 </head>
 <body>
   <div id="app">
@@ -224,6 +223,10 @@
           <button type="button" id="loadoutClearDoneBtn" class="btn tiny muted-btn">Clear done</button>
         </div>
         <p class="hint" id="loadoutWorkHint">Numbered steps for this trailer. Tap a step to mark it done.</p>
+        <div id="loadoutReadyBanner" class="ready-to-close-banner hidden" role="status" hidden>
+          <div class="ready-to-close-title">Ready to close</div>
+          <p class="ready-to-close-line">All planned pieces are on this trailer. Spot-check, then close.</p>
+        </div>
         <p class="loadout-work-progress" id="loadoutWorkProgress" aria-live="polite"></p>
         <div id="loadoutWorkList" class="loadout-work-list" role="list"></div>
       </section>
@@ -242,6 +245,9 @@
         </button>
         <button type="button" class="dock-subtab" id="dockSubOutbound" role="tab" aria-selected="false" aria-controls="dockPanelOutbound">
           Outbound
+        </button>
+        <button type="button" class="dock-subtab" id="dockSubGround" role="tab" aria-selected="false" aria-controls="dockPanelGround">
+          Ground
         </button>
         <button type="button" class="dock-subtab" id="dockSubPlan" role="tab" aria-selected="false" aria-controls="dockPanelPlan">
           Demo plan
@@ -285,6 +291,10 @@
               <span>Loading for (destination)</span>
               <input id="outboundDestInput" type="text" autocomplete="off" placeholder="City, terminal, or leave and tap Open" />
             </label>
+            <label class="city-toggle-label" for="outboundCityFloorOnly">
+              <input type="checkbox" id="outboundCityFloorOnly" />
+              <span><strong>City load — floor only</strong> · local / serving city: pack level A only (no decks B/C)</span>
+            </label>
             <div class="outbound-dest-actions">
               <button type="button" id="outboundOpenBtn" class="btn muted-btn outbound-open-btn">Open (no destination yet)</button>
               <button type="button" id="outboundSaveBtn" class="btn accept-btn outbound-save-btn">Save outbound trailer</button>
@@ -293,9 +303,32 @@
 
           <section class="card" aria-labelledby="outbound-list-heading">
             <h2 id="outbound-list-heading">Outbound trailers</h2>
-            <p class="hint">Plain list of trailers registered for outbound loading. Use <strong>Demo plan</strong> above to run the local load planner.</p>
+            <p class="hint">Plain list of trailers registered for outbound loading. Toggle <strong>City / floor only</strong> on a row for local loads. Use <strong>Demo plan</strong> to run the local load planner.</p>
             <div id="outboundList" class="outbound-list">
               <div class="empty-state">No outbound trailers yet. Add a trailer number above, then Save (or tap Open if the destination is not set).</div>
+            </div>
+          </section>
+        </div>
+
+        <div id="dockPanelGround" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubGround" hidden>
+          <section class="card ground-howto-card" aria-labelledby="ground-howto-heading">
+            <h2 id="ground-howto-heading">Ground — deck builds</h2>
+            <ol class="loadout-howto">
+              <li>After a load plan is built, this list shows where decks must go up <strong>before</strong> freight is stacked on B or C.</li>
+              <li>One order per section on each outbound trailer (not one per piece).</li>
+              <li>Tap an order when the deck is built. City / floor-only trailers never need decks.</li>
+            </ol>
+          </section>
+
+          <section class="card" aria-labelledby="ground-orders-heading">
+            <div class="card-head">
+              <h2 id="ground-orders-heading">Deck-build orders</h2>
+              <button type="button" id="groundClearDoneBtn" class="btn tiny muted-btn">Clear done</button>
+            </div>
+            <p class="hint" id="groundOrdersHint">From the current load plan. Glove-friendly — tap when done.</p>
+            <p class="loadout-work-progress" id="groundOrdersProgress" aria-live="polite"></p>
+            <div id="groundOrdersList" class="ground-orders-list" role="list">
+              <div class="empty-state">No deck builds yet. Build a load plan first (non-city trailers may need decks).</div>
             </div>
           </section>
         </div>
@@ -303,7 +336,7 @@
         <div id="dockPanelPlan" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubPlan" hidden>
           <section class="card" aria-labelledby="plan-run-heading">
             <h2 id="plan-run-heading">Build load plan (demo)</h2>
-            <p class="hint">Local demo planner on this device. Reads inbound dock freight, keeps same-PRO pieces together, prefers one outbound trailer per destination, and packs floor first (A), then decks B/C into slots 1–12 × A–C × Left/Middle/Right.</p>
+            <p class="hint">Local demo planner on this device. Reads inbound dock freight, keeps same-PRO pieces together, prefers one outbound trailer per destination, and packs floor first (A), then decks B/C into slots 1–12 × A–C × Left/Middle/Right. Trailers marked <strong>City load — floor only</strong> stay on level A only.</p>
             <p class="hint">Tip: generate freight first with <strong>Load demo inbound trailers</strong> on the Inbound section.</p>
             <button type="button" id="runLoadPlanBtn" class="btn speak-btn demo-primary-btn">Build load plan (demo)</button>
             <button type="button" id="clearPlanBtn" class="btn muted-btn demo-secondary-btn">Clear plan</button>
@@ -385,9 +418,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=22"></script>
-  <script src="speech.js?v=22"></script>
-  <script src="loadPlan.js?v=22"></script>
-  <script src="app.js?v=22"></script>
+  <script src="storage.js?v=23"></script>
+  <script src="speech.js?v=23"></script>
+  <script src="loadPlan.js?v=23"></script>
+  <script src="app.js?v=23"></script>
 </body>
 </html>

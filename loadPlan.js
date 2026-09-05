@@ -88,6 +88,29 @@
   }
 
   /**
+   * City / local loads: floor only (level A). No decks B/C.
+   * Same section × lateral order as high-tight floor pass.
+   * @returns {{section:number, level:string, lateral:string, slotLabel:string}[]}
+   */
+  function buildFloorOnlySlotOrder() {
+    const slots = [];
+    for (let section = 1; section <= 12; section++) {
+      for (const lateral of LATERALS) {
+        slots.push({
+          section,
+          level: 'A',
+          lateral,
+          slotLabel: `${section}/A/${lateral}`,
+        });
+      }
+    }
+    return slots;
+  }
+
+  /** Clear height wording for ground deck-build orders (inches above floor freight). */
+  const DECK_CLEAR_HEIGHT_IN = 45;
+
+  /**
    * Pack pieces of one inbound trailer into contiguous packed slots.
    * @param {number} pieceCount
    * @returns {{section:number, level:string, lateral:string, slotLabel:string}[]}
@@ -342,6 +365,8 @@
     /** @type {object[]} */
     const outboundLoadouts = [];
 
+    let cityFloorOnlyCount = 0;
+
     destOrder.forEach((destination) => {
       const outbound = outboundByDest[destination];
       if (!outbound) return;
@@ -350,7 +375,12 @@
         .filter((s) => s.destination === destination)
         .sort((a, b) => shipmentVolume(b.pieces) - shipmentVolume(a.pieces));
 
-      const slotOrder = buildHighTightSlotOrder();
+      const cityFloorOnly = Boolean(outbound.cityFloorOnly);
+      if (cityFloorOnly) cityFloorOnlyCount += 1;
+
+      const slotOrder = cityFloorOnly
+        ? buildFloorOnlySlotOrder()
+        : buildHighTightSlotOrder();
       let cursor = 0;
       /** @type {{pro:string, pieces:object[]}[]} */
       const loadGroups = [];
@@ -359,14 +389,13 @@
         // Entire PRO on this one outbound trailer (permanent rule)
         const plannedPieces = [];
         ship.pieces.forEach((e) => {
+          const fallback = cityFloorOnly
+            ? { section: 12, level: 'A', lateral: 'Right', slotLabel: '12/A/Right' }
+            : { section: 12, level: 'C', lateral: 'Right', slotLabel: '12/C/Right' };
           const slot =
             slotOrder[cursor] ||
-            slotOrder[slotOrder.length - 1] || {
-              section: 12,
-              level: 'C',
-              lateral: 'Right',
-              slotLabel: '12/C/Right',
-            };
+            slotOrder[slotOrder.length - 1] ||
+            fallback;
           cursor += 1;
           const fromSlot =
             e.slotLabel ||
@@ -433,12 +462,24 @@
         trailerNumber: outbound.trailerNumber,
         doorNumber: String(outbound.doorNumber || '').trim(),
         destination,
+        cityFloorOnly,
         proCount: loadGroups.length,
         pieceCount,
         totalWeight: weightCount ? weightSum : null,
         groups: loadGroups,
       });
     });
+
+    let note;
+    if (skippedNoDest > 0) {
+      note = `${skippedNoDest} bill(s) skipped — no destination set. Tap Edit bill on each, then build again.`;
+    } else if (cityFloorOnlyCount > 0) {
+      note =
+        `Packed floor first, then decks B/C; one outbound per destination. ` +
+        `${cityFloorOnlyCount} city load(s) used floor only (level A) — no decks.`;
+    } else {
+      note = 'Packed floor first, then decks B/C; one outbound per destination.';
+    }
 
     const plan = {
       createdAt: new Date().toISOString(),
@@ -452,10 +493,8 @@
         pieceCount: moves.length,
         outboundCount: outboundLoadouts.length,
         skippedNoDest,
-        note:
-          skippedNoDest > 0
-            ? `${skippedNoDest} bill(s) skipped — no destination set. Tap Edit bill on each, then build again.`
-            : 'Packed floor first, then decks B/C; one outbound per destination.',
+        cityFloorOnlyCount,
+        note,
       },
     };
 
@@ -463,10 +502,110 @@
     return plan;
   }
 
+  /**
+   * Ground deck-build orders from a load plan.
+   * One order per outbound trailer section that has B/C freight.
+   * City floor-only trailers produce no orders.
+   * @param {object|null} plan
+   * @returns {{id:string, trailerNumber:string, destination:string, section:number, label:string, detail:string}[]}
+   */
+  function deriveGroundOrders(plan) {
+    const orders = [];
+    if (!plan) return orders;
+    const loads = plan.outboundLoadouts || [];
+    const moves = plan.moves || [];
+
+    /** @type {Map<string, {trailerNumber:string, destination:string, cityFloorOnly:boolean, sections:Set<number>}>} */
+    const byTrailer = new Map();
+
+    const ensure = (trailerNumber, destination, cityFloorOnly) => {
+      const t = String(trailerNumber || '').trim();
+      if (!t) return null;
+      if (!byTrailer.has(t)) {
+        byTrailer.set(t, {
+          trailerNumber: t,
+          destination: String(destination || '').trim(),
+          cityFloorOnly: Boolean(cityFloorOnly),
+          sections: new Set(),
+        });
+      }
+      const row = byTrailer.get(t);
+      if (destination && !row.destination) row.destination = String(destination).trim();
+      if (cityFloorOnly) row.cityFloorOnly = true;
+      return row;
+    };
+
+    loads.forEach((load) => {
+      ensure(load.trailerNumber, load.destination, load.cityFloorOnly);
+      if (load.cityFloorOnly) return;
+      (load.groups || []).forEach((g) => {
+        (g.pieces || []).forEach((p) => {
+          const level = String(p.level || '').toUpperCase();
+          if (level === 'B' || level === 'C') {
+            const sec = Number(p.section);
+            if (sec >= 1 && sec <= 12) {
+              const row = ensure(load.trailerNumber, load.destination, false);
+              if (row && !row.cityFloorOnly) row.sections.add(sec);
+            }
+          }
+        });
+      });
+    });
+
+    moves.forEach((m) => {
+      const to = m.to || {};
+      const t = String(to.trailer || '').trim();
+      if (!t) return;
+      const level = String(to.level || '').toUpperCase();
+      const row = ensure(t, m.destination, false);
+      // Respect city flag from loadout / registry if already known
+      if (!row || row.cityFloorOnly) return;
+      if (level === 'B' || level === 'C') {
+        const sec = Number(to.section);
+        if (sec >= 1 && sec <= 12) row.sections.add(sec);
+      }
+    });
+
+    // Also honor live outbound registry cityFloorOnly (in case plan predates flag on loadout)
+    const registry = typeof DockStorage !== 'undefined' ? DockStorage.readOutboundTrailers() : [];
+    registry.forEach((r) => {
+      const t = String(r.trailerNumber || '').trim();
+      if (!t || !byTrailer.has(t)) return;
+      if (r.cityFloorOnly) {
+        byTrailer.get(t).cityFloorOnly = true;
+        byTrailer.get(t).sections.clear();
+      }
+    });
+
+    const trailers = Array.from(byTrailer.values()).sort((a, b) =>
+      a.trailerNumber.localeCompare(b.trailerNumber, undefined, { numeric: true })
+    );
+
+    trailers.forEach((row) => {
+      if (row.cityFloorOnly) return;
+      const sections = Array.from(row.sections).sort((a, b) => a - b);
+      sections.forEach((section) => {
+        orders.push({
+          id: `${row.trailerNumber}::S${section}`,
+          trailerNumber: row.trailerNumber,
+          destination: row.destination || '',
+          section,
+          label: `Build deck · Section ${section} · above ~${DECK_CLEAR_HEIGHT_IN} in`,
+          detail: `Trailer ${row.trailerNumber}${row.destination ? ` → ${row.destination}` : ''} — leave clear height above floor freight, then set the deck for section ${section}.`,
+        });
+      });
+    });
+
+    return orders;
+  }
+
   global.DockLoadPlan = {
     DEMO_DESTINATIONS,
     DEMO_INBOUND,
+    DECK_CLEAR_HEIGHT_IN,
     buildHighTightSlotOrder,
+    buildFloorOnlySlotOrder,
+    deriveGroundOrders,
     ensureOutboundStubs,
     seedDemoInbound,
     runLoadPlan,

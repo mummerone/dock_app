@@ -11,7 +11,7 @@
  *
  * Also stores:
  * - pros: one destination per PRO (shared by all pieces of that bill)
- * - outboundTrailers: registry of trailers being loaded out (destination or "open")
+ * - outboundTrailers: registry of trailers being loaded out (destination or "open"; cityFloorOnly flag)
  * - loadPlan: last demo/AI load plan (moves + outbound load-outs)
  */
 
@@ -53,6 +53,7 @@
    * @property {string} trailerNumber
    * @property {string} doorNumber     optional until spotted
    * @property {string} destination    free text, or "open"
+   * @property {boolean} [cityFloorOnly]  local/serving-city load — floor (A) only, no decks
    * @property {string} createdAt      ISO string
    */
 
@@ -206,7 +207,7 @@
 
   /**
    * Register an outbound trailer (loading for a destination, or "open").
-   * @param {{ trailerNumber: string, doorNumber?: string, destination?: string }} partial
+   * @param {{ trailerNumber: string, doorNumber?: string, destination?: string, cityFloorOnly?: boolean }} partial
    * @returns {OutboundTrailer}
    */
   function saveOutboundTrailer(partial) {
@@ -214,6 +215,7 @@
     const doorNumber = String(partial.doorNumber || '').trim();
     let destination = String(partial.destination || '').trim();
     if (!destination) destination = 'open';
+    const cityFloorOnly = Boolean(partial.cityFloorOnly);
 
     /** @type {OutboundTrailer} */
     const row = {
@@ -221,6 +223,7 @@
       trailerNumber,
       doorNumber,
       destination,
+      cityFloorOnly,
       createdAt: new Date().toISOString(),
     };
     const list = readOutboundTrailers();
@@ -231,7 +234,7 @@
 
   /**
    * @param {string} id
-   * @param {{ trailerNumber?: string, doorNumber?: string, destination?: string }} patch
+   * @param {{ trailerNumber?: string, doorNumber?: string, destination?: string, cityFloorOnly?: boolean }} patch
    * @returns {OutboundTrailer|null}
    */
   function updateOutboundTrailer(id, patch) {
@@ -251,6 +254,10 @@
         patch.destination != null
           ? String(patch.destination).trim() || 'open'
           : cur.destination,
+      cityFloorOnly:
+        patch.cityFloorOnly != null
+          ? Boolean(patch.cityFloorOnly)
+          : Boolean(cur.cityFloorOnly),
     };
     list[idx] = next;
     writeOutboundTrailers(list);
