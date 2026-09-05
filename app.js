@@ -45,7 +45,7 @@
     dockDoor: '',
     dockPro: '',
     editingPro: '', // PRO open in Edit bill sheet
-    confirmPending: null, // { action: 'loadDemo'|'clearPlan' }
+    confirmPending: null, // { action: 'loadDemo'|'clearPlan'|'clearAll' }
   };
 
   const el = {
@@ -380,22 +380,11 @@
     el.respeakBtn.addEventListener('click', () => startSpeak({ mode: 'active' }));
     el.acceptBtn.addEventListener('click', onAccept);
     el.clearListBtn.addEventListener('click', () => {
-      if (!confirm('Clear all saved entries and the load plan on this device?')) return;
-      DockStorage.clearAll();
-      DockStorage.clearLoadPlan();
-      setPieceLocked(false);
-      el.piece.value = '';
-      renderRecent();
-      renderPlan();
-      renderOutboundList();
-      refreshLoadoutTrailerPicker();
-      if (state.loadoutTrailer) renderLoadout(state.loadoutTrailer);
-      if (state.view === 'dock') {
-        if (state.dockSection === 'inbound') renderDock();
-        else if (state.dockSection === 'outbound') renderOutboundList();
-        else if (state.dockSection === 'plan') renderPlan();
-      }
-      toast('All entries and plan cleared');
+      openConfirmSheet({
+        title: 'Clear all',
+        message: 'Clear all saved freight and the load plan on this device? This cannot be undone.',
+        action: 'clearAll',
+      });
     });
   }
 
@@ -2090,6 +2079,10 @@
       }
       return;
     }
+    if (pending.action === 'clearAll') {
+      doClearAll();
+      return;
+    }
   }
 
   function bindPlan() {
@@ -2114,6 +2107,36 @@
       message: 'Clear the saved load plan from this device? Logged freight stays; only the plan is removed.',
       action: 'clearPlan',
     });
+  }
+
+
+  function doClearAll() {
+    try {
+      DockStorage.clearAll();
+      DockStorage.clearLoadPlan();
+      setPieceLocked(false);
+      el.piece.value = '';
+      // Everything is gone — drop loadout selection
+      state.loadoutTrailer = '';
+      if (el.loadoutTrailerInput) el.loadoutTrailerInput.value = '';
+      renderRecent();
+      renderPlan();
+      renderOutboundList();
+      refreshLoadoutTrailerPicker();
+      updateLoadoutPlanBanner();
+      if (state.view === 'loadout') {
+        renderLoadout('');
+      }
+      if (state.view === 'dock') {
+        if (state.dockSection === 'inbound') renderDock();
+        else if (state.dockSection === 'outbound') renderOutboundList();
+        else if (state.dockSection === 'plan') renderPlan();
+      }
+      toast('All freight and the load plan were cleared.');
+    } catch (err) {
+      console.error(err);
+      toast("Couldn't clear everything. Try again.");
+    }
   }
 
   function doClearPlan() {
@@ -2418,7 +2441,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=21').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=22').catch(() => {
       /* offline cache optional */
     });
   }
