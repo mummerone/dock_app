@@ -2145,7 +2145,7 @@
   function onLoadDemoInbound() {
     toast('Opening confirm…');
     if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.seedDemoInbound) {
-      toast('Planner didn't load. Refresh the page and try again.');
+      toast("Planner didn't load. Refresh the page and try again.");
       return;
     }
     const existing = DockStorage.readAll().length;
@@ -2184,13 +2184,13 @@
       );
     } catch (err) {
       console.error(err);
-      toast(`Couldn't load demo freight. Try again, or refresh the page.`);
+      toast("Couldn't load demo freight. Try again, or refresh the page.");
     }
   }
 
   function onRunLoadPlan() {
     if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.runLoadPlan) {
-      toast('Planner didn't load. Refresh the page and try again.');
+      toast("Planner didn't load. Refresh the page and try again.");
       return;
     }
     const plan = DockLoadPlan.runLoadPlan();
@@ -2253,7 +2253,7 @@
         <div class="summary-row"><span class="summary-label">Moves</span><span class="summary-value">${escapeHtml(String(s.moveCount != null ? s.moveCount : (plan.moves || []).length))}</span></div>
         <div class="summary-row"><span class="summary-label">PROs</span><span class="summary-value">${escapeHtml(String(s.proCount != null ? s.proCount : '—'))}</span></div>
         <div class="summary-row"><span class="summary-label">Outbound</span><span class="summary-value">${escapeHtml(String(s.outboundCount != null ? s.outboundCount : (plan.outboundLoadouts || []).length))}</span></div>
-        <div class="summary-row"><span class="summary-label">Skipped</span><span class="summary-value">${escapeHtml(String(s.skippedNoDest || 0))} no dest</span></div>
+        <div class="summary-row"><span class="summary-label">Skipped</span><span class="summary-value">${escapeHtml(String(s.skippedNoDest || 0))} no destination</span></div>
       </div>
       <p class="hint plan-note">${escapeHtml(noteSafe)}</p>
     `;
