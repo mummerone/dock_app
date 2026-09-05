@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=19" />
+  <link rel="stylesheet" href="styles.css?v=20" />
 </head>
 <body>
   <div id="app">
@@ -197,7 +197,7 @@
       <section class="card" aria-labelledby="loadout-pick-heading">
         <h2 id="loadout-pick-heading">Which trailer?</h2>
         <p class="loadout-plan-banner" id="loadoutPlanBanner" role="status">No load plan on this device yet. Go to Dock → Demo plan → Build load plan (demo).</p>
-        <p class="hint">Chips include trailers with logged freight and outbound trailers from the last load plan (marked OUT).</p>
+        <p class="hint">Chips show trailers with logged freight. After you build a load plan, outbound trailers also appear marked OUT. Clear plan removes those OUT chips.</p>
         <label class="field trailer-number-field">
           <span>Trailer number</span>
           <input id="loadoutTrailerInput" type="text" inputmode="numeric" autocomplete="off" list="loadoutTrailerList" placeholder="e.g. 90001" />
@@ -227,12 +227,10 @@
         <div id="loadoutWorkList" class="loadout-work-list" role="list"></div>
       </section>
 
-      <section class="card" id="loadoutInventoryCard" aria-labelledby="loadout-list-heading">
+      <section class="card hidden" id="loadoutInventoryCard" aria-labelledby="loadout-list-heading">
         <h2 id="loadout-list-heading">What is on this trailer</h2>
         <p class="hint bol-note" id="loadoutInventoryHint">Grouped by bill (PRO). Same PRO stays on one trailer.</p>
-        <div id="loadoutList" class="loadout-list">
-          <div class="empty-state">Pick a trailer number above to see its load-out.</div>
-        </div>
+        <div id="loadoutList" class="loadout-list"></div>
       </section>
     </main>
 
@@ -386,9 +384,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=19"></script>
-  <script src="speech.js?v=19"></script>
-  <script src="loadPlan.js?v=19"></script>
-  <script src="app.js?v=19"></script>
+  <script src="storage.js?v=20"></script>
+  <script src="speech.js?v=20"></script>
+  <script src="loadPlan.js?v=20"></script>
+  <script src="app.js?v=20"></script>
 </body>
 </html>

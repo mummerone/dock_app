@@ -1740,15 +1740,191 @@ button {
   border-color: #2a6a4a;
 }
 
-@media (max-width: 420px) {
+/* Phone / narrow layout (~375px) — wrap, no page overflow, glove taps */
+@media (max-width: 480px) {
+  #app {
+    padding: 10px 10px 28px;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .topbar {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .brand {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .brand h1 {
+    font-size: 1.2rem;
+  }
+
+  .speech-status {
+    flex: 0 1 auto;
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  /* View tabs: keep 3-up but allow wrap + readable taps */
+  .view-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
   .view-tab {
-    font-size: 0.78rem;
+    flex: 1 1 calc(33.333% - 8px);
+    min-width: 96px;
+    min-height: 48px;
+    font-size: 0.8rem;
+    padding: 10px 6px;
   }
-  .dock-subtab {
-    font-size: 0.82rem;
-    min-height: 50px;
-  }
+
   .dock-subnav {
-    top: 124px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    /* never sticky / never offset from old sticky chrome */
+    position: relative;
+    top: auto;
+  }
+
+  .dock-subtab {
+    flex: 1 1 calc(33.333% - 8px);
+    min-width: 96px;
+    min-height: 48px;
+    font-size: 0.84rem;
+    padding: 10px 6px;
+  }
+
+  /* Section 1–12 chips: 4 cols so taps stay usable */
+  .chip-grid.sections {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .preset-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dim-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .btn-row {
+    grid-template-columns: 1fr;
+  }
+
+  .loadout-howto,
+  .loadout-plan-banner,
+  .hint {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .card {
+    min-width: 0;
+  }
+
+  .loadout-plan-banner {
+    font-size: 0.9rem;
+  }
+
+  /* Trailer chips + OUT badge: wrap, don’t blow width */
+  .trailer-chip-row {
+    gap: 8px;
+  }
+
+  .trailer-chip {
+    min-width: 72px;
+    max-width: 100%;
+    flex: 0 1 auto;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  .chip-out-tag {
+    display: inline-block;
+    margin-bottom: 2px;
+  }
+
+  /* Work list: Get stacked above Put with down-arrow between */
+  .loadout-work-action {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .loadout-work-get,
+  .loadout-work-put {
+    min-width: 0;
+    width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .loadout-work-arrow {
+    display: block;
+    text-align: center;
+    font-weight: 900;
+    color: var(--accent);
+    transform: rotate(90deg);
+    width: 1.5rem;
+    margin: 0 auto;
+    padding: 0;
+    line-height: 1;
+  }
+
+  .loadout-work-step {
+    padding: 14px 12px;
+    min-height: 72px;
+  }
+
+  .loadout-work-pro {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .loadout-summary,
+  .plan-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .summary-value {
+    font-size: 1.2rem;
+    overflow-wrap: anywhere;
+  }
+
+  /* Demo plan group headers: wrap title + count, no clip */
+  .plan-move-group-head-inner {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    padding: 14px 12px;
+  }
+
+  .plan-move-group-title {
+    font-size: 1.02rem;
+    overflow-wrap: anywhere;
+  }
+
+  .plan-move-group-count {
+    margin-top: 2px;
+  }
+
+  .plan-move-path {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .edit-pro-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .footer {
+    flex-wrap: wrap;
   }
 }

@@ -1108,7 +1108,7 @@
     }
   }
 
-  /** Collect trailer numbers for chips: freight + plan outbound + registered outbound. */
+  /** Collect trailer chips: inbound freight always; OUT chips only from the active load plan. */
   function collectLoadoutTrailerOptions() {
     /** @type {Map<string, {value:string, outbound:boolean}>} */
     const map = new Map();
@@ -1123,18 +1123,18 @@
       map.set(v, { value: v, outbound: !!outbound });
     };
 
+    // Logged freight trailers (stay after Clear plan)
     DockStorage.allTrailerNumbers().forEach((t) => add(t, false));
 
+    // OUT chips come from the saved plan only — so Clear plan drops orphan plan trailers
     const plan = DockStorage.readLoadPlan();
-    if (plan) {
+    if (isPlanPresent(plan)) {
       (plan.outboundLoadouts || []).forEach((load) => add(load.trailerNumber, true));
       (plan.moves || []).forEach((m) => {
         if (m.to && m.to.trailer) add(m.to.trailer, true);
         if (m.from && m.from.trailer) add(m.from.trailer, false);
       });
     }
-
-    DockStorage.readOutboundTrailers().forEach((r) => add(r.trailerNumber, true));
 
     const list = Array.from(map.values());
     list.sort((a, b) => {
@@ -1575,10 +1575,9 @@
         if (el.loadoutWorkList) el.loadoutWorkList.innerHTML = '';
       }
       if (el.loadoutWorkProgress) el.loadoutWorkProgress.textContent = '';
-      if (el.loadoutList) {
-        el.loadoutList.innerHTML =
-          '<div class="empty-state">Enter a trailer number or tap a chip</div>';
-      }
+      // Hide empty "What is on this trailer" card until a trailer is chosen
+      if (el.loadoutInventoryCard) el.loadoutInventoryCard.classList.add('hidden');
+      if (el.loadoutList) el.loadoutList.innerHTML = '';
       if (el.loadoutListHeading) el.loadoutListHeading.textContent = 'What is on this trailer';
       if (el.loadoutInventoryHint) {
         el.loadoutInventoryHint.textContent = 'Grouped by bill (PRO). Same PRO stays on one trailer.';
@@ -1587,6 +1586,8 @@
       updateLoadoutPlanBanner();
       return;
     }
+
+    if (el.loadoutInventoryCard) el.loadoutInventoryCard.classList.remove('hidden');
 
     const groups = DockStorage.loadOutByTrailer(t);
     const allPieces = groups.reduce((n, g) => n + g.pieces.length, 0);
@@ -2121,10 +2122,19 @@
       renderPlan();
       if (el.planStatusHint) el.planStatusHint.textContent = 'Plan cleared.';
       toast('Plan cleared');
+      // Drop plan-only OUT chips; keep inbound freight chips
+      const stillFreight = new Set(DockStorage.allTrailerNumbers().map((x) => String(x || '').trim()));
+      if (state.loadoutTrailer && !stillFreight.has(String(state.loadoutTrailer).trim())) {
+        state.loadoutTrailer = '';
+        if (el.loadoutTrailerInput) el.loadoutTrailerInput.value = '';
+      }
       refreshLoadoutTrailerPicker();
       updateLoadoutPlanBanner();
       if (state.view === 'loadout') {
         renderLoadout(state.loadoutTrailer || '');
+      } else {
+        // Still refresh picker chips even when not on load-out screen
+        highlightLoadoutChips(state.loadoutTrailer || '');
       }
     } catch (err) {
       const msg = String(err && err.message ? err.message : err);
@@ -2408,7 +2418,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=19').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=20').catch(() => {
       /* offline cache optional */
     });
   }

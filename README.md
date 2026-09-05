@@ -143,7 +143,7 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
-v19 cache-bust + network-first SW so phones get Work list fixes.
+v20 phone/narrow layout polish + cache-bust; network-first SW. Clear plan drops orphan OUT chips.
 
 
 | File | What it is |
@@ -155,7 +155,7 @@ v19 cache-bust + network-first SW so phones get Work list fixes.
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v19`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v20`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
