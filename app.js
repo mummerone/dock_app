@@ -582,12 +582,12 @@
     if (allowBareTotal && /^\d+$/.test(s)) {
       const n = Number(s);
       if (!Number.isInteger(n) || n < 1) {
-        return { ok: false, reason: 'Piece total must be a whole number ≥ 1' };
+        return { ok: false, reason: 'Piece total must be a whole number (1 or more)' };
       }
       return { ok: true, a: 1, b: n, display: `1/${n}`, fromBareTotal: true };
     }
 
-    return { ok: false, reason: 'Piece must look like 1/5 (or type total pieces, e.g. 5)' };
+    return { ok: false, reason: 'Piece should look like 1/5 — or type the total pieces, e.g. 5' };
   }
 
   function setPieceLocked(locked) {
@@ -830,7 +830,7 @@
   function renderRecent() {
     const entries = DockStorage.readAll();
     if (!entries.length) {
-      el.recentList.innerHTML = '<div class="empty-state">No entries yet — Accept one to see it here.</div>';
+      el.recentList.innerHTML = '<div class="empty-state">No freight logged yet. Fill in a shipment above and tap Accept.</div>';
       return;
     }
 
@@ -1053,7 +1053,7 @@
         state.loadoutTrailer = '';
         highlightLoadoutChips('');
         renderLoadout('');
-        toast('Enter a trailer number or tap a chip');
+        toast('Pick a trailer — type a number or tap a chip');
         el.loadoutTrailerInput.focus();
         return;
       }
@@ -1078,13 +1078,13 @@
       el.loadoutClearDoneBtn.addEventListener('click', () => {
         const t = state.loadoutTrailer;
         if (!t) {
-          toast('Pick a trailer first');
+          toast('Pick a trailer first — type a number or tap a chip');
           return;
         }
         const plan = DockStorage.readLoadPlan();
         const fp = planFingerprint(plan);
         if (!fp) {
-          toast('No plan — nothing to clear');
+          toast('No done marks to clear for this trailer');
           return;
         }
         clearLoadoutDone(fp, t);
@@ -1212,7 +1212,7 @@
     banner.classList.toggle('is-empty', !hasPlan);
     if (!hasPlan) {
       banner.textContent =
-        'No load plan on this device yet. Go to Dock → Demo plan → Build load plan (demo).';
+        'No load plan yet. Go to Dock → Demo plan and tap Build load plan (demo).';
       return;
     }
     const n = outs.length;
@@ -1245,7 +1245,7 @@
       hint.className = 'hint';
       hint.style.margin = '0';
       hint.textContent =
-        'No trailers yet — log freight, or go to Dock → Inbound → Load demo inbound, then Demo plan.';
+        'No trailers yet. Log freight first, or go to Dock → Inbound → Load demo inbound, then Demo plan.';
       el.loadoutTrailerChips.appendChild(hint);
       updateLoadoutPlanBanner();
       return;
@@ -1380,10 +1380,10 @@
       const outboundStub = t && isOutboundRegistered(t);
       if (t && outboundStub && !isPlanPresent(plan)) {
         el.loadoutWorkCard.classList.remove('hidden');
-        el.loadoutWorkList.innerHTML = '<div class="empty-state">Build a load plan first</div>';
+        el.loadoutWorkList.innerHTML = '<div class="empty-state">No work list yet. Go to Dock → Demo plan and tap Build load plan (demo).</div>';
         if (el.loadoutWorkHint) {
           el.loadoutWorkHint.textContent =
-            'No plan moves for this outbound yet. Go to Dock → Demo plan → Build load plan (demo).';
+            'No plan moves for this outbound yet. Go to Dock → Demo plan and tap Build load plan (demo).';
         }
         if (el.loadoutWorkProgress) el.loadoutWorkProgress.textContent = '';
         return false;
@@ -1479,21 +1479,21 @@
     if (!groups.length) {
       let msg;
       if (!state.loadoutTrailer) {
-        msg = 'Enter a trailer number or tap a chip';
+        msg = 'Pick a trailer first — type a number or tap a chip above.';
       } else if (hasWork) {
         msg =
           role === 'outbound'
-            ? 'No logged freight on this outbound yet — follow the Work list above to load it.'
-            : 'No freight left listed on this trailer. Follow the Work list if steps remain.';
+            ? 'Nothing logged on this outbound yet . Follow the Work list above to load it.'
+            : 'No freight listed on this trailer. Follow the Work list above if steps remain.';
       } else if (hasPlan) {
         msg =
-          'Nothing on this trailer in the inventory, and no work steps for it in the current plan. Try an <strong>OUT</strong> trailer chip, or pick an inbound that has freight.';
+          'Nothing on this trailer, and no work steps for it in the current plan. Try an <strong>OUT</strong> chip, or pick an inbound trailer that has freight.';
       } else if (isOutboundRegistered(state.loadoutTrailer)) {
         msg =
-          'Build a load plan first.<br/>Go to <strong>Dock → Demo plan</strong> and tap <strong>Build load plan (demo)</strong>.';
+          'No work list yet.<br/>Go to <strong>Dock → Demo plan</strong> and tap <strong>Build load plan (demo)</strong>.';
       } else {
         msg =
-          'Nothing on this trailer yet.<br/>Log freight with this trailer number, or go to <strong>Dock → Demo plan</strong> and build a plan for a work list.';
+          'Nothing on this trailer yet.<br/>Log freight with this trailer number, or go to <strong>Dock → Demo plan</strong> and build a plan.';
       }
       el.loadoutList.innerHTML = `<div class="empty-state">${msg}</div>`;
       return;
@@ -1700,7 +1700,7 @@
     const rows = DockStorage.doorsBoard();
     if (!rows.length) {
       el.dockBoard.innerHTML =
-        '<div class="empty-state">No doors yet — log freight with a door number first.</div>';
+        '<div class="empty-state">No doors yet. Log freight with a door number, or tap Load demo inbound trailers above.</div>';
       return;
     }
     const frag = document.createDocumentFragment();
@@ -1743,7 +1743,7 @@
       el.dockBoard.appendChild(head);
       const empty = document.createElement('div');
       empty.className = 'empty-state';
-      empty.textContent = 'No bills on the trailer at this door.';
+      empty.textContent = 'No bills on this door's trailer yet.';
       el.dockBoard.appendChild(empty);
       return;
     }
@@ -1885,7 +1885,7 @@
     const list = DockStorage.readOutboundTrailers();
     if (!list.length) {
       el.outboundList.innerHTML =
-        '<div class="empty-state">No outbound trailers yet — register one above.</div>';
+        '<div class="empty-state">No outbound trailers yet. Add a trailer number above, then Save (or tap Open if the destination is not set). — register one above.</div>';
       return;
     }
 
@@ -1990,7 +1990,7 @@
   function saveEditPro() {
     const pro = state.editingPro || (el.editProNumber && el.editProNumber.value.trim()) || '';
     if (!pro) {
-      toast('No PRO to edit');
+      toast('No bill selected to edit');
       return;
     }
     const destination = el.editProDestination ? el.editProDestination.value.trim() : '';
@@ -2003,7 +2003,7 @@
       doorNumber,
     });
     if (!result) {
-      toast('Could not update this bill');
+      toast('Couldn't save changes to this bill. Try again.');
       return;
     }
 
@@ -2053,7 +2053,7 @@
    */
   function openConfirmSheet({ title, message, action }) {
     if (!el.confirmOverlay) {
-      toast('Confirm UI missing');
+      toast('Can't show confirm — refresh the page');
       return;
     }
     state.confirmPending = { action };
@@ -2106,7 +2106,7 @@
 
   function onClearPlan() {
     if (!DockStorage.readLoadPlan()) {
-      toast('No plan to clear');
+      toast('No plan to clear yet');
       return;
     }
     openConfirmSheet({
@@ -2145,7 +2145,7 @@
   function onLoadDemoInbound() {
     toast('Opening confirm…');
     if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.seedDemoInbound) {
-      toast('Load planner not loaded — try a hard refresh');
+      toast('Planner didn't load. Refresh the page and try again.');
       return;
     }
     const existing = DockStorage.readAll().length;
@@ -2184,13 +2184,13 @@
       );
     } catch (err) {
       console.error(err);
-      toast(`Demo seed failed: ${err && err.message ? err.message : 'unknown error'}`);
+      toast(`Couldn't load demo freight. Try again, or refresh the page. ${err && err.message ? err.message : 'unknown error'}`);
     }
   }
 
   function onRunLoadPlan() {
     if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.runLoadPlan) {
-      toast('Load planner not loaded');
+      toast('Planner didn't load. Refresh the page and try again.');
       return;
     }
     const plan = DockLoadPlan.runLoadPlan();
@@ -2206,7 +2206,7 @@
     refreshLoadoutTrailerPicker();
     updateLoadoutPlanBanner();
     if (!(s.moveCount > 0)) {
-      toast(noteSafe || 'Nothing to plan');
+      toast(noteSafe || 'Nothing to plan yet — load freight first');
       if (state.view === 'loadout') renderLoadout(state.loadoutTrailer || '');
       return;
     }
@@ -2237,7 +2237,7 @@
       const rawNote = plan && plan.summary && plan.summary.note;
       const note = rawNote
         ? `<div class="empty-state">${escapeHtml(sanitizePlanNote(rawNote))}</div>`
-        : '<div class="empty-state">No plan yet — load demo inbound, then build the load plan.</div>';
+        : '<div class="empty-state">No plan yet. On Inbound, load demo inbound trailers (or log freight), then tap Build load plan (demo) above.</div>';
       el.planSummary.innerHTML = note;
       return;
     }
@@ -2264,7 +2264,7 @@
     const moves = (plan && plan.moves) || [];
     if (!moves.length) {
       el.planMoveList.innerHTML =
-        '<div class="empty-state">Moves appear here after you run the plan.</div>';
+        '<div class="empty-state">No moves yet. Tap Build load plan (demo) above.</div>';
       return;
     }
 
@@ -2353,7 +2353,7 @@
     const loads = (plan && plan.outboundLoadouts) || [];
     if (!loads.length) {
       el.planOutboundList.innerHTML =
-        '<div class="empty-state">Planned outbound load-outs appear here after you run the plan.</div>';
+        '<div class="empty-state">No planned load-outs yet. Build a load plan above to see them here.</div>';
       return;
     }
     const frag = document.createDocumentFragment();
@@ -2418,7 +2418,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=20').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=21').catch(() => {
       /* offline cache optional */
     });
   }
