@@ -1483,7 +1483,7 @@
       } else if (hasWork) {
         msg =
           role === 'outbound'
-            ? 'Nothing logged on this outbound yet . Follow the Work list above to load it.'
+            ? 'Nothing logged on this outbound yet. Follow the Work list above to load it.'
             : 'No freight listed on this trailer. Follow the Work list above if steps remain.';
       } else if (hasPlan) {
         msg =
@@ -1743,7 +1743,7 @@
       el.dockBoard.appendChild(head);
       const empty = document.createElement('div');
       empty.className = 'empty-state';
-      empty.textContent = 'No bills on this door's trailer yet.';
+      empty.textContent = "No bills on this door's trailer yet.";
       el.dockBoard.appendChild(empty);
       return;
     }
@@ -1885,7 +1885,7 @@
     const list = DockStorage.readOutboundTrailers();
     if (!list.length) {
       el.outboundList.innerHTML =
-        '<div class="empty-state">No outbound trailers yet. Add a trailer number above, then Save (or tap Open if the destination is not set). — register one above.</div>';
+        '<div class="empty-state">No outbound trailers yet. Add a trailer number above, then Save (or tap Open if the destination is not set).</div>';
       return;
     }
 
@@ -2003,7 +2003,7 @@
       doorNumber,
     });
     if (!result) {
-      toast('Couldn't save changes to this bill. Try again.');
+      toast("Couldn't save changes to this bill. Try again.");
       return;
     }
 
@@ -2053,7 +2053,7 @@
    */
   function openConfirmSheet({ title, message, action }) {
     if (!el.confirmOverlay) {
-      toast('Can't show confirm — refresh the page');
+      toast("Can't show confirm — refresh the page");
       return;
     }
     state.confirmPending = { action };
@@ -2137,8 +2137,8 @@
         highlightLoadoutChips(state.loadoutTrailer || '');
       }
     } catch (err) {
-      const msg = String(err && err.message ? err.message : err);
-      toast(`Clear plan failed: ${msg}`);
+      console.error(err);
+      toast("Couldn't clear the plan. Try again.");
     }
   }
 
@@ -2184,7 +2184,7 @@
       );
     } catch (err) {
       console.error(err);
-      toast(`Couldn't load demo freight. Try again, or refresh the page. ${err && err.message ? err.message : 'unknown error'}`);
+      toast(`Couldn't load demo freight. Try again, or refresh the page.`);
     }
   }
 
