@@ -85,9 +85,9 @@ Use **Trailer load-out** to follow a go-get / put list without a developer.
 
 Done marks stay on this device only (`localStorage`). The **Log freight** tab still works the same.
 
-## Dock (Inbound · Outbound · Ground · Demo plan)
+## Dock (Inbound · Outbound · Ground · Crew · Demo plan)
 
-One **Dock** tab covers inbound doors, outbound trailers, ground deck-build orders, and the demo load planner. Inside Dock, use the big sub-nav buttons:
+One **Dock** tab covers inbound doors, outbound trailers, ground deck-build orders, the crew forklift board, and the demo load planner. Inside Dock, use the big sub-nav buttons:
 
 ### Inbound
 1. When you **Log freight**, also enter the **Door number** (the dock door where that trailer sits).
@@ -107,6 +107,13 @@ One **Dock** tab covers inbound doors, outbound trailers, ground deck-build orde
 2. After you build a load plan, this list shows **deck-build orders** for the ground person: one per outbound section that needs freight on B or C (e.g. “Build deck · Section 2 · above ~45 in”).
 3. Tap an order when the deck is built (done marks stay on this device). City floor-only trailers produce **no** deck builds.
 4. Empty state: “No deck builds yet. Build a load plan first (non-city trailers may need decks).”
+
+
+### Crew
+1. Tap **Dock** → **Crew**.
+2. Plain text board for the boss: one operator per pull (inbound) door so forklifts stay spread out.
+3. Lines come from the current load plan moves (or inbound / demo doors if there is no plan yet).
+4. **Refresh assignments** reshuffles the next open move on each door — still one operator per door.
 
 ### Demo plan
 1. Tap **Dock** → **Demo plan**.
@@ -145,8 +152,9 @@ Works even if some pieces were logged before destination existed.
 9. Tap **Dock** → **Inbound** for the door board (and **Load demo inbound trailers** at the top).
 10. Tap **Dock** → **Outbound** to register trailers you are loading out (optional **City load — floor only**).
 11. Tap **Dock** → **Ground** for deck-build orders after a plan.
-12. Tap **Dock** → **Demo plan** to build the local demo load plan.
-13. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
+12. Tap **Dock** → **Crew** for the dock-wide forklift board (one operator per pull door).
+13. Tap **Dock** → **Demo plan** to build the local demo load plan.
+14. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
 
 **Out of scope for this demo:** driver route / yard / in-transit status — the company provides those elsewhere.
 
@@ -154,7 +162,7 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
-v23 Ground deck-build orders, Ready to close, City floor-only packing; network-first SW (`dock-app-v23`).
+v24 Crew forklift text board (one operator per pull door) for boss demo; network-first SW (`dock-app-v24`). Ground / Ready to close / city floor-only unchanged.
 
 
 | File | What it is |
@@ -166,7 +174,7 @@ v23 Ground deck-build orders, Ready to close, City floor-only packing; network-f
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v23`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v24`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

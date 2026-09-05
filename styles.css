@@ -2085,3 +2085,46 @@ button {
 .ground-howto-card .loadout-howto {
   margin-bottom: 0;
 }
+
+/* ---------- v24: Crew forklift text board ---------- */
+
+.crew-howto-card .hint {
+  margin-bottom: 0;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.crew-board-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.crew-board-row {
+  background: #0f1828;
+  border: 2px solid #3a5070;
+  border-radius: 14px;
+  padding: 16px 14px;
+}
+
+.crew-board-line {
+  font-size: 1.2rem;
+  font-weight: 850;
+  line-height: 1.35;
+  color: #e8eef8;
+  letter-spacing: 0.01em;
+}
+
+.crew-board-next {
+  margin-top: 8px;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: #9eb0c8;
+  line-height: 1.35;
+}
+
+@media (min-width: 700px) {
+  .crew-board-line {
+    font-size: 1.35rem;
+  }
+}

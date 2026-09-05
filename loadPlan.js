@@ -599,6 +599,190 @@
     return orders;
   }
 
+
+  /**
+   * Dock-wide forklift crew board (boss demo).
+   * One operator per pull (inbound) door — never two on the same door.
+   * Prefer different outbound trailers when possible.
+   * @param {object|null} plan
+   * @param {{ rotate?: number }} [opts] rotate offsets which move is shown per door (Refresh)
+   * @returns {{ assignments: object[], note: string, doorCount: number, source: string }}
+   */
+  function deriveCrewAssignments(plan, opts) {
+    const rotate = Math.max(0, Number(opts && opts.rotate) || 0);
+    const TARGET = 5;
+
+    /** @type {Map<string, object[]>} door -> candidate rows */
+    const byDoor = new Map();
+
+    function addCandidate(row) {
+      const door = String(row.fromDoor || '').trim();
+      if (!door) return;
+      if (!byDoor.has(door)) byDoor.set(door, []);
+      byDoor.get(door).push(row);
+    }
+
+    const moves = plan && Array.isArray(plan.moves) ? plan.moves : [];
+    let source = 'plan';
+
+    if (moves.length) {
+      moves.forEach((m) => {
+        addCandidate({
+          fromDoor: (m.from && m.from.door) || '',
+          fromTrailer: (m.from && m.from.trailer) || '',
+          toTrailer: (m.to && m.to.trailer) || '',
+          toDoor: (m.to && m.to.door) || '',
+          destination: m.destination || '',
+          pro: m.pro || '',
+          entryId: m.entryId || '',
+        });
+      });
+    } else {
+      // No plan: use live inbound doors, else demo inbound doors
+      source = 'inbound';
+      const doors = typeof DockStorage !== 'undefined' ? DockStorage.allDoorNumbers() : [];
+      if (doors.length) {
+        doors.forEach((door) => {
+          const entries = DockStorage.entriesForDoor(door);
+          if (!entries.length) return;
+          // One candidate per distinct inbound trailer on this door (usually one)
+          const seenTrl = new Set();
+          entries.forEach((e) => {
+            const trl = String(e.trailerNumber || '').trim() || '—';
+            if (seenTrl.has(trl)) return;
+            seenTrl.add(trl);
+            const dest =
+              (e.destination && String(e.destination).trim()) ||
+              (DockStorage.getProDestination && DockStorage.getProDestination(e.pro)) ||
+              '';
+            addCandidate({
+              fromDoor: door,
+              fromTrailer: trl,
+              toTrailer: '',
+              toDoor: '',
+              destination: dest || '',
+              pro: e.pro || '',
+              entryId: e.id || '',
+            });
+          });
+        });
+      } else {
+        source = 'demo';
+        DEMO_INBOUND.forEach((ib, i) => {
+          addCandidate({
+            fromDoor: ib.door,
+            fromTrailer: ib.trailer,
+            toTrailer: DEMO_OUTBOUND_TRAILERS[i] || '',
+            toDoor: DEMO_OUTBOUND_DOORS[i] || '',
+            destination: DEMO_DESTINATIONS[i] || '',
+            pro: '',
+            entryId: '',
+          });
+        });
+      }
+    }
+
+    const doors = Array.from(byDoor.keys()).sort((a, b) => {
+      const na = Number(a);
+      const nb = Number(b);
+      if (!Number.isNaN(na) && !Number.isNaN(nb) && String(na) === a && String(nb) === b) {
+        return na - nb;
+      }
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+
+    if (!doors.length) {
+      return {
+        assignments: [],
+        note: 'No pull doors with work yet. Load demo inbound trailers, or build a load plan.',
+        doorCount: 0,
+        source,
+      };
+    }
+
+    // Rotate door order so Refresh reshuffles who starts where
+    const start = rotate % doors.length;
+    const orderedDoors = doors.slice(start).concat(doors.slice(0, start));
+
+    const usedOutbound = new Set();
+    /** @type {object[]} */
+    const assignments = [];
+
+    orderedDoors.forEach((door, idx) => {
+      const bucket = byDoor.get(door) || [];
+      if (!bucket.length) return;
+
+      // Prefer a move whose outbound trailer is not already assigned
+      const offset = rotate % bucket.length;
+      const rotated = bucket.slice(offset).concat(bucket.slice(0, offset));
+      let pick = rotated.find((r) => r.toTrailer && !usedOutbound.has(String(r.toTrailer))) || rotated[0];
+      if (pick.toTrailer) usedOutbound.add(String(pick.toTrailer));
+
+      // Optional next-up: another row on same door, prefer different outbound
+      let next = null;
+      for (let i = 0; i < rotated.length; i++) {
+        const r = rotated[i];
+        if (r === pick) continue;
+        if (pick.toTrailer && r.toTrailer && String(r.toTrailer) === String(pick.toTrailer)) continue;
+        next = r;
+        break;
+      }
+      if (!next && rotated.length > 1) {
+        next = rotated.find((r) => r !== pick) || null;
+      }
+
+      const opNum = assignments.length + 1;
+      const fromTrl = pick.fromTrailer || '—';
+      const toTrl = pick.toTrailer || '';
+      const dest = pick.destination || '';
+      let line;
+      if (toTrl) {
+        line =
+          `Operator ${opNum} — pulling Door ${door} · Trl ${fromTrl} → loading Trl ${toTrl}` +
+          (dest ? ` · ${dest}` : '');
+      } else if (dest) {
+        line = `Operator ${opNum} — pulling Door ${door} · Trl ${fromTrl} → ${dest} (no plan yet)`;
+      } else {
+        line = `Operator ${opNum} — pulling Door ${door} · Trl ${fromTrl} (no plan yet)`;
+      }
+
+      let nextLine = '';
+      if (next) {
+        if (next.toTrailer) {
+          nextLine =
+            `Next up: Door ${door} · Trl ${next.fromTrailer || fromTrl} → Trl ${next.toTrailer}` +
+            (next.destination ? ` · ${next.destination}` : '');
+        } else if (next.destination) {
+          nextLine = `Next up: Door ${door} · Trl ${next.fromTrailer || fromTrl} → ${next.destination}`;
+        }
+      }
+
+      assignments.push({
+        operator: opNum,
+        fromDoor: door,
+        fromTrailer: fromTrl,
+        toTrailer: toTrl,
+        destination: dest,
+        line,
+        nextLine,
+      });
+    });
+
+    let note = '';
+    if (doors.length < TARGET) {
+      note = `Only ${doors.length} door${doors.length === 1 ? '' : 's'} have work — one operator per door.`;
+    } else {
+      note = 'One operator per pull door so forklifts stay spread out.';
+    }
+    if (source === 'inbound') {
+      note += ' Build a load plan for full pull → load lines.';
+    } else if (source === 'demo') {
+      note += ' Demo doors (no freight loaded yet).';
+    }
+
+    return { assignments, note, doorCount: doors.length, source };
+  }
+
   global.DockLoadPlan = {
     DEMO_DESTINATIONS,
     DEMO_INBOUND,
@@ -606,6 +790,7 @@
     buildHighTightSlotOrder,
     buildFloorOnlySlotOrder,
     deriveGroundOrders,
+    deriveCrewAssignments,
     ensureOutboundStubs,
     seedDemoInbound,
     runLoadPlan,

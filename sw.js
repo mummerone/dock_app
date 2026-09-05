@@ -1,13 +1,13 @@
 /* Minimal offline cache for Dock App static assets */
-const CACHE = 'dock-app-v23';
+const CACHE = 'dock-app-v24';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=23',
-  './app.js?v=23',
-  './speech.js?v=23',
-  './storage.js?v=23',
-  './loadPlan.js?v=23',
+  './styles.css?v=24',
+  './app.js?v=24',
+  './speech.js?v=24',
+  './storage.js?v=24',
+  './loadPlan.js?v=24',
   './manifest.json',
   './icon.svg',
 ];

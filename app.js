@@ -39,7 +39,8 @@
     listening: false,
     padBuffer: '',
     view: 'entry', // 'entry' | 'loadout' | 'dock'
-    dockSection: 'inbound', // 'inbound' | 'outbound' | 'ground' | 'plan'
+    dockSection: 'inbound', // 'inbound' | 'outbound' | 'ground' | 'crew' | 'plan'
+    crewRotate: 0, // Refresh assignments offset
     loadoutTrailer: '',
     pieceLocked: false, // mid-sequence: piece field forced to k/n
     destinationLocked: false, // PRO already has a destination — reuse until edited
@@ -135,6 +136,11 @@
     groundOrdersHint: document.getElementById('groundOrdersHint'),
     groundOrdersProgress: document.getElementById('groundOrdersProgress'),
     groundClearDoneBtn: document.getElementById('groundClearDoneBtn'),
+    dockSubCrew: document.getElementById('dockSubCrew'),
+    dockPanelCrew: document.getElementById('dockPanelCrew'),
+    crewBoardList: document.getElementById('crewBoardList'),
+    crewBoardHint: document.getElementById('crewBoardHint'),
+    crewRefreshBtn: document.getElementById('crewRefreshBtn'),
     editProOverlay: document.getElementById('editProOverlay'),
     editProNumber: document.getElementById('editProNumber'),
     editProDestination: document.getElementById('editProDestination'),
@@ -170,6 +176,7 @@
     bindDock();
     bindOutbound();
     bindGround();
+    bindCrew();
     bindPlan();
     bindDestination();
     bindEditPro();
@@ -182,6 +189,7 @@
     updateLoadoutPlanBanner();
     renderOutboundList();
     renderGround();
+    renderCrew();
     renderPlan();
     setupSpeechStatus();
     bindPieceSequenceWatchers();
@@ -963,6 +971,9 @@
     if (el.dockSubGround) {
       el.dockSubGround.addEventListener('click', () => showDockSection('ground'));
     }
+    if (el.dockSubCrew) {
+      el.dockSubCrew.addEventListener('click', () => showDockSection('crew'));
+    }
     if (el.dockSubPlan) {
       el.dockSubPlan.addEventListener('click', () => showDockSection('plan'));
     }
@@ -979,12 +990,14 @@
       inbound: el.dockPanelInbound,
       outbound: el.dockPanelOutbound,
       ground: el.dockPanelGround,
+      crew: el.dockPanelCrew,
       plan: el.dockPanelPlan,
     };
     const tabs = {
       inbound: el.dockSubInbound,
       outbound: el.dockSubOutbound,
       ground: el.dockSubGround,
+      crew: el.dockSubCrew,
       plan: el.dockSubPlan,
     };
     Object.keys(panels).forEach((key) => {
@@ -1002,6 +1015,7 @@
     if (section === 'inbound') renderDock();
     if (section === 'outbound') renderOutboundList();
     if (section === 'ground') renderGround();
+    if (section === 'crew') renderCrew();
     if (section === 'plan') renderPlan();
   }
 
@@ -2159,6 +2173,61 @@
     }
   }
 
+
+  // ---------- Crew forklift board (boss demo) ----------
+
+  function bindCrew() {
+    if (el.crewRefreshBtn) {
+      el.crewRefreshBtn.addEventListener('click', () => {
+        state.crewRotate = (Number(state.crewRotate) || 0) + 1;
+        renderCrew();
+        toast('Assignments refreshed');
+      });
+    }
+  }
+
+  function renderCrew() {
+    if (!el.crewBoardList) return;
+    const plan = DockStorage.readLoadPlan();
+    const result =
+      typeof DockLoadPlan !== 'undefined' && DockLoadPlan.deriveCrewAssignments
+        ? DockLoadPlan.deriveCrewAssignments(plan, { rotate: state.crewRotate || 0 })
+        : { assignments: [], note: '', doorCount: 0, source: '' };
+
+    if (el.crewBoardHint) {
+      el.crewBoardHint.textContent =
+        result.note ||
+        'Master view — one operator per pull door so forklifts stay spread out.';
+    }
+
+    const list = result.assignments || [];
+    if (!list.length) {
+      el.crewBoardList.innerHTML =
+        '<div class="empty-state">No assignments yet. Load demo inbound trailers or build a load plan.</div>';
+      return;
+    }
+
+    const frag = document.createDocumentFragment();
+    list.forEach((a) => {
+      const row = document.createElement('div');
+      row.className = 'crew-board-row';
+      row.setAttribute('role', 'listitem');
+      const main = document.createElement('div');
+      main.className = 'crew-board-line';
+      main.textContent = a.line;
+      row.appendChild(main);
+      if (a.nextLine) {
+        const next = document.createElement('div');
+        next.className = 'crew-board-next';
+        next.textContent = a.nextLine;
+        row.appendChild(next);
+      }
+      frag.appendChild(row);
+    });
+    el.crewBoardList.innerHTML = '';
+    el.crewBoardList.appendChild(frag);
+  }
+
   function bindEditPro() {
     if (!el.editProOverlay) return;
     if (el.editProCancelBtn) {
@@ -2262,6 +2331,7 @@
       if (state.dockSection === 'inbound') renderDock();
       else if (state.dockSection === 'outbound') renderOutboundList();
       else if (state.dockSection === 'ground') renderGround();
+      else if (state.dockSection === 'crew') renderCrew();
       else if (state.dockSection === 'plan') renderPlan();
     }
     syncPieceSequenceFromStorage();
@@ -2376,9 +2446,11 @@
         if (state.dockSection === 'inbound') renderDock();
         else if (state.dockSection === 'outbound') renderOutboundList();
         else if (state.dockSection === 'ground') renderGround();
+        else if (state.dockSection === 'crew') renderCrew();
         else if (state.dockSection === 'plan') renderPlan();
       }
       renderGround();
+      renderCrew();
       toast('All freight and the load plan were cleared.');
     } catch (err) {
       console.error(err);
@@ -2391,6 +2463,8 @@
       DockStorage.clearLoadPlan();
       renderPlan();
       renderGround();
+      state.crewRotate = 0;
+      renderCrew();
       if (el.planStatusHint) el.planStatusHint.textContent = 'Plan cleared.';
       toast('Plan cleared');
       // Drop plan-only OUT chips; keep inbound freight chips
@@ -2443,10 +2517,13 @@
       renderOutboundList();
       renderPlan();
       renderGround();
+      state.crewRotate = 0;
+      renderCrew();
       if (state.view === 'loadout') renderLoadout('');
       if (state.view === 'dock' && state.dockSection === 'inbound') renderDock();
       if (state.view === 'dock' && state.dockSection === 'outbound') renderOutboundList();
       if (state.view === 'dock' && state.dockSection === 'ground') renderGround();
+      if (state.view === 'dock' && state.dockSection === 'crew') renderCrew();
       if (el.planStatusHint) {
         el.planStatusHint.textContent =
           `Demo loaded: ${result.inboundTrailers} inbound trailers · ${result.proCount} PROs · ${result.pieceCount} pieces` +
@@ -2470,6 +2547,8 @@
     renderPlan();
     renderOutboundList();
     renderGround();
+    state.crewRotate = 0;
+    renderCrew();
     const s = plan.summary || {};
     const noteSafe = sanitizePlanNote(s.note || '');
     if (el.planStatusHint) {
@@ -2705,13 +2784,13 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=23').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=24').catch(() => {
       /* offline cache optional */
     });
   }
 
   // Expose parse for quick console tests
-  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, renderGround, renderPlan, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro, openEditPro, closeEditPro, runLoadPlan: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.runLoadPlan(), seedDemoInbound: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.seedDemoInbound() };
+  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, renderGround, renderCrew, renderPlan, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro, openEditPro, closeEditPro, runLoadPlan: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.runLoadPlan(), seedDemoInbound: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.seedDemoInbound() };
 
   init();
 })();
