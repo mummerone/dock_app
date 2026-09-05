@@ -2037,7 +2037,7 @@
   }
 
   /**
-   * In-app confirm sheet — never uses window.confirm (unreliable on phones / PWAs).
+   * In-app confirm sheet — never uses the browser confirm API (unreliable on phones / PWAs).
    * Opening the sheet is immediate feedback (<100ms).
    */
   function openConfirmSheet({ title, message, action }) {
