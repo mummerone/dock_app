@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=20" />
+  <link rel="stylesheet" href="styles.css?v=21" />
 </head>
 <body>
   <div id="app">
@@ -196,7 +196,7 @@
 
       <section class="card" aria-labelledby="loadout-pick-heading">
         <h2 id="loadout-pick-heading">Which trailer?</h2>
-        <p class="loadout-plan-banner" id="loadoutPlanBanner" role="status">No load plan on this device yet. Go to Dock → Demo plan → Build load plan (demo).</p>
+        <p class="loadout-plan-banner" id="loadoutPlanBanner" role="status">No load plan yet. Go to Dock → Demo plan and tap Build load plan (demo).</p>
         <p class="hint">Chips show trailers with logged freight. After you build a load plan, outbound trailers also appear marked OUT. Clear plan removes those OUT chips.</p>
         <label class="field trailer-number-field">
           <span>Trailer number</span>
@@ -263,7 +263,7 @@
             </div>
             <p class="hint" id="dockHint">Doors that have a trailer from your logged freight. Tap a door to see bills (PROs). Viewing only.</p>
             <div id="dockBoard" class="dock-board">
-              <div class="empty-state">No doors yet — log freight with a door number first.</div>
+              <div class="empty-state">No doors yet. Log freight with a door number, or tap Load demo inbound trailers above.</div>
             </div>
           </section>
         </div>
@@ -294,7 +294,7 @@
             <h2 id="outbound-list-heading">Outbound trailers</h2>
             <p class="hint">Plain list of trailers registered for outbound loading. Use <strong>Demo plan</strong> above to run the local load planner.</p>
             <div id="outboundList" class="outbound-list">
-              <div class="empty-state">No outbound trailers yet — register one above.</div>
+              <div class="empty-state">No outbound trailers yet. Add a trailer number above, then Save (or tap Open if the destination is not set).</div>
             </div>
           </section>
         </div>
@@ -312,7 +312,7 @@
           <section class="card" aria-labelledby="plan-summary-heading">
             <h2 id="plan-summary-heading">Plan summary</h2>
             <div id="planSummary" class="plan-summary">
-              <div class="empty-state">No plan yet — load demo inbound on Inbound, then run the demo planner here.</div>
+              <div class="empty-state">No plan yet. On Inbound, load demo inbound trailers (or log freight), then tap Build load plan (demo) above.</div>
             </div>
           </section>
 
@@ -320,7 +320,7 @@
             <h2 id="plan-moves-heading">Move list</h2>
             <p class="hint">Grouped by outbound trailer. From door / inbound trailer / slot → outbound trailer / slot. Tap a group header to collapse or expand.</p>
             <div id="planMoveList" class="plan-move-list">
-              <div class="empty-state">Moves appear here after you run the plan.</div>
+              <div class="empty-state">No moves yet. Tap Build load plan (demo) above.</div>
             </div>
           </section>
 
@@ -328,7 +328,7 @@
             <h2 id="plan-out-heading">Outbound load-outs (planned)</h2>
             <p class="hint bol-note">Grouped by outbound trailer / destination. Same PRO stays on one trailer.</p>
             <div id="planOutboundList" class="plan-outbound-list">
-              <div class="empty-state">Planned outbound load-outs appear here after you run the plan.</div>
+              <div class="empty-state">No planned load-outs yet. Build a load plan above to see them here.</div>
             </div>
           </section>
         </div>
@@ -384,9 +384,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=20"></script>
-  <script src="speech.js?v=20"></script>
-  <script src="loadPlan.js?v=20"></script>
-  <script src="app.js?v=20"></script>
+  <script src="storage.js?v=21"></script>
+  <script src="speech.js?v=21"></script>
+  <script src="loadPlan.js?v=21"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>
