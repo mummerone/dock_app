@@ -284,7 +284,7 @@
           pieceCount: 0,
           outboundCount: 0,
           skippedNoDest: 0,
-          note: 'No dock freight to plan. Load demo inbound or log freight first.',
+          note: 'Nothing to plan yet. Load demo inbound trailers (Inbound) or log freight first.',
         },
       };
       DockStorage.writeLoadPlan(empty);
@@ -454,7 +454,7 @@
         skippedNoDest,
         note:
           skippedNoDest > 0
-            ? `${skippedNoDest} PRO(s) skipped — no destination set.`
+            ? `${skippedNoDest} bill(s) skipped — no destination set. Tap Edit bill on each, then build again.`
             : 'Packed floor first, then decks B/C; one outbound per destination.',
       },
     };
