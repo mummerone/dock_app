@@ -1,3 +1,4 @@
+
 # Dock App (MVP)
 
 A simple phone-friendly web tool for dock drivers. You type (or speak) a PRO number, piece count, where the bill is going (destination), trailer number, trailer slot, and the size/weight of each piece of freight. Under **Dock** you can view inbound doors, register outbound trailers, and run the demo load plan. Everything stays on your device — there is no login and no company server involved.
@@ -143,7 +144,7 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
-v21 empty/error copy polish + Clear all ≥48px tap; network-first SW (`dock-app-v21`).
+v22 Clear all uses in-app confirm sheet (no window.confirm); network-first SW (`dock-app-v22`).
 
 
 | File | What it is |
@@ -155,7 +156,7 @@ v21 empty/error copy polish + Clear all ≥48px tap; network-first SW (`dock-app
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v21`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v22`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
