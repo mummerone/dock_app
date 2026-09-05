@@ -504,6 +504,7 @@ button {
   border-radius: 999px;
 }
 
+/* Glove-friendly clear / secondary actions in card heads */
 #clearListBtn,
 #loadoutClearDoneBtn {
   min-height: 48px;
@@ -658,7 +659,8 @@ button {
   color: var(--muted);
   text-align: center;
   padding: 22px 14px;
-  font-size: 1rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
 }
 
 .footer {
