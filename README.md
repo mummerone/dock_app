@@ -166,7 +166,28 @@ v22 Clear all uses in-app confirm sheet (no window.confirm); network-first SW (`
 ## Caveats (please read)
 
 - **Voice (Web Speech API):** Works best in **Chrome** and **Safari**. Usually needs **https://** or **localhost**. May fail on Firefox or on plain HTTP LAN URLs. Use the number pad if voice is blocked.
-- **Data stays in this browser:** Entries are stored in `localStorage` on the device/browser you used. Clearing site data, using a different browser, or a different phone will not show the same list.
+- **Data stays in this browser:** Entries are stored in `localStorage` on the device/browser you used. Clearing site data, using a different browser, or a different pho
+-
+- ## Company readiness (honest gaps)
+-
+- This app is a solid single-phone demo today: log freight, view the dock board, build a demo load plan, and follow the outbound Work list.
+-
+- ### What stays on one phone
+-
+- This browser stores logged freight, PRO destinations, doors and slots, outbound trailers, the load plan, Work list done marks, and last-used sizes. Another phone or browser, or clearing site data, means the data is empty or gone.
+-
+- ### What a company would usually expect shared
+-
+- A real deployment would share one live dock picture and progress across workers, with accounts and roles, backup and history, multi-terminal and multi-shift support, office tools such as printing and PRO search, and eventual TMS or EDI integration.
+-
+- ### What this demo is already good for
+-
+- It is useful for training the flow end-to-end, a single-worker phone demo, and proving rules such as same PRO staying on one trailer.
+-
+- ### Sensible next step if you go beyond demo
+-
+- The smallest real upgrade is a simple shared cloud save for one dock room. Full TMS, cloud AI planning, and fancy permissions should come after sharing works.
+- ne will not show the same list.
 - **No sync / no TMS:** This MVP does not talk to company billing software.
 - **Not a toy form:** Built for gloves and noise — large taps, high contrast — but it is still an MVP, not a full dock planning system.
 
