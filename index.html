@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=24" />
+  <link rel="stylesheet" href="styles.css?v=25" />
 </head>
 <body>
   <div id="app">
@@ -348,6 +348,29 @@
               <button type="button" id="crewRefreshBtn" class="btn tiny muted-btn">Refresh assignments</button>
             </div>
             <p class="hint" id="crewBoardHint">From the current load plan. One operator per inbound door.</p>
+            <p class="hint crew-map-tap-hint">Tap an operator to see what they’re moving.</p>
+            <div class="crew-map-layout">
+              <div id="crewDockMap" class="crew-dock-map" role="img" aria-label="Dock floor map with doors 1–10">
+                <div class="crew-doors crew-doors-left" aria-hidden="true">
+                  <span class="crew-door" data-door="1">1</span>
+                  <span class="crew-door" data-door="2">2</span>
+                  <span class="crew-door" data-door="3">3</span>
+                  <span class="crew-door" data-door="4">4</span>
+                  <span class="crew-door" data-door="5">5</span>
+                </div>
+                <div id="crewFloor" class="crew-floor" aria-label="Dock floor">
+                  <!-- operator markers injected by app.js -->
+                </div>
+                <div class="crew-doors crew-doors-right" aria-hidden="true">
+                  <span class="crew-door" data-door="6">6</span>
+                  <span class="crew-door" data-door="7">7</span>
+                  <span class="crew-door" data-door="8">8</span>
+                  <span class="crew-door" data-door="9">9</span>
+                  <span class="crew-door" data-door="10">10</span>
+                </div>
+              </div>
+              <div id="crewOpDetail" class="crew-op-detail" hidden aria-live="polite"></div>
+            </div>
             <div id="crewBoardList" class="crew-board-list" role="list">
               <div class="empty-state">No assignments yet. Load demo inbound trailers or build a load plan.</div>
             </div>
@@ -439,9 +462,10 @@
     </div>
   </div>
 
-  <script src="storage.js?v=24"></script>
-  <script src="speech.js?v=24"></script>
-  <script src="loadPlan.js?v=24"></script>
-  <script src="app.js?v=24"></script>
+  <script src="storage.js?v=25"></script>
+  <script src="speech.js?v=25"></script>
+  <script src="loadPlan.js?v=25"></script>
+  <script src="app.js?v=25"></script>
 </body>
 </html>
+
