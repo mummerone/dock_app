@@ -41,6 +41,7 @@
     view: 'entry', // 'entry' | 'loadout' | 'dock'
     dockSection: 'inbound', // 'inbound' | 'outbound' | 'ground' | 'crew' | 'plan'
     crewRotate: 0, // Refresh assignments offset
+    crewSelectedOp: null, // selected operator on dock map
     loadoutTrailer: '',
     pieceLocked: false, // mid-sequence: piece field forced to k/n
     destinationLocked: false, // PRO already has a destination — reuse until edited
@@ -141,6 +142,9 @@
     crewBoardList: document.getElementById('crewBoardList'),
     crewBoardHint: document.getElementById('crewBoardHint'),
     crewRefreshBtn: document.getElementById('crewRefreshBtn'),
+    crewDockMap: document.getElementById('crewDockMap'),
+    crewFloor: document.getElementById('crewFloor'),
+    crewOpDetail: document.getElementById('crewOpDetail'),
     editProOverlay: document.getElementById('editProOverlay'),
     editProNumber: document.getElementById('editProNumber'),
     editProDestination: document.getElementById('editProDestination'),
@@ -2174,16 +2178,163 @@
   }
 
 
-  // ---------- Crew forklift board (boss demo) ----------
+  // ---------- Crew forklift board + dock map (boss demo) ----------
+
+  /** @type {object[]} */
+  let crewAssignmentsCache = [];
 
   function bindCrew() {
     if (el.crewRefreshBtn) {
       el.crewRefreshBtn.addEventListener('click', () => {
         state.crewRotate = (Number(state.crewRotate) || 0) + 1;
+        state.crewSelectedOp = null;
         renderCrew();
         toast('Assignments refreshed');
       });
     }
+    if (el.crewFloor) {
+      el.crewFloor.addEventListener('click', (ev) => {
+        const btn = ev.target.closest('.crew-op-marker');
+        if (!btn) return;
+        const op = Number(btn.getAttribute('data-op'));
+        if (!op) return;
+        state.crewSelectedOp = state.crewSelectedOp === op ? null : op;
+        updateCrewSelectionUI();
+      });
+    }
+    if (el.crewBoardList) {
+      el.crewBoardList.addEventListener('click', (ev) => {
+        const row = ev.target.closest('.crew-board-row[data-op]');
+        if (!row) return;
+        const op = Number(row.getAttribute('data-op'));
+        if (!op) return;
+        state.crewSelectedOp = state.crewSelectedOp === op ? null : op;
+        updateCrewSelectionUI();
+      });
+    }
+  }
+
+  /**
+   * Place an operator marker on the floor near their pull door.
+   * Left doors 1–5 hug left; right doors 6–10 hug right (matches sketch).
+   * @param {string|number} door
+   * @returns {{ left: string, top: string, side: string }}
+   */
+  function crewMarkerPosition(door) {
+    const n = Number(door);
+    let doorNum = Number.isFinite(n) && n > 0 ? Math.round(n) : 1;
+    // Map unknown doors into 1–10 band for layout
+    if (doorNum < 1) doorNum = 1;
+    if (doorNum > 10) doorNum = ((doorNum - 1) % 10) + 1;
+
+    const isLeft = doorNum <= 5;
+    const idx = isLeft ? doorNum - 1 : doorNum - 6; // 0..4
+    const topPct = ((idx + 0.5) / 5) * 100;
+    // Slight inward offset so markers sit on the floor, not on the door squares
+    const leftPct = isLeft ? 18 : 82;
+    return {
+      left: `${leftPct}%`,
+      top: `${topPct}%`,
+      side: isLeft ? 'left' : 'right',
+    };
+  }
+
+  /**
+   * Plain-English detail for a selected operator (tap target).
+   * @param {object} a assignment from deriveCrewAssignments
+   * @returns {string} HTML
+   */
+  function formatCrewOpDetail(a) {
+    const pullParts = [`Door ${a.fromDoor}`, `Trl ${a.fromTrailer || '—'}`];
+    if (a.fromSlot) pullParts.push(`slot ${a.fromSlot}`);
+    const loadParts = [];
+    if (a.toTrailer) {
+      loadParts.push(`Trl ${a.toTrailer}`);
+      if (a.destination) loadParts.push(a.destination);
+      if (a.toSlot) loadParts.push(`slot ${a.toSlot}`);
+    } else if (a.destination) {
+      loadParts.push(`${a.destination} (no plan yet)`);
+    } else {
+      loadParts.push('No load assigned yet');
+    }
+    let html = `<div class="crew-op-detail-title">Operator ${a.operator}</div>`;
+    html += `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Pulling:</span> ${escapeHtml(pullParts.join(' · '))}</div>`;
+    html += `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Loading:</span> ${escapeHtml(loadParts.join(' · '))}</div>`;
+    const meta = [];
+    if (a.pro) meta.push(`PRO ${a.pro}`);
+    if (a.pieceFraction) meta.push(`piece ${a.pieceFraction}`);
+    if (meta.length) {
+      html += `<div class="crew-op-detail-meta">${escapeHtml(meta.join(' · '))}</div>`;
+    }
+    if (a.nextLine) {
+      html += `<div class="crew-op-detail-next">${escapeHtml(a.nextLine)}</div>`;
+    }
+    return html;
+  }
+
+  function updateCrewSelectionUI() {
+    const selected = state.crewSelectedOp;
+    if (el.crewFloor) {
+      el.crewFloor.querySelectorAll('.crew-op-marker').forEach((btn) => {
+        const op = Number(btn.getAttribute('data-op'));
+        btn.classList.toggle('is-selected', op === selected);
+        btn.setAttribute('aria-pressed', op === selected ? 'true' : 'false');
+      });
+    }
+    if (el.crewBoardList) {
+      el.crewBoardList.querySelectorAll('.crew-board-row[data-op]').forEach((row) => {
+        const op = Number(row.getAttribute('data-op'));
+        row.classList.toggle('is-selected', op === selected);
+      });
+    }
+    if (el.crewOpDetail) {
+      const a = crewAssignmentsCache.find((x) => x.operator === selected);
+      if (a) {
+        el.crewOpDetail.hidden = false;
+        el.crewOpDetail.innerHTML = formatCrewOpDetail(a);
+      } else {
+        el.crewOpDetail.hidden = true;
+        el.crewOpDetail.innerHTML = '';
+      }
+    }
+  }
+
+  function renderCrewMap(list) {
+    if (!el.crewFloor || !el.crewDockMap) return;
+
+    // Door highlight for active pulls
+    const activeDoors = new Set(
+      (list || []).map((a) => String(a.fromDoor || '').trim()).filter(Boolean)
+    );
+    el.crewDockMap.querySelectorAll('.crew-door').forEach((doorEl) => {
+      const d = doorEl.getAttribute('data-door');
+      doorEl.classList.toggle('has-pull', activeDoors.has(String(d)));
+    });
+
+    el.crewFloor.innerHTML = '';
+    if (!list || !list.length) return;
+
+    // Avoid stacking markers that share a door (shouldn't happen with one-op-per-door)
+    // but nudge slightly if two land on same spot from wrap.
+    const usedSlots = new Map();
+    list.forEach((a) => {
+      const pos = crewMarkerPosition(a.fromDoor);
+      const key = `${pos.left}|${pos.top}`;
+      const bump = usedSlots.get(key) || 0;
+      usedSlots.set(key, bump + 1);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `crew-op-marker crew-op-${pos.side}`;
+      btn.setAttribute('data-op', String(a.operator));
+      btn.setAttribute('data-door', String(a.fromDoor));
+      btn.setAttribute('aria-label', `Operator ${a.operator} at door ${a.fromDoor}`);
+      btn.setAttribute('aria-pressed', 'false');
+      btn.textContent = String(a.operator);
+      btn.style.left = pos.left;
+      const topNum = parseFloat(pos.top);
+      btn.style.top = bump ? `${Math.min(96, topNum + bump * 7)}%` : pos.top;
+      el.crewFloor.appendChild(btn);
+    });
   }
 
   function renderCrew() {
@@ -2201,9 +2352,22 @@
     }
 
     const list = result.assignments || [];
+    crewAssignmentsCache = list;
+
+    // Drop selection if that operator is gone after refresh
+    if (
+      state.crewSelectedOp != null &&
+      !list.some((a) => a.operator === state.crewSelectedOp)
+    ) {
+      state.crewSelectedOp = null;
+    }
+
+    renderCrewMap(list);
+
     if (!list.length) {
       el.crewBoardList.innerHTML =
         '<div class="empty-state">No assignments yet. Load demo inbound trailers or build a load plan.</div>';
+      updateCrewSelectionUI();
       return;
     }
 
@@ -2212,6 +2376,8 @@
       const row = document.createElement('div');
       row.className = 'crew-board-row';
       row.setAttribute('role', 'listitem');
+      row.setAttribute('data-op', String(a.operator));
+      row.setAttribute('tabindex', '0');
       const main = document.createElement('div');
       main.className = 'crew-board-line';
       main.textContent = a.line;
@@ -2226,6 +2392,7 @@
     });
     el.crewBoardList.innerHTML = '';
     el.crewBoardList.appendChild(frag);
+    updateCrewSelectionUI();
   }
 
   function bindEditPro() {
@@ -2464,6 +2631,7 @@
       renderPlan();
       renderGround();
       state.crewRotate = 0;
+      state.crewSelectedOp = null;
       renderCrew();
       if (el.planStatusHint) el.planStatusHint.textContent = 'Plan cleared.';
       toast('Plan cleared');
@@ -2518,6 +2686,7 @@
       renderPlan();
       renderGround();
       state.crewRotate = 0;
+      state.crewSelectedOp = null;
       renderCrew();
       if (state.view === 'loadout') renderLoadout('');
       if (state.view === 'dock' && state.dockSection === 'inbound') renderDock();
@@ -2548,6 +2717,7 @@
     renderOutboundList();
     renderGround();
     state.crewRotate = 0;
+    state.crewSelectedOp = null;
     renderCrew();
     const s = plan.summary || {};
     const noteSafe = sanitizePlanNote(s.note || '');
@@ -2784,7 +2954,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=24').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=25').catch(() => {
       /* offline cache optional */
     });
   }
