@@ -630,10 +630,13 @@
         addCandidate({
           fromDoor: (m.from && m.from.door) || '',
           fromTrailer: (m.from && m.from.trailer) || '',
+          fromSlot: (m.from && m.from.slot) || '',
           toTrailer: (m.to && m.to.trailer) || '',
           toDoor: (m.to && m.to.door) || '',
+          toSlot: (m.to && m.to.slot) || '',
           destination: m.destination || '',
           pro: m.pro || '',
+          pieceFraction: m.pieceFraction || '',
           entryId: m.entryId || '',
         });
       });
@@ -655,13 +658,21 @@
               (e.destination && String(e.destination).trim()) ||
               (DockStorage.getProDestination && DockStorage.getProDestination(e.pro)) ||
               '';
+            const fromSlot =
+              e.slotLabel ||
+              (DockStorage.formatSlot
+                ? DockStorage.formatSlot(e.section, e.level, e.lateral)
+                : '');
             addCandidate({
               fromDoor: door,
               fromTrailer: trl,
+              fromSlot: fromSlot || '',
               toTrailer: '',
               toDoor: '',
+              toSlot: '',
               destination: dest || '',
               pro: e.pro || '',
+              pieceFraction: e.pieceFraction || '',
               entryId: e.id || '',
             });
           });
@@ -672,10 +683,13 @@
           addCandidate({
             fromDoor: ib.door,
             fromTrailer: ib.trailer,
+            fromSlot: '',
             toTrailer: DEMO_OUTBOUND_TRAILERS[i] || '',
             toDoor: DEMO_OUTBOUND_DOORS[i] || '',
+            toSlot: '',
             destination: DEMO_DESTINATIONS[i] || '',
             pro: '',
+            pieceFraction: '',
             entryId: '',
           });
         });
@@ -761,8 +775,13 @@
         operator: opNum,
         fromDoor: door,
         fromTrailer: fromTrl,
+        fromSlot: pick.fromSlot || '',
         toTrailer: toTrl,
+        toDoor: pick.toDoor || '',
+        toSlot: pick.toSlot || '',
         destination: dest,
+        pro: pick.pro || '',
+        pieceFraction: pick.pieceFraction || '',
         line,
         nextLine,
       });
