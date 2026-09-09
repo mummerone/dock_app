@@ -145,6 +145,14 @@
     crewDockMap: document.getElementById('crewDockMap'),
     crewFloor: document.getElementById('crewFloor'),
     crewOpDetail: document.getElementById('crewOpDetail'),
+    crewStartDemoBtn: document.getElementById('crewStartDemoBtn'),
+    crewStepBtn: document.getElementById('crewStepBtn'),
+    crewPlayBtn: document.getElementById('crewPlayBtn'),
+    crewStopBtn: document.getElementById('crewStopBtn'),
+    crewResetDemoBtn: document.getElementById('crewResetDemoBtn'),
+    crewDemoProgress: document.getElementById('crewDemoProgress'),
+    crewDemoDone: document.getElementById('crewDemoDone'),
+    crewMoveQueue: document.getElementById('crewMoveQueue'),
     editProOverlay: document.getElementById('editProOverlay'),
     editProNumber: document.getElementById('editProNumber'),
     editProDestination: document.getElementById('editProDestination'),
@@ -2187,19 +2195,438 @@
   }
 
 
-  // ---------- Crew forklift board + dock map (boss demo) ----------
+  // ---------- Crew forklift board + live demo (boss demo) ----------
 
   /** @type {object[]} */
   let crewAssignmentsCache = [];
 
+  /** Local-only live demo simulation (not persisted). */
+  const CREW_DEMO_TARGET_OPS = 5;
+  const CREW_DEMO_PLAY_MS = 800;
+
+  /** @type {{
+   *  seeded: boolean,
+   *  queue: object[],
+   *  active: object[],
+   *  doneCount: number,
+   *  total: number,
+   *  playing: boolean,
+   *  playTimer: any,
+   *  nextStartSeq: number,
+   * }} */
+  let crewDemo = emptyCrewDemo();
+
+  function emptyCrewDemo() {
+    return {
+      seeded: false,
+      queue: [],
+      active: [],
+      doneCount: 0,
+      total: 0,
+      playing: false,
+      playTimer: null,
+      nextStartSeq: 0,
+    };
+  }
+
+  function stopCrewDemoPlay() {
+    if (crewDemo.playTimer) {
+      clearInterval(crewDemo.playTimer);
+      crewDemo.playTimer = null;
+    }
+    crewDemo.playing = false;
+  }
+
+  function resetCrewDemoState() {
+    stopCrewDemoPlay();
+    crewDemo = emptyCrewDemo();
+  }
+
+  /**
+   * Normalize plan moves for the live demo queue / map.
+   * @param {object|null} plan
+   * @returns {object[]}
+   */
+  function planMovesNormalized(plan) {
+    const moves = plan && Array.isArray(plan.moves) ? plan.moves : [];
+    return moves
+      .map((m, i) => {
+        const toTrailer = (m.to && m.to.trailer) || '';
+        const destination = m.destination || '';
+        const toDoor = resolvePutDoor({
+          door: (m.to && m.to.door) || '',
+          trailer: toTrailer,
+          destination,
+        });
+        return {
+          uid: `${m.entryId || 'm'}-${i}`,
+          fromDoor: String((m.from && m.from.door) || '').trim(),
+          fromTrailer: String((m.from && m.from.trailer) || '').trim(),
+          fromSlot: String((m.from && m.from.slot) || '').trim(),
+          toDoor: String(toDoor || '').trim(),
+          toTrailer: String(toTrailer || '').trim(),
+          toSlot: String((m.to && m.to.slot) || '').trim(),
+          destination: String(destination || '').trim(),
+          pro: m.pro || '',
+          pieceFraction: m.pieceFraction || '',
+          entryId: m.entryId || '',
+        };
+      })
+      .filter((m) => m.fromDoor);
+  }
+
+  /**
+   * Seed queue + assign first K operators on distinct pull doors.
+   * @param {object|null} [plan]
+   * @returns {boolean}
+   */
+  function seedCrewDemo(plan) {
+    const p = plan || DockStorage.readLoadPlan();
+    const all = planMovesNormalized(p);
+    stopCrewDemoPlay();
+    if (!all.length) {
+      resetCrewDemoState();
+      return false;
+    }
+
+    const queue = all.slice();
+    /** @type {object[]} */
+    const active = [];
+    const usedDoors = new Set();
+    /** @type {object[]} */
+    const remaining = [];
+    let op = 1;
+
+    for (const move of queue) {
+      if (
+        active.length < CREW_DEMO_TARGET_OPS &&
+        move.fromDoor &&
+        !usedDoors.has(move.fromDoor)
+      ) {
+        usedDoors.add(move.fromDoor);
+        active.push({
+          operator: op++,
+          move,
+          lastDoor: move.fromDoor,
+          startedAt: active.length,
+          idle: false,
+        });
+      } else {
+        remaining.push(move);
+      }
+    }
+
+    crewDemo = {
+      seeded: true,
+      queue: remaining,
+      active,
+      doneCount: 0,
+      total: all.length,
+      playing: false,
+      playTimer: null,
+      nextStartSeq: active.length,
+    };
+    state.crewSelectedOp = null;
+    return true;
+  }
+
+  function busyPullDoors(exceptOp) {
+    const doors = new Set();
+    crewDemo.active.forEach((a) => {
+      if (exceptOp != null && a.operator === exceptOp) return;
+      if (a.move && !a.idle && a.move.fromDoor) {
+        doors.add(String(a.move.fromDoor));
+      }
+    });
+    return doors;
+  }
+
+  /**
+   * Take first queue move whose pull door is free.
+   * @param {Set<string>} busyDoors
+   * @returns {object|null}
+   */
+  function takeNextNonConflicting(busyDoors) {
+    for (let i = 0; i < crewDemo.queue.length; i++) {
+      const m = crewDemo.queue[i];
+      if (!busyDoors.has(String(m.fromDoor))) {
+        return crewDemo.queue.splice(i, 1)[0];
+      }
+    }
+    return null;
+  }
+
+  function crewDemoAllDone() {
+    if (!crewDemo.seeded || !crewDemo.total) return false;
+    const anyBusy = crewDemo.active.some((a) => a.move && !a.idle);
+    return crewDemo.doneCount >= crewDemo.total && !anyBusy && !crewDemo.queue.length;
+  }
+
+  /**
+   * Complete earliest-started active move; that forklift takes next free pull.
+   * @returns {boolean} true if a step happened
+   */
+  function stepCrewDemo() {
+    if (!crewDemo.seeded) return false;
+
+    const busy = crewDemo.active.filter((a) => a.move && !a.idle);
+    if (!busy.length) {
+      if (!crewDemo.queue.length) {
+        stopCrewDemoPlay();
+        return false;
+      }
+      // All idle but queue left (doors were busy earlier) — fill one idle
+      const idle = crewDemo.active.find((a) => a.idle || !a.move);
+      if (!idle) return false;
+      const next = takeNextNonConflicting(busyPullDoors(idle.operator));
+      if (!next) {
+        stopCrewDemoPlay();
+        return false;
+      }
+      idle.move = next;
+      idle.lastDoor = next.fromDoor;
+      idle.idle = false;
+      idle.startedAt = crewDemo.nextStartSeq++;
+      return true;
+    }
+
+    busy.sort((a, b) => a.startedAt - b.startedAt);
+    const finisher = busy[0];
+    finisher.lastDoor = (finisher.move && finisher.move.fromDoor) || finisher.lastDoor;
+    finisher.move = null;
+    finisher.idle = true;
+    crewDemo.doneCount += 1;
+
+    const next = takeNextNonConflicting(busyPullDoors(finisher.operator));
+    if (next) {
+      finisher.move = next;
+      finisher.lastDoor = next.fromDoor;
+      finisher.idle = false;
+      finisher.startedAt = crewDemo.nextStartSeq++;
+    }
+
+    if (crewDemoAllDone()) stopCrewDemoPlay();
+    return true;
+  }
+
+  function startCrewDemoPlay() {
+    if (!crewDemo.seeded) {
+      const ok = seedCrewDemo();
+      if (!ok) {
+        toast('Build a load plan first (Dock → Demo plan)');
+        return;
+      }
+    }
+    if (crewDemoAllDone()) {
+      toast('Dock already loaded — Reset demo to run again');
+      return;
+    }
+    stopCrewDemoPlay();
+    crewDemo.playing = true;
+    crewDemo.playTimer = setInterval(() => {
+      const moved = stepCrewDemo();
+      renderCrew();
+      if (!moved || crewDemoAllDone()) stopCrewDemoPlay();
+      updateCrewDemoChrome();
+    }, CREW_DEMO_PLAY_MS);
+    updateCrewDemoChrome();
+  }
+
+  function onCrewStartDemo() {
+    const plan = DockStorage.readLoadPlan();
+    const ok = seedCrewDemo(plan);
+    if (!ok) {
+      toast('Build a load plan first (Dock → Demo plan)');
+      renderCrew();
+      return;
+    }
+    toast(`Demo started — ${crewDemo.active.length} forklifts · ${crewDemo.total} moves`);
+    renderCrew();
+  }
+
+  function onCrewStepOnce() {
+    if (!crewDemo.seeded) {
+      const ok = seedCrewDemo();
+      if (!ok) {
+        toast('Build a load plan first (Dock → Demo plan)');
+        return;
+      }
+      renderCrew();
+      toast('Demo ready — tap Step once again to advance');
+      return;
+    }
+    if (crewDemoAllDone()) {
+      toast('Dock loaded — Reset demo to run again');
+      renderCrew();
+      return;
+    }
+    const moved = stepCrewDemo();
+    renderCrew();
+    if (!moved && !crewDemoAllDone()) {
+      toast('Waiting — next pull door still busy');
+    }
+  }
+
+  function onCrewResetDemo() {
+    const plan = DockStorage.readLoadPlan();
+    const ok = seedCrewDemo(plan);
+    if (!ok) {
+      resetCrewDemoState();
+      toast('No plan to reset — build a load plan first');
+      renderCrew();
+      return;
+    }
+    toast('Demo reset');
+    renderCrew();
+  }
+
+  function formatMoveQueueLine(m) {
+    const pull = `Door ${m.fromDoor} · Trl ${m.fromTrailer || '—'}`;
+    const putDoor = m.toDoor || '';
+    const loadParts = [];
+    if (m.toTrailer) {
+      loadParts.push(putDoor ? `Door ${putDoor}` : 'Door —');
+      loadParts.push(`Trl ${m.toTrailer}`);
+      if (m.destination) loadParts.push(m.destination);
+    } else if (m.destination) {
+      if (putDoor) loadParts.push(`Door ${putDoor}`);
+      loadParts.push(m.destination);
+    } else {
+      loadParts.push('—');
+    }
+    let line = `${pull} → ${loadParts.join(' · ')}`;
+    if (m.pro) line += ` · PRO ${m.pro}`;
+    if (m.pieceFraction) line += ` · ${m.pieceFraction}`;
+    return line;
+  }
+
+  /**
+   * Build assignment-shaped rows from live demo active forklifts.
+   * @returns {object[]}
+   */
+  function assignmentsFromCrewDemo() {
+    return crewDemo.active.map((a) => {
+      const m = a.move;
+      if (!m) {
+        return {
+          operator: a.operator,
+          fromDoor: a.lastDoor || '—',
+          fromTrailer: '',
+          fromSlot: '',
+          toTrailer: '',
+          toDoor: '',
+          toSlot: '',
+          destination: '',
+          pro: '',
+          pieceFraction: '',
+          line: `Operator ${a.operator} — idle (waiting for next pull)`,
+          nextLine: '',
+          idle: true,
+          demoMove: null,
+        };
+      }
+      const putDoor = m.toDoor || '';
+      const loadPhrase = m.toTrailer
+        ? `${putDoor ? `Door ${putDoor}` : 'Door —'} · Trl ${m.toTrailer}` +
+          (m.destination ? ` · ${m.destination}` : '')
+        : m.destination || '—';
+      return {
+        operator: a.operator,
+        fromDoor: m.fromDoor,
+        fromTrailer: m.fromTrailer,
+        fromSlot: m.fromSlot,
+        toTrailer: m.toTrailer,
+        toDoor: putDoor,
+        toSlot: m.toSlot,
+        destination: m.destination,
+        pro: m.pro,
+        pieceFraction: m.pieceFraction,
+        line: `Operator ${a.operator} — pulling Door ${m.fromDoor} · Trl ${m.fromTrailer || '—'} → loading ${loadPhrase}`,
+        nextLine: '',
+        idle: false,
+        demoMove: m,
+      };
+    });
+  }
+
+  function updateCrewDemoChrome() {
+    if (el.crewDemoProgress) {
+      if (!crewDemo.seeded) {
+        el.crewDemoProgress.textContent = 'Moved 0 of 0 — Start demo after you build a plan';
+      } else {
+        el.crewDemoProgress.textContent = `Moved ${crewDemo.doneCount} of ${crewDemo.total}` +
+          (crewDemo.playing ? ' · Playing…' : '');
+      }
+    }
+    if (el.crewDemoDone) {
+      const done = crewDemoAllDone();
+      el.crewDemoDone.hidden = !done;
+    }
+    if (el.crewPlayBtn) {
+      el.crewPlayBtn.textContent = crewDemo.playing ? 'Playing…' : 'Play';
+      el.crewPlayBtn.disabled = crewDemo.playing;
+    }
+  }
+
+  function renderCrewMoveQueue() {
+    if (!el.crewMoveQueue) return;
+    if (!crewDemo.seeded) {
+      el.crewMoveQueue.innerHTML =
+        '<div class="empty-state">No plan queue yet. Build a load plan, then Start demo.</div>';
+      return;
+    }
+    if (!crewDemo.queue.length) {
+      el.crewMoveQueue.innerHTML = crewDemoAllDone()
+        ? '<div class="empty-state">Queue empty — all moves done.</div>'
+        : '<div class="empty-state">Queue empty — finishing active pulls…</div>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    crewDemo.queue.forEach((m, idx) => {
+      const row = document.createElement('div');
+      row.className = 'crew-queue-row';
+      row.setAttribute('role', 'listitem');
+      row.textContent = `${idx + 1}. ${formatMoveQueueLine(m)}`;
+      frag.appendChild(row);
+    });
+    el.crewMoveQueue.innerHTML = '';
+    el.crewMoveQueue.appendChild(frag);
+  }
+
   function bindCrew() {
     if (el.crewRefreshBtn) {
       el.crewRefreshBtn.addEventListener('click', () => {
+        if (crewDemo.seeded) {
+          toast('Live demo running — use Reset demo to restart');
+          return;
+        }
         state.crewRotate = (Number(state.crewRotate) || 0) + 1;
         state.crewSelectedOp = null;
         renderCrew();
         toast('Assignments refreshed');
       });
+    }
+    if (el.crewStartDemoBtn) {
+      el.crewStartDemoBtn.addEventListener('click', () => onCrewStartDemo());
+    }
+    if (el.crewStepBtn) {
+      el.crewStepBtn.addEventListener('click', () => onCrewStepOnce());
+    }
+    if (el.crewPlayBtn) {
+      el.crewPlayBtn.addEventListener('click', () => {
+        startCrewDemoPlay();
+        renderCrew();
+      });
+    }
+    if (el.crewStopBtn) {
+      el.crewStopBtn.addEventListener('click', () => {
+        stopCrewDemoPlay();
+        updateCrewDemoChrome();
+        toast('Demo paused');
+      });
+    }
+    if (el.crewResetDemoBtn) {
+      el.crewResetDemoBtn.addEventListener('click', () => onCrewResetDemo());
     }
     if (el.crewFloor) {
       el.crewFloor.addEventListener('click', (ev) => {
@@ -2227,24 +2654,52 @@
    * Place an operator marker on the floor near their pull door.
    * Left doors 1–5 hug left; right doors 6–10 hug right (matches sketch).
    * @param {string|number} door
-   * @returns {{ left: string, top: string, side: string }}
+   * @returns {{ left: number, top: number, side: string }}
    */
   function crewMarkerPosition(door) {
     const n = Number(door);
     let doorNum = Number.isFinite(n) && n > 0 ? Math.round(n) : 1;
-    // Map unknown doors into 1–10 band for layout
     if (doorNum < 1) doorNum = 1;
     if (doorNum > 10) doorNum = ((doorNum - 1) % 10) + 1;
 
     const isLeft = doorNum <= 5;
-    const idx = isLeft ? doorNum - 1 : doorNum - 6; // 0..4
+    const idx = isLeft ? doorNum - 1 : doorNum - 6;
     const topPct = ((idx + 0.5) / 5) * 100;
-    // Slight inward offset so markers sit on the floor, not on the door squares
     const leftPct = isLeft ? 18 : 82;
     return {
-      left: `${leftPct}%`,
-      top: `${topPct}%`,
+      left: leftPct,
+      top: topPct,
       side: isLeft ? 'left' : 'right',
+    };
+  }
+
+  /**
+   * Load / OUT target on the floor map.
+   * Doors 1–10 sit near inbound sides; doors >10 (e.g. 21–25) along the bottom edge.
+   * @param {string|number} door
+   * @returns {{ left: number, top: number, out: boolean }}
+   */
+  function crewLoadTargetPosition(door) {
+    const n = Number(door);
+    if (!Number.isFinite(n) || n <= 0) {
+      return { left: 50, top: 88, out: true };
+    }
+    if (n > 10) {
+      // Spread OUT doors along bottom: 21→0 … 25→4 (wrap others)
+      let idx = n >= 21 && n <= 25 ? n - 21 : (Math.round(n) - 11) % 5;
+      if (idx < 0) idx = 0;
+      return {
+        left: 10 + idx * 20,
+        top: 90,
+        out: true,
+      };
+    }
+    const pull = crewMarkerPosition(n);
+    // Nudge toward center so arrows don't hide under the pull marker
+    return {
+      left: pull.side === 'left' ? 32 : 68,
+      top: pull.top,
+      out: false,
     };
   }
 
@@ -2268,10 +2723,16 @@
   /**
    * Plain-English detail for a selected operator (tap target).
    * Loading: Door (if any) · Trl · destination · slot — Door before Trl.
-   * @param {object} a assignment from deriveCrewAssignments
+   * @param {object} a assignment
    * @returns {string} HTML
    */
   function formatCrewOpDetail(a) {
+    if (a.idle) {
+      return (
+        `<div class="crew-op-detail-title">Operator ${a.operator}</div>` +
+        `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Status:</span> Idle — waiting for next pull</div>`
+      );
+    }
     const pullParts = [`Door ${a.fromDoor}`, `Trl ${a.fromTrailer || '—'}`];
     if (a.fromSlot) pullParts.push(`slot ${a.fromSlot}`);
     const loadParts = [];
@@ -2333,12 +2794,17 @@
     }
   }
 
+  /**
+   * @param {object[]} list assignments
+   */
   function renderCrewMap(list) {
     if (!el.crewFloor || !el.crewDockMap) return;
 
-    // Door highlight for active pulls
     const activeDoors = new Set(
-      (list || []).map((a) => String(a.fromDoor || '').trim()).filter(Boolean)
+      (list || [])
+        .filter((a) => !a.idle)
+        .map((a) => String(a.fromDoor || '').trim())
+        .filter(Boolean)
     );
     el.crewDockMap.querySelectorAll('.crew-door').forEach((doorEl) => {
       const d = doorEl.getAttribute('data-door');
@@ -2346,49 +2812,136 @@
     });
 
     el.crewFloor.innerHTML = '';
+
+    // SVG arrow layer
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('class', 'crew-arrow-svg');
+    svg.setAttribute('viewBox', '0 0 100 100');
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('aria-hidden', 'true');
+    const defs = document.createElementNS(svgNS, 'defs');
+    const marker = document.createElementNS(svgNS, 'marker');
+    marker.setAttribute('id', 'crewArrowHead');
+    marker.setAttribute('markerWidth', '6');
+    marker.setAttribute('markerHeight', '6');
+    marker.setAttribute('refX', '5');
+    marker.setAttribute('refY', '3');
+    marker.setAttribute('orient', 'auto');
+    marker.setAttribute('markerUnits', 'strokeWidth');
+    const tip = document.createElementNS(svgNS, 'path');
+    tip.setAttribute('d', 'M0,0 L6,3 L0,6 Z');
+    tip.setAttribute('fill', '#5ec8ff');
+    marker.appendChild(tip);
+    defs.appendChild(marker);
+    svg.appendChild(defs);
+    el.crewFloor.appendChild(svg);
+
+    // OUT / load targets for active pulls (and any door >10)
+    const outDoors = new Set();
+    (list || []).forEach((a) => {
+      if (a.idle) return;
+      const d = String(a.toDoor || '').trim();
+      if (!d) return;
+      const n = Number(d);
+      if (Number.isFinite(n) && n > 10) outDoors.add(String(Math.round(n)));
+      else if (d) outDoors.add(d);
+    });
+    // Always show demo OUT doors 21–25 when live demo is seeded (arrows need targets)
+    if (crewDemo.seeded) {
+      ['21', '22', '23', '24', '25'].forEach((d) => outDoors.add(d));
+    }
+
+    const outFrag = document.createDocumentFragment();
+    Array.from(outDoors)
+      .sort((a, b) => Number(a) - Number(b))
+      .forEach((d) => {
+        const pos = crewLoadTargetPosition(d);
+        if (!pos.out && Number(d) <= 10) return; // inbound doors already on sides
+        const chip = document.createElement('div');
+        chip.className = 'crew-out-target';
+        chip.setAttribute('data-door', d);
+        chip.innerHTML = `<span class="crew-out-label">OUT</span><span class="crew-out-door">Door ${d}</span>`;
+        chip.style.left = `${pos.left}%`;
+        chip.style.top = `${pos.top}%`;
+        outFrag.appendChild(chip);
+      });
+    el.crewFloor.appendChild(outFrag);
+
     if (!list || !list.length) return;
 
-    // Avoid stacking markers that share a door (shouldn't happen with one-op-per-door)
-    // but nudge slightly if two land on same spot from wrap.
     const usedSlots = new Map();
     list.forEach((a) => {
-      const pos = crewMarkerPosition(a.fromDoor);
+      const doorForPos = a.idle ? a.fromDoor : a.fromDoor;
+      const pos = crewMarkerPosition(doorForPos);
       const key = `${pos.left}|${pos.top}`;
       const bump = usedSlots.get(key) || 0;
       usedSlots.set(key, bump + 1);
+      const topNum = bump ? Math.min(96, pos.top + bump * 7) : pos.top;
+
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = `crew-op-marker crew-op-${pos.side}`;
+      btn.className = `crew-op-marker crew-op-${pos.side}` + (a.idle ? ' is-idle' : '');
       btn.setAttribute('data-op', String(a.operator));
       btn.setAttribute('data-door', String(a.fromDoor));
-      btn.setAttribute('aria-label', `Operator ${a.operator} at door ${a.fromDoor}`);
+      btn.setAttribute(
+        'aria-label',
+        a.idle
+          ? `Operator ${a.operator} idle`
+          : `Operator ${a.operator} at door ${a.fromDoor}`
+      );
       btn.setAttribute('aria-pressed', 'false');
       btn.textContent = String(a.operator);
-      btn.style.left = pos.left;
-      const topNum = parseFloat(pos.top);
-      btn.style.top = bump ? `${Math.min(96, topNum + bump * 7)}%` : pos.top;
+      btn.style.left = `${pos.left}%`;
+      btn.style.top = `${topNum}%`;
       el.crewFloor.appendChild(btn);
+
+      // Arrow pull → load for active moves
+      if (!a.idle && a.toDoor) {
+        const loadPos = crewLoadTargetPosition(a.toDoor);
+        const line = document.createElementNS(svgNS, 'line');
+        line.setAttribute('x1', String(pos.left));
+        line.setAttribute('y1', String(topNum));
+        line.setAttribute('x2', String(loadPos.left));
+        line.setAttribute('y2', String(loadPos.top));
+        line.setAttribute('class', 'crew-arrow-line');
+        line.setAttribute('marker-end', 'url(#crewArrowHead)');
+        svg.appendChild(line);
+      }
     });
   }
 
   function renderCrew() {
     if (!el.crewBoardList) return;
-    const plan = DockStorage.readLoadPlan();
-    const result =
-      typeof DockLoadPlan !== 'undefined' && DockLoadPlan.deriveCrewAssignments
-        ? DockLoadPlan.deriveCrewAssignments(plan, { rotate: state.crewRotate || 0 })
-        : { assignments: [], note: '', doorCount: 0, source: '' };
+    updateCrewDemoChrome();
+    renderCrewMoveQueue();
 
-    if (el.crewBoardHint) {
-      el.crewBoardHint.textContent =
+    let list;
+    let note;
+
+    if (crewDemo.seeded) {
+      list = assignmentsFromCrewDemo();
+      note = crewDemoAllDone()
+        ? 'Dock loaded — all plan moves complete.'
+        : `Live demo — ${crewDemo.active.filter((a) => a.move && !a.idle).length} pulling · ${crewDemo.queue.length} in queue. One operator per pull door.`;
+    } else {
+      const plan = DockStorage.readLoadPlan();
+      const result =
+        typeof DockLoadPlan !== 'undefined' && DockLoadPlan.deriveCrewAssignments
+          ? DockLoadPlan.deriveCrewAssignments(plan, { rotate: state.crewRotate || 0 })
+          : { assignments: [], note: '', doorCount: 0, source: '' };
+      list = result.assignments || [];
+      note =
         result.note ||
         'Master view — one operator per pull door so forklifts stay spread out.';
     }
 
-    const list = result.assignments || [];
+    if (el.crewBoardHint) {
+      el.crewBoardHint.textContent = note;
+    }
+
     crewAssignmentsCache = list;
 
-    // Drop selection if that operator is gone after refresh
     if (
       state.crewSelectedOp != null &&
       !list.some((a) => a.operator === state.crewSelectedOp)
@@ -2408,7 +2961,7 @@
     const frag = document.createDocumentFragment();
     list.forEach((a) => {
       const row = document.createElement('div');
-      row.className = 'crew-board-row';
+      row.className = 'crew-board-row' + (a.idle ? ' is-idle' : '');
       row.setAttribute('role', 'listitem');
       row.setAttribute('data-op', String(a.operator));
       row.setAttribute('tabindex', '0');
@@ -2651,6 +3204,7 @@
         else if (state.dockSection === 'plan') renderPlan();
       }
       renderGround();
+      resetCrewDemoState();
       renderCrew();
       toast('All freight and the load plan were cleared.');
     } catch (err) {
@@ -2666,6 +3220,7 @@
       renderGround();
       state.crewRotate = 0;
       state.crewSelectedOp = null;
+      resetCrewDemoState();
       renderCrew();
       if (el.planStatusHint) el.planStatusHint.textContent = 'Plan cleared.';
       toast('Plan cleared');
@@ -2721,6 +3276,7 @@
       renderGround();
       state.crewRotate = 0;
       state.crewSelectedOp = null;
+      resetCrewDemoState();
       renderCrew();
       if (state.view === 'loadout') renderLoadout('');
       if (state.view === 'dock' && state.dockSection === 'inbound') renderDock();
@@ -2752,6 +3308,11 @@
     renderGround();
     state.crewRotate = 0;
     state.crewSelectedOp = null;
+    if (plan && plan.moves && plan.moves.length) {
+      seedCrewDemo(plan);
+    } else {
+      resetCrewDemoState();
+    }
     renderCrew();
     const s = plan.summary || {};
     const noteSafe = sanitizePlanNote(s.note || '');
@@ -3003,7 +3564,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=26').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=27').catch(() => {
       /* offline cache optional */
     });
   }

@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=26" />
+  <link rel="stylesheet" href="styles.css?v=27" />
 </head>
 <body>
   <div id="app">
@@ -338,8 +338,8 @@
 
         <div id="dockPanelCrew" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubCrew" hidden>
           <section class="card crew-howto-card" aria-labelledby="crew-howto-heading">
-            <h2 id="crew-howto-heading">Crew — forklift board</h2>
-            <p class="hint">Master view — one operator per pull door so forklifts stay spread out. Demo view for the boss.</p>
+            <h2 id="crew-howto-heading">Crew — live demo</h2>
+            <p class="hint">How to: build a load plan (Demo plan), then <strong>Start demo</strong>. Map shows forklifts; arrows go pull → load door. Queue under the map lists remaining moves. <strong>Step once</strong> finishes the earliest move and that forklift takes the next free pull door. <strong>Play</strong> auto-steps (~800ms). One operator per pull door.</p>
           </section>
 
           <section class="card" aria-labelledby="crew-board-heading">
@@ -348,9 +348,20 @@
               <button type="button" id="crewRefreshBtn" class="btn tiny muted-btn">Refresh assignments</button>
             </div>
             <p class="hint" id="crewBoardHint">From the current load plan. One operator per inbound door.</p>
+
+            <div class="crew-demo-controls" id="crewDemoControls" role="group" aria-label="Live demo controls">
+              <button type="button" id="crewStartDemoBtn" class="btn accept-btn demo-primary-btn">Start demo</button>
+              <button type="button" id="crewStepBtn" class="btn speak-btn">Step once</button>
+              <button type="button" id="crewPlayBtn" class="btn muted-btn">Play</button>
+              <button type="button" id="crewStopBtn" class="btn muted-btn">Stop</button>
+              <button type="button" id="crewResetDemoBtn" class="btn muted-btn">Reset demo</button>
+            </div>
+            <p class="hint" id="crewDemoProgress" aria-live="polite">Moved 0 of 0</p>
+            <div id="crewDemoDone" class="crew-demo-done" hidden role="status">Dock loaded — Ready</div>
+
             <p class="hint crew-map-tap-hint">Tap an operator to see what they’re moving.</p>
             <div class="crew-map-layout">
-              <div id="crewDockMap" class="crew-dock-map" role="img" aria-label="Dock floor map with doors 1–10">
+              <div id="crewDockMap" class="crew-dock-map" role="img" aria-label="Dock floor map with doors 1–10 and outbound load doors">
                 <div class="crew-doors crew-doors-left" aria-hidden="true">
                   <span class="crew-door" data-door="1">1</span>
                   <span class="crew-door" data-door="2">2</span>
@@ -359,7 +370,7 @@
                   <span class="crew-door" data-door="5">5</span>
                 </div>
                 <div id="crewFloor" class="crew-floor" aria-label="Dock floor">
-                  <!-- operator markers injected by app.js -->
+                  <!-- SVG arrows, OUT targets, and operator markers injected by app.js -->
                 </div>
                 <div class="crew-doors crew-doors-right" aria-hidden="true">
                   <span class="crew-door" data-door="6">6</span>
@@ -371,6 +382,13 @@
               </div>
               <div id="crewOpDetail" class="crew-op-detail" hidden aria-live="polite"></div>
             </div>
+
+            <h3 class="crew-queue-heading">Remaining dock moves</h3>
+            <div id="crewMoveQueue" class="crew-move-queue" role="list">
+              <div class="empty-state">No plan queue yet. Build a load plan, then Start demo.</div>
+            </div>
+
+            <h3 class="crew-active-heading">Active forklifts</h3>
             <div id="crewBoardList" class="crew-board-list" role="list">
               <div class="empty-state">No assignments yet. Load demo inbound trailers or build a load plan.</div>
             </div>
@@ -462,9 +480,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=26"></script>
-  <script src="speech.js?v=26"></script>
-  <script src="loadPlan.js?v=26"></script>
-  <script src="app.js?v=26"></script>
+  <script src="storage.js?v=27"></script>
+  <script src="speech.js?v=27"></script>
+  <script src="loadPlan.js?v=27"></script>
+  <script src="app.js?v=27"></script>
 </body>
 </html>

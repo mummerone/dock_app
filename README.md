@@ -114,7 +114,16 @@ One **Dock** tab covers inbound doors, outbound trailers, ground deck-build orde
 2. Rectangle **dock map** (doors 1–5 left, 6–10 right) with operator markers on the floor near their pull door — tap a number for pull/load detail.
 3. Plain text board below: one operator per pull (inbound) door so forklifts stay spread out.
 4. Lines come from the current load plan moves (or inbound / demo doors if there is no plan yet).
-5. **Refresh assignments** reshuffles the next open move on each door — still one operator per door; the map updates with the list.
+5. **Refresh assignments** reshuffles the next open move on each door — still one operator per door; the map updates with the list (when a live demo is not running).
+
+### Crew live demo
+Boss walkthrough on **Dock → Crew** (local simulation only — not saved):
+1. Load demo inbound + **Build load plan (demo)** first (or tap **Start demo** after a plan exists — Build plan also seeds the demo).
+2. Map shows forklifts at pull doors; **arrows** draw pull → load door. Outbound doors **21–25** render as small **OUT / Door N** targets along the **bottom** of the floor so arrows have somewhere to go.
+3. Under the map: **Remaining dock moves** queue + progress “Moved X of Y”.
+4. **Step once** completes the earliest-started active pull; that forklift takes the next queue move whose pull door is free (one operator per pull door — skips busy doors).
+5. **Play** auto-steps about every 800ms; **Stop** pauses; **Reset demo** restores the full queue from the current plan.
+6. When finished: **Dock loaded — Ready**. Tap an operator anytime for what they’re moving.
 
 ### Demo plan
 1. Tap **Dock** → **Demo plan**.
@@ -153,7 +162,7 @@ Works even if some pieces were logged before destination existed.
 9. Tap **Dock** → **Inbound** for the door board (and **Load demo inbound trailers** at the top).
 10. Tap **Dock** → **Outbound** to register trailers you are loading out (optional **City load — floor only**).
 11. Tap **Dock** → **Ground** for deck-build orders after a plan.
-12. Tap **Dock** → **Crew** for the dock-wide forklift board (one operator per pull door).
+12. Tap **Dock** → **Crew** for the dock-wide forklift board and live demo (one operator per pull door; Step / Play through the plan).
 13. Tap **Dock** → **Demo plan** to build the local demo load plan.
 14. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
 
@@ -162,6 +171,8 @@ Works even if some pieces were logged before destination existed.
 ---
 
 ## Files in this folder
+
+v27 Crew **live demo**: Start / Step / Play / Stop / Reset on Dock → Crew; queue under map; pull→load arrows; OUT doors 21–25 along floor bottom; seeds after Build plan. Network-first SW (`dock-app-v27`). Ground / Ready to close / city / Work list / Clear all sheet unchanged.
 
 v26 Forklift directions always show **load/put door** (Door · Trl · city/slot) on crew board, Work list Put, and demo plan move cards; registry fallback when door blank on old data. Network-first SW (`dock-app-v26`).
 
@@ -177,7 +188,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v26`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v27`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
