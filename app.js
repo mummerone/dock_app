@@ -2276,7 +2276,55 @@
   }
 
   /**
-   * Seed queue + assign first K operators on distinct pull doors.
+   * Load destination key for demo collision checks (OUT door, else trailer).
+   * @param {object} move
+   * @returns {string}
+   */
+  function moveLoadKey(move) {
+    if (!move) return '';
+    const door = String(move.toDoor || '').trim();
+    if (door) return `door:${door}`;
+    const trailer = String(move.toTrailer || '').trim();
+    if (trailer) return `trl:${trailer}`;
+    return '';
+  }
+
+  /**
+   * Round-robin queue by load key so consecutive free picks diversify OUT doors.
+   * Same-PRO / trailer integrity of each move is unchanged.
+   * @param {object[]} moves
+   * @returns {object[]}
+   */
+  function diversifyQueueByLoad(moves) {
+    /** @type {Map<string, object[]>} */
+    const buckets = new Map();
+    const order = [];
+    moves.forEach((m) => {
+      const key = moveLoadKey(m) || '_none';
+      if (!buckets.has(key)) {
+        buckets.set(key, []);
+        order.push(key);
+      }
+      buckets.get(key).push(m);
+    });
+    const out = [];
+    let progressed = true;
+    while (progressed) {
+      progressed = false;
+      for (const key of order) {
+        const bucket = buckets.get(key);
+        if (bucket && bucket.length) {
+          out.push(bucket.shift());
+          progressed = true;
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Seed queue + assign first K operators on distinct pull AND load doors.
+   * Caps concurrent ops at unique OUT destinations available (do not pile onto one OUT).
    * @param {object|null} [plan]
    * @returns {boolean}
    */
@@ -2289,36 +2337,44 @@
       return false;
     }
 
-    const queue = all.slice();
+    /** @type {object[]} */
+    const remaining = all.slice();
     /** @type {object[]} */
     const active = [];
-    const usedDoors = new Set();
-    /** @type {object[]} */
-    const remaining = [];
+    const usedPull = new Set();
+    const usedLoad = new Set();
     let op = 1;
 
-    for (const move of queue) {
-      if (
-        active.length < CREW_DEMO_TARGET_OPS &&
-        move.fromDoor &&
-        !usedDoors.has(move.fromDoor)
-      ) {
-        usedDoors.add(move.fromDoor);
-        active.push({
-          operator: op++,
-          move,
-          lastDoor: move.fromDoor,
-          startedAt: active.length,
-          idle: false,
-        });
-      } else {
-        remaining.push(move);
+    while (active.length < CREW_DEMO_TARGET_OPS) {
+      let pickIdx = -1;
+      for (let i = 0; i < remaining.length; i++) {
+        const move = remaining[i];
+        const pull = String(move.fromDoor || '').trim();
+        const load = moveLoadKey(move);
+        if (!pull || usedPull.has(pull)) continue;
+        // Require a free load destination when the move has one
+        if (load && usedLoad.has(load)) continue;
+        pickIdx = i;
+        break;
       }
+      if (pickIdx < 0) break;
+      const move = remaining.splice(pickIdx, 1)[0];
+      const pull = String(move.fromDoor || '').trim();
+      const load = moveLoadKey(move);
+      usedPull.add(pull);
+      if (load) usedLoad.add(load);
+      active.push({
+        operator: op++,
+        move,
+        lastDoor: pull,
+        startedAt: active.length,
+        idle: false,
+      });
     }
 
     crewDemo = {
       seeded: true,
-      queue: remaining,
+      queue: diversifyQueueByLoad(remaining),
       active,
       doneCount: 0,
       total: all.length,
@@ -2341,17 +2397,33 @@
     return doors;
   }
 
+  function busyLoadKeys(exceptOp) {
+    const keys = new Set();
+    crewDemo.active.forEach((a) => {
+      if (exceptOp != null && a.operator === exceptOp) return;
+      if (a.move && !a.idle) {
+        const key = moveLoadKey(a.move);
+        if (key) keys.add(key);
+      }
+    });
+    return keys;
+  }
+
   /**
-   * Take first queue move whose pull door is free.
-   * @param {Set<string>} busyDoors
+   * Take first queue move whose pull door AND load door/trailer are free.
+   * Conflicting moves stay in queue until both doors clear.
+   * @param {Set<string>} busyPull
+   * @param {Set<string>} [busyLoad]
    * @returns {object|null}
    */
-  function takeNextNonConflicting(busyDoors) {
+  function takeNextNonConflicting(busyPull, busyLoad) {
+    const loads = busyLoad || new Set();
     for (let i = 0; i < crewDemo.queue.length; i++) {
       const m = crewDemo.queue[i];
-      if (!busyDoors.has(String(m.fromDoor))) {
-        return crewDemo.queue.splice(i, 1)[0];
-      }
+      if (busyPull.has(String(m.fromDoor))) continue;
+      const load = moveLoadKey(m);
+      if (load && loads.has(load)) continue;
+      return crewDemo.queue.splice(i, 1)[0];
     }
     return null;
   }
@@ -2363,7 +2435,7 @@
   }
 
   /**
-   * Complete earliest-started active move; that forklift takes next free pull.
+   * Complete earliest-started active move; that forklift takes next free pull+load.
    * @returns {boolean} true if a step happened
    */
   function stepCrewDemo() {
@@ -2378,7 +2450,10 @@
       // All idle but queue left (doors were busy earlier) — fill one idle
       const idle = crewDemo.active.find((a) => a.idle || !a.move);
       if (!idle) return false;
-      const next = takeNextNonConflicting(busyPullDoors(idle.operator));
+      const next = takeNextNonConflicting(
+        busyPullDoors(idle.operator),
+        busyLoadKeys(idle.operator)
+      );
       if (!next) {
         stopCrewDemoPlay();
         return false;
@@ -2397,7 +2472,10 @@
     finisher.idle = true;
     crewDemo.doneCount += 1;
 
-    const next = takeNextNonConflicting(busyPullDoors(finisher.operator));
+    const next = takeNextNonConflicting(
+      busyPullDoors(finisher.operator),
+      busyLoadKeys(finisher.operator)
+    );
     if (next) {
       finisher.move = next;
       finisher.lastDoor = next.fromDoor;
@@ -2463,7 +2541,7 @@
     const moved = stepCrewDemo();
     renderCrew();
     if (!moved && !crewDemoAllDone()) {
-      toast('Waiting — next pull door still busy');
+      toast('Waiting — next free pull+load door still busy');
     }
   }
 
@@ -2923,7 +3001,7 @@
       list = assignmentsFromCrewDemo();
       note = crewDemoAllDone()
         ? 'Dock loaded — all plan moves complete.'
-        : `Live demo — ${crewDemo.active.filter((a) => a.move && !a.idle).length} pulling · ${crewDemo.queue.length} in queue. One operator per pull door.`;
+        : `Live demo — ${crewDemo.active.filter((a) => a.move && !a.idle).length} pulling · ${crewDemo.queue.length} in queue. Different pull doors and different load doors when the plan allows.`;
     } else {
       const plan = DockStorage.readLoadPlan();
       const result =
@@ -3564,7 +3642,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=27').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=28').catch(() => {
       /* offline cache optional */
     });
   }

@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=27" />
+  <link rel="stylesheet" href="styles.css?v=28" />
 </head>
 <body>
   <div id="app">
@@ -339,7 +339,7 @@
         <div id="dockPanelCrew" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubCrew" hidden>
           <section class="card crew-howto-card" aria-labelledby="crew-howto-heading">
             <h2 id="crew-howto-heading">Crew — live demo</h2>
-            <p class="hint">How to: build a load plan (Demo plan), then <strong>Start demo</strong>. Map shows forklifts; arrows go pull → load door. Queue under the map lists remaining moves. <strong>Step once</strong> finishes the earliest move and that forklift takes the next free pull door. <strong>Play</strong> auto-steps (~800ms). One operator per pull door.</p>
+            <p class="hint">How to: build a load plan (Demo plan), then <strong>Start demo</strong>. Map shows forklifts; arrows go pull → load door. Queue under the map lists remaining moves. <strong>Step once</strong> finishes the earliest move and that forklift takes the next free pull+load doors. <strong>Play</strong> auto-steps (~800ms). Active forklifts use different pull doors and different load doors when the plan allows.</p>
           </section>
 
           <section class="card" aria-labelledby="crew-board-heading">
@@ -480,9 +480,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=27"></script>
-  <script src="speech.js?v=27"></script>
-  <script src="loadPlan.js?v=27"></script>
-  <script src="app.js?v=27"></script>
+  <script src="storage.js?v=28"></script>
+  <script src="speech.js?v=28"></script>
+  <script src="loadPlan.js?v=28"></script>
+  <script src="app.js?v=28"></script>
 </body>
 </html>
