@@ -111,9 +111,10 @@ One **Dock** tab covers inbound doors, outbound trailers, ground deck-build orde
 
 ### Crew
 1. Tap **Dock** → **Crew**.
-2. Plain text board for the boss: one operator per pull (inbound) door so forklifts stay spread out.
-3. Lines come from the current load plan moves (or inbound / demo doors if there is no plan yet).
-4. **Refresh assignments** reshuffles the next open move on each door — still one operator per door.
+2. Rectangle **dock map** (doors 1–5 left, 6–10 right) with operator markers on the floor near their pull door — tap a number for pull/load detail.
+3. Plain text board below: one operator per pull (inbound) door so forklifts stay spread out.
+4. Lines come from the current load plan moves (or inbound / demo doors if there is no plan yet).
+5. **Refresh assignments** reshuffles the next open move on each door — still one operator per door; the map updates with the list.
 
 ### Demo plan
 1. Tap **Dock** → **Demo plan**.
@@ -162,7 +163,9 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
-v24 Crew forklift text board (one operator per pull door) for boss demo; network-first SW (`dock-app-v24`). Ground / Ready to close / city floor-only unchanged.
+v26 Forklift directions always show **load/put door** (Door · Trl · city/slot) on crew board, Work list Put, and demo plan move cards; registry fallback when door blank on old data. Network-first SW (`dock-app-v26`).
+
+v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + text board; network-first SW (`dock-app-v25`). Ground / Ready to close / city / one-door rule unchanged.
 
 
 | File | What it is |
@@ -174,7 +177,7 @@ v24 Crew forklift text board (one operator per pull door) for boss demo; network
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v24`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v26`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

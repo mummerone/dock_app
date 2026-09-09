@@ -133,10 +133,10 @@
     dests.forEach((destination, i) => {
       let row = DockStorage.outboundForDestination(destination);
       let created = false;
+      const doorNumber = DEMO_OUTBOUND_DOORS[i] || '';
       if (!row) {
         const trailerNumber =
           DEMO_OUTBOUND_TRAILERS[i] || String(91000 + i);
-        const doorNumber = DEMO_OUTBOUND_DOORS[i] || '';
         // Avoid colliding trailer numbers if somehow reused for another dest
         const existingNums = new Set(
           DockStorage.readOutboundTrailers().map((r) =>
@@ -155,6 +155,10 @@
           destination,
         });
         created = true;
+      } else if (!String(row.doorNumber || '').trim() && doorNumber && row.id) {
+        // Old saved stubs may lack door — keep map-friendly demo doors 21–25
+        const updated = DockStorage.updateOutboundTrailer(row.id, { doorNumber });
+        if (updated) row = updated;
       }
       results.push({ destination, trailer: row, created });
     });
@@ -416,7 +420,14 @@
             },
             to: {
               trailer: outbound.trailerNumber,
-              door: String(outbound.doorNumber || '').trim(),
+              door:
+                String(outbound.doorNumber || '').trim() ||
+                (DockStorage.outboundDoorFor
+                  ? DockStorage.outboundDoorFor({
+                      trailerNumber: outbound.trailerNumber,
+                      destination,
+                    })
+                  : ''),
               slot: toSlot,
               section: slot.section,
               level: slot.level,
@@ -627,14 +638,24 @@
 
     if (moves.length) {
       moves.forEach((m) => {
+        const toTrailer = (m.to && m.to.trailer) || '';
+        const destination = m.destination || '';
+        const toDoor =
+          (typeof DockStorage !== 'undefined' && DockStorage.outboundDoorFor
+            ? DockStorage.outboundDoorFor({
+                door: (m.to && m.to.door) || '',
+                trailerNumber: toTrailer,
+                destination,
+              })
+            : (m.to && m.to.door) || '') || '';
         addCandidate({
           fromDoor: (m.from && m.from.door) || '',
           fromTrailer: (m.from && m.from.trailer) || '',
           fromSlot: (m.from && m.from.slot) || '',
-          toTrailer: (m.to && m.to.trailer) || '',
-          toDoor: (m.to && m.to.door) || '',
+          toTrailer,
+          toDoor,
           toSlot: (m.to && m.to.slot) || '',
-          destination: m.destination || '',
+          destination,
           pro: m.pro || '',
           pieceFraction: m.pieceFraction || '',
           entryId: m.entryId || '',
@@ -663,12 +684,29 @@
               (DockStorage.formatSlot
                 ? DockStorage.formatSlot(e.section, e.level, e.lateral)
                 : '');
+            let toTrailer = '';
+            let toDoor = '';
+            if (dest && typeof DockStorage !== 'undefined') {
+              const ob = DockStorage.outboundForDestination
+                ? DockStorage.outboundForDestination(dest)
+                : null;
+              if (ob) {
+                toTrailer = String(ob.trailerNumber || '').trim();
+                toDoor = String(ob.doorNumber || '').trim();
+              }
+              if (!toDoor && DockStorage.outboundDoorFor) {
+                toDoor = DockStorage.outboundDoorFor({
+                  trailerNumber: toTrailer,
+                  destination: dest,
+                });
+              }
+            }
             addCandidate({
               fromDoor: door,
               fromTrailer: trl,
               fromSlot: fromSlot || '',
-              toTrailer: '',
-              toDoor: '',
+              toTrailer,
+              toDoor,
               toSlot: '',
               destination: dest || '',
               pro: e.pro || '',
@@ -749,25 +787,62 @@
       const fromTrl = pick.fromTrailer || '—';
       const toTrl = pick.toTrailer || '';
       const dest = pick.destination || '';
+      let toDoor = pick.toDoor || '';
+      if (
+        !toDoor &&
+        typeof DockStorage !== 'undefined' &&
+        DockStorage.outboundDoorFor
+      ) {
+        toDoor = DockStorage.outboundDoorFor({
+          trailerNumber: toTrl,
+          destination: dest,
+        });
+      }
+
+      function loadingPhrase(trl, doorNum, destination) {
+        const parts = [];
+        if (doorNum) parts.push(`Door ${doorNum}`);
+        else if (trl) parts.push('Door —');
+        if (trl) parts.push(`Trl ${trl}`);
+        if (destination) parts.push(destination);
+        return parts.join(' · ');
+      }
+
       let line;
       if (toTrl) {
         line =
-          `Operator ${opNum} — pulling Door ${door} · Trl ${fromTrl} → loading Trl ${toTrl}` +
-          (dest ? ` · ${dest}` : '');
+          `Operator ${opNum} — pulling Door ${door} · Trl ${fromTrl} → loading ${loadingPhrase(toTrl, toDoor, dest)}`;
       } else if (dest) {
-        line = `Operator ${opNum} — pulling Door ${door} · Trl ${fromTrl} → ${dest} (no plan yet)`;
+        const loadBit = toDoor
+          ? `loading Door ${toDoor} · ${dest} (no plan yet)`
+          : `${dest} (no plan yet)`;
+        line = `Operator ${opNum} — pulling Door ${door} · Trl ${fromTrl} → ${loadBit}`;
       } else {
         line = `Operator ${opNum} — pulling Door ${door} · Trl ${fromTrl} (no plan yet)`;
       }
 
       let nextLine = '';
       if (next) {
+        let nextToDoor = next.toDoor || '';
+        if (
+          !nextToDoor &&
+          typeof DockStorage !== 'undefined' &&
+          DockStorage.outboundDoorFor
+        ) {
+          nextToDoor = DockStorage.outboundDoorFor({
+            trailerNumber: next.toTrailer || '',
+            destination: next.destination || '',
+          });
+        }
         if (next.toTrailer) {
           nextLine =
-            `Next up: Door ${door} · Trl ${next.fromTrailer || fromTrl} → Trl ${next.toTrailer}` +
-            (next.destination ? ` · ${next.destination}` : '');
+            `Next up: Door ${door} · Trl ${next.fromTrailer || fromTrl} → loading ${loadingPhrase(next.toTrailer, nextToDoor, next.destination || '')}`;
         } else if (next.destination) {
-          nextLine = `Next up: Door ${door} · Trl ${next.fromTrailer || fromTrl} → ${next.destination}`;
+          nextLine =
+            `Next up: Door ${door} · Trl ${next.fromTrailer || fromTrl} → ` +
+            (nextToDoor
+              ? `loading Door ${nextToDoor} · ${next.destination}`
+              : next.destination);
         }
       }
 
@@ -777,7 +852,7 @@
         fromTrailer: fromTrl,
         fromSlot: pick.fromSlot || '',
         toTrailer: toTrl,
-        toDoor: pick.toDoor || '',
+        toDoor: toDoor || '',
         toSlot: pick.toSlot || '',
         destination: dest,
         pro: pick.pro || '',

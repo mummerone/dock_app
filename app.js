@@ -1449,7 +1449,11 @@
       const fromSlot = (m.from && m.from.slot) || '—';
       const toTr = (m.to && m.to.trailer) || '—';
       const toSlot = (m.to && m.to.slot) || '—';
-      const toDoor = (m.to && m.to.door) || '';
+      const toDoor = resolvePutDoor({
+        door: (m.to && m.to.door) || '',
+        trailer: (m.to && m.to.trailer) || '',
+        destination: m.destination || '',
+      });
       const dest = m.destination || '';
       const size =
         m.h == null && m.w == null && m.d == null
@@ -1466,6 +1470,11 @@
         'aria-pressed',
         done ? 'true' : 'false'
       );
+      const putParts = [];
+      if (toDoor) putParts.push(`Door ${toDoor}`);
+      else if (toTr && toTr !== '—') putParts.push('Door —');
+      putParts.push(`Trl ${toTr}`);
+      putParts.push(toSlot);
       btn.innerHTML = `
         <div class="loadout-work-step-top">
           <span class="loadout-work-num">${i + 1}</span>
@@ -1476,7 +1485,7 @@
         <div class="loadout-work-action">
           <span class="loadout-work-get"><strong>Get</strong> Door ${escapeHtml(fromDoor)} · Trl ${escapeHtml(fromTr)} · ${escapeHtml(fromSlot)}</span>
           <span class="loadout-work-arrow" aria-hidden="true">→</span>
-          <span class="loadout-work-put"><strong>Put</strong> Trl ${escapeHtml(toTr)}${toDoor ? ` · Door ${escapeHtml(toDoor)}` : ''} · ${escapeHtml(toSlot)}</span>
+          <span class="loadout-work-put"><strong>Put</strong> ${escapeHtml(putParts.join(' · '))}</span>
         </div>
         ${size || wt ? `<div class="loadout-work-meta">${escapeHtml([size, wt].filter(Boolean).join(' · '))}</div>` : ''}
         <div class="loadout-work-tap-hint">${done ? 'Done — tap to undo' : 'Tap when done'}</div>
@@ -2240,7 +2249,25 @@
   }
 
   /**
+   * Resolve put/load door for a move or assignment (registry fallback).
+   * @param {{ door?: string, trailer?: string, destination?: string }} opts
+   * @returns {string}
+   */
+  function resolvePutDoor(opts) {
+    const o = opts || {};
+    if (typeof DockStorage !== 'undefined' && DockStorage.outboundDoorFor) {
+      return DockStorage.outboundDoorFor({
+        door: o.door || '',
+        trailerNumber: o.trailer || '',
+        destination: o.destination || '',
+      });
+    }
+    return String(o.door || '').trim();
+  }
+
+  /**
    * Plain-English detail for a selected operator (tap target).
+   * Loading: Door (if any) · Trl · destination · slot — Door before Trl.
    * @param {object} a assignment from deriveCrewAssignments
    * @returns {string} HTML
    */
@@ -2248,11 +2275,18 @@
     const pullParts = [`Door ${a.fromDoor}`, `Trl ${a.fromTrailer || '—'}`];
     if (a.fromSlot) pullParts.push(`slot ${a.fromSlot}`);
     const loadParts = [];
+    const putDoor = resolvePutDoor({
+      door: a.toDoor,
+      trailer: a.toTrailer,
+      destination: a.destination,
+    });
     if (a.toTrailer) {
+      loadParts.push(putDoor ? `Door ${putDoor}` : 'Door —');
       loadParts.push(`Trl ${a.toTrailer}`);
       if (a.destination) loadParts.push(a.destination);
       if (a.toSlot) loadParts.push(`slot ${a.toSlot}`);
     } else if (a.destination) {
+      if (putDoor) loadParts.push(`Door ${putDoor}`);
       loadParts.push(`${a.destination} (no plan yet)`);
     } else {
       loadParts.push('No load assigned yet');
@@ -2855,6 +2889,16 @@
         const toTr = (m.to && m.to.trailer) || '—';
         const toSlot = (m.to && m.to.slot) || '—';
         const dest = m.destination || '';
+        const toDoor = resolvePutDoor({
+          door: (m.to && m.to.door) || '',
+          trailer: (m.to && m.to.trailer) || '',
+          destination: dest,
+        });
+        const toParts = [];
+        if (toDoor) toParts.push(`Door ${toDoor}`);
+        else if (toTr && toTr !== '—') toParts.push('Door —');
+        toParts.push(`Trl ${toTr}`);
+        toParts.push(toSlot);
         div.innerHTML = `
           <div class="plan-move-top">
             <span class="plan-move-num">#${idx + 1}</span>
@@ -2864,7 +2908,7 @@
           <div class="plan-move-path">
             <span class="plan-from">Door ${escapeHtml(fromDoor)} · Trl ${escapeHtml(fromTr)} · ${escapeHtml(fromSlot)}</span>
             <span class="plan-arrow" aria-hidden="true">→</span>
-            <span class="plan-to">Trl ${escapeHtml(toTr)} · ${escapeHtml(toSlot)}</span>
+            <span class="plan-to">${escapeHtml(toParts.join(' · '))}</span>
           </div>
         `;
         body.appendChild(div);
@@ -2889,7 +2933,12 @@
     loads.forEach((load) => {
       const wrap = document.createElement('div');
       wrap.className = 'plan-out-trailer';
-      const door = load.doorNumber ? ` · Door ${load.doorNumber}` : '';
+      const doorNum = resolvePutDoor({
+        door: load.doorNumber || '',
+        trailer: load.trailerNumber || '',
+        destination: load.destination || '',
+      });
+      const door = doorNum ? ` · Door ${doorNum}` : '';
       const wt =
         load.totalWeight != null
           ? ` · ${Number(load.totalWeight).toLocaleString()} lbs`
@@ -2954,7 +3003,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=25').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=26').catch(() => {
       /* offline cache optional */
     });
   }

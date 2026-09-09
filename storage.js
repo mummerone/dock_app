@@ -365,6 +365,33 @@
   }
 
   /**
+   * Resolve outbound (put/load) door for display.
+   * Prefer an explicit door, else registry by trailer number, else by destination.
+   * @param {{ door?: string, trailerNumber?: string, destination?: string }} opts
+   * @returns {string}
+   */
+  function outboundDoorFor(opts) {
+    const o = opts || {};
+    let d = String(o.door || '').trim();
+    if (d) return d;
+    const t = String(o.trailerNumber || '').trim();
+    if (t) {
+      const row = readOutboundTrailers().find(
+        (r) => String(r.trailerNumber || '').trim() === t
+      );
+      d = row ? String(row.doorNumber || '').trim() : '';
+      if (d) return d;
+    }
+    const dest = String(o.destination || '').trim();
+    if (dest) {
+      const row = outboundForDestination(dest);
+      d = row ? String(row.doorNumber || '').trim() : '';
+      if (d) return d;
+    }
+    return '';
+  }
+
+  /**
    * Group entries by PRO (BOL).
    * Use this whenever you need to apply the same-trailer rule:
    * for a given PRO, all pieces should share one trailer identity.
@@ -748,6 +775,7 @@
     writeLoadPlan,
     clearLoadPlan,
     outboundForDestination,
+    outboundDoorFor,
     readPros,
     getPro,
     getProDestination,
