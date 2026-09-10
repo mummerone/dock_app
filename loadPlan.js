@@ -8,7 +8,8 @@
  * Permanent rule: all pieces of the same PRO stay on the same trailer.
  * Prefer one outbound trailer per destination (do not mix destinations
  * on one outbound if avoidable). Deck trailers: A=floor, B=first deck,
- * C=second deck. Pack floor first, then decks; slots 1–12 × A–C × L/M/R.
+ * C=second deck. Section Tetris (high-and-tight): per section nose→tail,
+ * place floor A then decks B/C before advancing — never whole-floor-first.
  */
 (function (global) {
   'use strict';
@@ -34,7 +35,8 @@
     { door: '5', trailer: '81005' },
   ];
 
-  const LEVELS_FLOOR_FIRST = ['A', 'B', 'C'];
+  /** Per-section stack order: floor then decks (section Tetris). */
+  const LEVELS_SECTION_TETRIS = ['A', 'B', 'C'];
   const LATERALS = ['Left', 'Middle', 'Right'];
 
   const SIZE_POOL = [
@@ -66,14 +68,16 @@
   }
 
   /**
-   * Ordered slot list for floor-first packing on a deck trailer.
-   * Floor (A) nose→rear filling Left/Middle/Right, then B, then C.
+   * Section-major high-and-tight slot order (section Tetris).
+   * For section 1→12: A L/M/R, then B L/M/R, then C L/M/R.
+   * Consuming this list fills floor then decks in each bay before moving aft.
+   * Anti-pattern removed: never all floor A across the trailer before any B/C.
    * @returns {{section:number, level:string, lateral:string, slotLabel:string}[]}
    */
   function buildHighTightSlotOrder() {
     const slots = [];
-    for (const level of LEVELS_FLOOR_FIRST) {
-      for (let section = 1; section <= 12; section++) {
+    for (let section = 1; section <= 12; section++) {
+      for (const level of LEVELS_SECTION_TETRIS) {
         for (const lateral of LATERALS) {
           slots.push({
             section,
@@ -89,7 +93,7 @@
 
   /**
    * City / local loads: floor only (level A). No decks B/C.
-   * Same section × lateral order as high-tight floor pass.
+   * Same section × lateral order as the floor pass of section Tetris.
    * @returns {{section:number, level:string, lateral:string, slotLabel:string}[]}
    */
   function buildFloorOnlySlotOrder() {
@@ -285,11 +289,74 @@
     return v;
   }
 
+  function pieceWeight(e) {
+    const w = Number(e && e.weight);
+    return Number.isFinite(w) ? w : 0;
+  }
+
+  function pieceHeight(e) {
+    const h = Number(e && e.h);
+    return Number.isFinite(h) && h > 0 ? h : 36;
+  }
+
+  function shipmentWeight(pieces) {
+    return pieces.reduce((n, e) => n + pieceWeight(e), 0);
+  }
+
   /**
-   * Local floor-first demo planner.
+   * Soft weight spread: avoid dumping every heaviest PRO only in the nose.
+   * Alternate taking from heavy and light ends of a weight-sorted list.
+   * @param {{pro:string, destination:string, pieces:object[]}[]} shipments
+   */
+  function softSpreadProOrder(shipments) {
+    const byWeight = shipments.slice().sort((a, b) => {
+      const dw = shipmentWeight(b.pieces) - shipmentWeight(a.pieces);
+      if (dw !== 0) return dw;
+      return shipmentVolume(b.pieces) - shipmentVolume(a.pieces);
+    });
+    const result = [];
+    let i = 0;
+    let j = byWeight.length - 1;
+    let takeHeavy = true;
+    while (i <= j) {
+      if (takeHeavy) result.push(byWeight[i++]);
+      else result.push(byWeight[j--]);
+      takeHeavy = !takeHeavy;
+    }
+    return result;
+  }
+
+  /**
+   * Pick the best remaining piece for a slot level:
+   * A (floor) → heaviest; B/C (deck) → shortest then lightest.
+   * Mutates `pool` (removes chosen piece).
+   * @param {object[]} pool
+   * @param {string} level
+   */
+  function takePieceForLevel(pool, level) {
+    if (!pool.length) return null;
+    const lv = String(level || '').toUpperCase();
+    let bestIdx = 0;
+    if (lv === 'A') {
+      for (let i = 1; i < pool.length; i++) {
+        if (pieceWeight(pool[i]) > pieceWeight(pool[bestIdx])) bestIdx = i;
+      }
+    } else {
+      for (let i = 1; i < pool.length; i++) {
+        const a = pool[i];
+        const b = pool[bestIdx];
+        const dh = pieceHeight(a) - pieceHeight(b);
+        if (dh < 0 || (dh === 0 && pieceWeight(a) < pieceWeight(b))) bestIdx = i;
+      }
+    }
+    return pool.splice(bestIdx, 1)[0];
+  }
+
+  /**
+   * Local section-Tetris (high-and-tight) demo planner.
    * Reads all inbound dock pieces + destinations, assigns PROs to outbound
    * trailers by destination (one trailer per dest when possible), packs
-   * floor→decks into slots 1–12 × A–C × L/M/R, returns and persists a plan.
+   * section-by-section nose→tail (A then B/C per bay), returns and persists a plan.
    *
    * Replace the internals of this function later with a real AI backend call;
    * keep the returned plan shape stable for the UI.
@@ -375,13 +442,16 @@
       const outbound = outboundByDest[destination];
       if (!outbound) return;
 
-      const destShipments = shipments
-        .filter((s) => s.destination === destination)
-        .sort((a, b) => shipmentVolume(b.pieces) - shipmentVolume(a.pieces));
+      // Soft-spread PRO order (heavy/light alternate) so nose is not all heaviest
+      const destShipments = softSpreadProOrder(
+        shipments.filter((s) => s.destination === destination)
+      );
 
       const cityFloorOnly = Boolean(outbound.cityFloorOnly);
       if (cityFloorOnly) cityFloorOnlyCount += 1;
 
+      // Section Tetris slot list (or floor-only for city). Cursor advances
+      // only after each PRO's pieces are placed into contiguous slots.
       const slotOrder = cityFloorOnly
         ? buildFloorOnlySlotOrder()
         : buildHighTightSlotOrder();
@@ -390,9 +460,12 @@
       const loadGroups = [];
 
       destShipments.forEach((ship) => {
-        // Entire PRO on this one outbound trailer (permanent rule)
+        // Entire PRO on this one outbound trailer (permanent rule) —
+        // finish this PRO's pieces in nearby sections before the next PRO.
+        const pool = ship.pieces.slice();
         const plannedPieces = [];
-        ship.pieces.forEach((e) => {
+        const n = pool.length;
+        for (let i = 0; i < n; i++) {
           const fallback = cityFloorOnly
             ? { section: 12, level: 'A', lateral: 'Right', slotLabel: '12/A/Right' }
             : { section: 12, level: 'C', lateral: 'Right', slotLabel: '12/C/Right' };
@@ -401,6 +474,9 @@
             slotOrder[slotOrder.length - 1] ||
             fallback;
           cursor += 1;
+          // Heavy on floor / short+light on deck for this slot's level
+          const e = takePieceForLevel(pool, slot.level) || pool.shift();
+          if (!e) break;
           const fromSlot =
             e.slotLabel ||
             DockStorage.formatSlot(e.section, e.level, e.lateral);
@@ -453,7 +529,7 @@
             fromTrailer: String(e.trailerNumber || '').trim(),
             fromSlot,
           });
-        });
+        }
         loadGroups.push({ pro: ship.pro, pieces: plannedPieces });
       });
 
@@ -486,10 +562,11 @@
       note = `${skippedNoDest} bill(s) skipped — no destination set. Tap Edit bill on each, then build again.`;
     } else if (cityFloorOnlyCount > 0) {
       note =
-        `Packed floor first, then decks B/C; one outbound per destination. ` +
-        `${cityFloorOnlyCount} city load(s) used floor only (level A) — no decks.`;
+        `Packed section-by-section (nose→tail): floor then decks per bay; never whole-floor-first. ` +
+        `City loads floor-only. ${cityFloorOnlyCount} city load(s) used floor only (level A) — no decks.`;
     } else {
-      note = 'Packed floor first, then decks B/C; one outbound per destination.';
+      note =
+        'Packed section-by-section (nose→tail): floor then decks per bay; never whole-floor-first. City loads floor-only.';
     }
 
     const plan = {

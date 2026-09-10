@@ -947,12 +947,16 @@
       .replace(/"/g, '&quot;');
   }
 
-  /** Strip legacy "high-and-tight" wording from saved plan notes / status. */
+  /** Normalize legacy plan-note wording from older saved plans / status. */
   function sanitizePlanNote(note) {
     if (note == null || note === '') return '';
     return String(note)
-      .replace(/Packed\s+high-and-tight:?\s*/gi, 'Packed floor first, then decks — ')
-      .replace(/high-and-tight/gi, 'Packed floor first, then decks')
+      .replace(/Packed\s+floor\s+first,\s+then\s+decks\s+B\/C/gi,
+        'Packed section-by-section (nose→tail): floor then decks per bay; never whole-floor-first')
+      .replace(/Packed\s+floor\s+first,\s+then\s+decks/gi,
+        'Packed section-by-section (nose→tail): floor then decks per bay')
+      .replace(/Packed\s+high-and-tight:?\s*/gi,
+        'Packed section-by-section (nose→tail): floor then decks per bay — ')
       .replace(/\s{2,}/g, ' ')
       .replace(/\s+—\s*—/g, ' —')
       .trim();
@@ -3642,7 +3646,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=28').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=29').catch(() => {
       /* offline cache optional */
     });
   }

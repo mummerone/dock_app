@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=28" />
+  <link rel="stylesheet" href="styles.css?v=29" />
 </head>
 <body>
   <div id="app">
@@ -398,7 +398,7 @@
         <div id="dockPanelPlan" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubPlan" hidden>
           <section class="card" aria-labelledby="plan-run-heading">
             <h2 id="plan-run-heading">Build load plan (demo)</h2>
-            <p class="hint">Local demo planner on this device. Reads inbound dock freight, keeps same-PRO pieces together, prefers one outbound trailer per destination, and packs floor first (A), then decks B/C into slots 1–12 × A–C × Left/Middle/Right. Trailers marked <strong>City load — floor only</strong> stay on level A only.</p>
+            <p class="hint">Local demo planner on this device. Reads inbound dock freight, keeps same-PRO pieces together, prefers one outbound trailer per destination, and packs <strong>section Tetris</strong> (high-and-tight): section-by-section nose→tail — floor (A) then decks B/C in each bay before moving aft (never whole-floor-first). Trailers marked <strong>City load — floor only</strong> stay on level A only.</p>
             <p class="hint">Tip: generate freight first with <strong>Load demo inbound trailers</strong> on the Inbound section.</p>
             <button type="button" id="runLoadPlanBtn" class="btn speak-btn demo-primary-btn">Build load plan (demo)</button>
             <button type="button" id="clearPlanBtn" class="btn muted-btn demo-secondary-btn">Clear plan</button>
@@ -480,9 +480,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=28"></script>
-  <script src="speech.js?v=28"></script>
-  <script src="loadPlan.js?v=28"></script>
-  <script src="app.js?v=28"></script>
+  <script src="storage.js?v=29"></script>
+  <script src="speech.js?v=29"></script>
+  <script src="loadPlan.js?v=29"></script>
+  <script src="app.js?v=29"></script>
 </body>
 </html>

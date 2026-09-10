@@ -127,7 +127,7 @@ Boss walkthrough on **Dock → Crew** (local simulation only — not saved):
 
 ### Demo plan
 1. Tap **Dock** → **Demo plan**.
-2. Local demo planner on this device (builds a load plan from inbound freight).
+2. Local demo planner on this device (builds a load plan from inbound freight). Section Tetris H&T: floor then decks **per bay** nose→tail (not whole-floor-first); city loads floor-only.
 3. **Build load plan (demo)** / **Clear plan**, then plan summary, move list (grouped by outbound trailer, collapsible, with counts), and planned outbound load-outs.
 4. On Demo plan, sticky chrome is turned off (`plan-scroll-mode`): top bar, main view tabs, and dock sub-tabs all scroll away with the page so they do not cover the long move list.
 5. Tip: load demo inbound on **Inbound** first so there is freight to plan.
@@ -172,6 +172,8 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v29 Section Tetris H&T planner: per outbound trailer, pack **section-by-section nose→tail** (floor A then decks B/C in each bay; never whole-floor-first). City loads stay floor-only. Ground deck-build orders still one per section with B/C. Network-first SW (`dock-app-v29`).
+
 v28 Crew live demo: concurrent forklifts use **different pull doors and different load/OUT doors** when the plan allows (Start greedily seeds up to 5; Step skips queue moves that collide on either door). Network-first SW (`dock-app-v28`).
 
 v27 Crew **live demo**: Start / Step / Play / Stop / Reset on Dock → Crew; queue under map; pull→load arrows; OUT doors 21–25 along floor bottom; seeds after Build plan. Network-first SW (`dock-app-v27`). Ground / Ready to close / city / Work list / Clear all sheet unchanged.
@@ -190,7 +192,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v28`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v29`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
