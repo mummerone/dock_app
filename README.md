@@ -77,15 +77,15 @@ Example: `http://192.168.1.42:8080`
 Use **Trailer load-out** to follow a go-get / put list without a developer.
 
 1. Tap **Trailer load-out** (next to **Log freight**).
-2. Tap a trailer chip — **OUT** chips are outbound trailers from the last load plan (e.g. after **Dock → Demo plan**). You can also type a number and tap **Show**.
+2. Tap a trailer chip — **OUT** chips are outbound trailers from the last load plan (e.g. after **Dock → Plan**). You can also type a number and tap **Show**.
 3. **Work list** (when a plan exists for that trailer): numbered steps with door, get-from slot, put-to slot, PRO and piece. Tap a step to mark it done; **Clear done** resets marks for this trailer + plan.
 4. **Ready to close**: on an **outbound** trailer, when every Work list step is done, a big banner appears (“All planned pieces are on this trailer. Spot-check, then close.”). Progress only while some steps remain; no banner if there is no Work list.
 5. **What is on this trailer**: inventory grouped by bill (PRO) with slots — same PRO stays on one trailer.
-6. No plan yet? Empty tips tell you to run **Dock → Demo plan** (or log freight first).
+6. No plan yet? Empty tips tell you to run **Dock → Plan** (or log freight first).
 
 Done marks stay on this device only (`localStorage`). The **Log freight** tab still works the same.
 
-## Dock (Inbound · Outbound · Ground · Crew · Demo plan)
+## Dock (Inbound · Outbound · Ground · Crew · Plan)
 
 One **Dock** tab covers inbound doors, outbound trailers, ground deck-build orders, the crew forklift board, and the demo load planner. Inside Dock, use the big sub-nav buttons:
 
@@ -126,11 +126,11 @@ Boss walkthrough on **Dock → Crew** (local simulation only — not saved):
 5. **Play** auto-steps about every 800ms; **Stop** pauses; **Reset demo** restores the full queue from the current plan.
 6. When finished: **Dock loaded — Ready**. Tap an operator anytime for what they’re moving.
 
-### Demo plan
-1. Tap **Dock** → **Demo plan**.
+### Plan
+1. Tap **Dock** → **Plan**.
 2. Local demo planner on this device (builds a load plan from inbound freight). Section Tetris H&T: floor then decks **per bay** nose→tail (not whole-floor-first); city loads floor-only.
 3. **Build load plan (demo)** / **Clear plan**, then plan summary, move list (grouped by outbound trailer, collapsible, with counts), and planned outbound load-outs.
-4. On Demo plan, sticky chrome is turned off (`plan-scroll-mode`): top bar, main view tabs, and dock sub-tabs all scroll away with the page so they do not cover the long move list.
+4. On Plan, sticky chrome is turned off (`plan-scroll-mode`): top bar, main view tabs, and dock sub-tabs all scroll away with the page so they do not cover the long move list.
 5. Tip: load demo inbound on **Inbound** first so there is freight to plan.
 
 ## Destination on each PRO
@@ -164,7 +164,7 @@ Works even if some pieces were logged before destination existed.
 10. Tap **Dock** → **Outbound** to register trailers you are loading out (optional **City load — floor only**).
 11. Tap **Dock** → **Ground** for deck-build orders after a plan.
 12. Tap **Dock** → **Crew** for the dock-wide forklift board and live demo (different pull + load doors when the plan allows; Step / Play through the plan).
-13. Tap **Dock** → **Demo plan** to build the local demo load plan.
+13. Tap **Dock** → **Plan** to build the local demo load plan.
 14. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
 
 **Out of scope for this demo:** driver route / yard / in-transit status — the company provides those elsewhere.
@@ -173,7 +173,9 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
-v33 Crew map: inbound doors as a **wall/grid** (busy = green border, empty muted); operator badge on the pull door cell; OUT strip below with optional Op label — **no SVG arrows**. Door count setting kept. Network-first SW (`dock-app-v33`).
+v34 UX polish: Crew remaining moves grouped by outbound trailer (Plan-style collapse headers + short multi-line rows); Dock subnav one orange-accent row (Inbound | Outbound | Ground | Crew | Plan); map door numerals bigger + equal-width OUT chips + op-selection highlight. Network-first SW (`dock-app-v34`).
+
+v33 Crew map: inbound doors as a **wall/grid** (busy = green border, empty muted); operator badge on the pull door cell; OUT strip below with optional Op label — **no SVG arrows**. Door count setting kept. Network-first SW (`dock-app-v34`).
 
 v32 Crew map: **Doors on this dock** setting (`dockApp.dockDoorCount.v1`, default max(20, highest seen)); always renders pull doors 1..N (empty muted, busy lit); scrollable columns + OUT row always visible. Network-first SW (`dock-app-v32`).
 
@@ -199,7 +201,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v33`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v34`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

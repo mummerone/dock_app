@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=33" />
+  <link rel="stylesheet" href="styles.css?v=34" />
 </head>
 <body>
   <div id="app">
@@ -196,7 +196,7 @@
 
       <section class="card" aria-labelledby="loadout-pick-heading">
         <h2 id="loadout-pick-heading">Which trailer?</h2>
-        <p class="loadout-plan-banner" id="loadoutPlanBanner" role="status">No load plan yet. Go to Dock → Demo plan and tap Build load plan (demo).</p>
+        <p class="loadout-plan-banner" id="loadoutPlanBanner" role="status">No load plan yet. Go to Dock → Plan and tap Build load plan (demo).</p>
         <p class="hint">Chips show trailers with logged freight. After you build a load plan, outbound trailers also appear marked OUT. Clear plan removes those OUT chips.</p>
         <label class="field trailer-number-field">
           <span>Trailer number</span>
@@ -253,7 +253,7 @@
           Crew
         </button>
         <button type="button" class="dock-subtab" id="dockSubPlan" role="tab" aria-selected="false" aria-controls="dockPanelPlan">
-          Demo plan
+          Plan
         </button>
       </nav>
 
@@ -306,7 +306,7 @@
 
           <section class="card" aria-labelledby="outbound-list-heading">
             <h2 id="outbound-list-heading">Outbound trailers</h2>
-            <p class="hint">Plain list of trailers registered for outbound loading. Toggle <strong>City / floor only</strong> on a row for local loads. Use <strong>Demo plan</strong> to run the local load planner.</p>
+            <p class="hint">Plain list of trailers registered for outbound loading. Toggle <strong>City / floor only</strong> on a row for local loads. Use <strong>Plan</strong> to run the local load planner.</p>
             <div id="outboundList" class="outbound-list">
               <div class="empty-state">No outbound trailers yet. Add a trailer number above, then Save (or tap Open if the destination is not set).</div>
             </div>
@@ -339,7 +339,7 @@
         <div id="dockPanelCrew" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubCrew" hidden>
           <section class="card crew-howto-card" aria-labelledby="crew-howto-heading">
             <h2 id="crew-howto-heading">Crew — live demo</h2>
-            <p class="hint">How to: build a load plan (Demo plan), then <strong>Start demo</strong>. Map shows forklifts; arrows go pull → load door. Queue under the map lists remaining moves. <strong>Step once</strong> finishes the earliest move and that forklift takes the next free pull+load doors. <strong>Play</strong> auto-steps (~800ms). Active forklifts use different pull doors and different load doors when the plan allows.</p>
+            <p class="hint">How to: build a load plan (<strong>Plan</strong>), then <strong>Start demo</strong>. Map shows forklifts on pull doors; OUT chips below. Queue under the map lists remaining moves by outbound trailer. <strong>Step once</strong> finishes the earliest move and that forklift takes the next free pull+load doors. <strong>Play</strong> auto-steps (~800ms). Active forklifts use different pull doors and different load doors when the plan allows.</p>
           </section>
 
           <section class="card" aria-labelledby="crew-board-heading">
@@ -472,9 +472,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=33"></script>
-  <script src="speech.js?v=33"></script>
-  <script src="loadPlan.js?v=33"></script>
-  <script src="app.js?v=33"></script>
+  <script src="storage.js?v=34"></script>
+  <script src="speech.js?v=34"></script>
+  <script src="loadPlan.js?v=34"></script>
+  <script src="app.js?v=34"></script>
 </body>
 </html>

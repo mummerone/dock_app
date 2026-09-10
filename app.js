@@ -1260,7 +1260,7 @@
     banner.classList.toggle('is-empty', !hasPlan);
     if (!hasPlan) {
       banner.textContent =
-        'No load plan yet. Go to Dock → Demo plan and tap Build load plan (demo).';
+        'No load plan yet. Go to Dock → Plan and tap Build load plan (demo).';
       return;
     }
     const n = outs.length;
@@ -1293,7 +1293,7 @@
       hint.className = 'hint';
       hint.style.margin = '0';
       hint.textContent =
-        'No trailers yet. Log freight first, or go to Dock → Inbound → Load demo inbound, then Demo plan.';
+        'No trailers yet. Log freight first, or go to Dock → Inbound → Load demo inbound, then Plan.';
       el.loadoutTrailerChips.appendChild(hint);
       updateLoadoutPlanBanner();
       return;
@@ -1428,10 +1428,10 @@
       const outboundStub = t && isOutboundRegistered(t);
       if (t && outboundStub && !isPlanPresent(plan)) {
         el.loadoutWorkCard.classList.remove('hidden');
-        el.loadoutWorkList.innerHTML = '<div class="empty-state">No work list yet. Go to Dock → Demo plan and tap Build load plan (demo).</div>';
+        el.loadoutWorkList.innerHTML = '<div class="empty-state">No work list yet. Go to Dock → Plan and tap Build load plan (demo).</div>';
         if (el.loadoutWorkHint) {
           el.loadoutWorkHint.textContent =
-            'No plan moves for this outbound yet. Go to Dock → Demo plan and tap Build load plan (demo).';
+            'No plan moves for this outbound yet. Go to Dock → Plan and tap Build load plan (demo).';
         }
         if (el.loadoutWorkProgress) el.loadoutWorkProgress.textContent = '';
         setReadyToCloseBanner(false);
@@ -1577,10 +1577,10 @@
           'Nothing on this trailer, and no work steps for it in the current plan. Try an <strong>OUT</strong> chip, or pick an inbound trailer that has freight.';
       } else if (isOutboundRegistered(state.loadoutTrailer)) {
         msg =
-          'No work list yet.<br/>Go to <strong>Dock → Demo plan</strong> and tap <strong>Build load plan (demo)</strong>.';
+          'No work list yet.<br/>Go to <strong>Dock → Plan</strong> and tap <strong>Build load plan (demo)</strong>.';
       } else {
         msg =
-          'Nothing on this trailer yet.<br/>Log freight with this trailer number, or go to <strong>Dock → Demo plan</strong> and build a plan.';
+          'Nothing on this trailer yet.<br/>Log freight with this trailer number, or go to <strong>Dock → Plan</strong> and build a plan.';
       }
       el.loadoutList.innerHTML = `<div class="empty-state">${msg}</div>`;
       return;
@@ -2129,7 +2129,7 @@
         '<div class="empty-state">No deck builds yet. Build a load plan first (non-city trailers may need decks).</div>';
       if (el.groundOrdersHint) {
         el.groundOrdersHint.textContent =
-          'Build a load plan on Demo plan first. Then come back here for deck-build orders.';
+          'Build a load plan on Plan first. Then come back here for deck-build orders.';
       }
       if (el.groundOrdersProgress) el.groundOrdersProgress.textContent = '';
       return;
@@ -2275,11 +2275,23 @@
 
   function updateCrewSelectionUI() {
     const selected = state.crewSelectedOp;
+    const a = crewAssignmentsCache.find((x) => x.operator === selected);
+    const pullDoor = a && !a.idle ? String(a.fromDoor || '').trim() : '';
+    const outDoor = a && !a.idle ? String(a.toDoor || '').trim() : '';
+
     if (el.crewFloor) {
       el.crewFloor.querySelectorAll('.crew-op-marker').forEach((btn) => {
         const op = Number(btn.getAttribute('data-op'));
         btn.classList.toggle('is-selected', op === selected);
         btn.setAttribute('aria-pressed', op === selected ? 'true' : 'false');
+      });
+      el.crewFloor.querySelectorAll('.crew-door-cell[data-door]').forEach((cell) => {
+        const d = cell.getAttribute('data-door') || '';
+        cell.classList.toggle('is-op-selected', !!selected && !!pullDoor && d === pullDoor);
+      });
+      el.crewFloor.querySelectorAll('.crew-out-target[data-door]').forEach((chip) => {
+        const d = chip.getAttribute('data-door') || '';
+        chip.classList.toggle('is-op-selected', !!selected && !!outDoor && d === outDoor);
       });
     }
     if (el.crewBoardList) {
@@ -2289,7 +2301,6 @@
       });
     }
     if (el.crewOpDetail) {
-      const a = crewAssignmentsCache.find((x) => x.operator === selected);
       if (a) {
         el.crewOpDetail.hidden = false;
         el.crewOpDetail.innerHTML = formatCrewOpDetail(a);
@@ -2591,7 +2602,7 @@
     if (!crewDemo.seeded) {
       const ok = seedCrewDemo();
       if (!ok) {
-        toast('Build a load plan first (Dock → Demo plan)');
+        toast('Build a load plan first (Dock → Plan)');
         return;
       }
     }
@@ -2614,7 +2625,7 @@
     const plan = DockStorage.readLoadPlan();
     const ok = seedCrewDemo(plan);
     if (!ok) {
-      toast('Build a load plan first (Dock → Demo plan)');
+      toast('Build a load plan first (Dock → Plan)');
       renderCrew();
       return;
     }
@@ -2626,7 +2637,7 @@
     if (!crewDemo.seeded) {
       const ok = seedCrewDemo();
       if (!ok) {
-        toast('Build a load plan first (Dock → Demo plan)');
+        toast('Build a load plan first (Dock → Plan)');
         return;
       }
       renderCrew();
@@ -2759,14 +2770,86 @@
         : '<div class="empty-state">Queue empty — finishing active pulls…</div>';
       return;
     }
-    const frag = document.createDocumentFragment();
+
+    // Group by outbound trailer (same pattern as Plan move list) for glove/boss scan
+    const groups = new Map();
     crewDemo.queue.forEach((m, idx) => {
-      const row = document.createElement('div');
-      row.className = 'crew-queue-row';
-      row.setAttribute('role', 'listitem');
-      row.textContent = `${idx + 1}. ${formatMoveQueueLine(m)}`;
-      frag.appendChild(row);
+      const toTr = m.toTrailer || '';
+      const dest = m.destination || '';
+      const key = toTr ? `trl:${toTr}` : `dest:${dest || 'unknown'}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          trailer: toTr || '—',
+          destination: dest || '—',
+          items: [],
+        });
+      }
+      const g = groups.get(key);
+      if ((!g.destination || g.destination === '—') && dest) g.destination = dest;
+      g.items.push({ m, idx });
     });
+
+    const frag = document.createDocumentFragment();
+    let groupIndex = 0;
+    groups.forEach((g) => {
+      const details = document.createElement('details');
+      details.className = 'plan-move-group crew-queue-group';
+      details.open = true;
+      if (groupIndex === 0) details.setAttribute('open', '');
+      groupIndex += 1;
+      const count = g.items.length;
+      const trailerLabel =
+        g.trailer && g.trailer !== '—'
+          ? `Trailer ${g.trailer}`
+          : `Destination ${g.destination}`;
+      const summary = document.createElement('summary');
+      summary.className = 'plan-move-group-head';
+      summary.innerHTML = `
+        <span class="plan-move-group-head-inner">
+          <span class="plan-move-group-chevron" aria-hidden="true">▸</span>
+          <span class="plan-move-group-text">
+            <span class="plan-move-group-label">Outbound group</span>
+            <span class="plan-move-group-title">${escapeHtml(trailerLabel)} · ${escapeHtml(g.destination)}</span>
+          </span>
+          <span class="plan-move-group-count">${count} move${count === 1 ? '' : 's'}</span>
+        </span>
+      `;
+      details.appendChild(summary);
+
+      const body = document.createElement('div');
+      body.className = 'plan-move-group-body';
+      g.items.forEach(({ m, idx }) => {
+        const row = document.createElement('div');
+        row.className = 'crew-queue-row';
+        row.setAttribute('role', 'listitem');
+        const fromDoor = m.fromDoor || '—';
+        const fromTr = m.fromTrailer || '—';
+        const putDoor = m.toDoor || '';
+        const toTr = m.toTrailer || '—';
+        const dest = m.destination || '';
+        const loadBits = [];
+        if (putDoor) loadBits.push(`Door ${putDoor}`);
+        else if (toTr && toTr !== '—') loadBits.push('Door —');
+        if (toTr && toTr !== '—') loadBits.push(`Trl ${toTr}`);
+        if (dest) loadBits.push(dest);
+        if (!loadBits.length) loadBits.push('—');
+        const proBits = [];
+        if (m.pro) proBits.push(`PRO ${m.pro}`);
+        if (m.pieceFraction) proBits.push(m.pieceFraction);
+        row.innerHTML = `
+          <div class="crew-queue-num">#${idx + 1}</div>
+          <div class="crew-queue-lines">
+            <div class="crew-queue-from">Door ${escapeHtml(fromDoor)} · Trl ${escapeHtml(fromTr)}</div>
+            <div class="crew-queue-to"><span class="crew-queue-arrow" aria-hidden="true">→</span> ${escapeHtml(loadBits.join(' · '))}</div>
+            ${proBits.length ? `<div class="crew-queue-pro">${escapeHtml(proBits.join(' · '))}</div>` : ''}
+          </div>
+        `;
+        body.appendChild(row);
+      });
+      details.appendChild(body);
+      frag.appendChild(details);
+    });
+
     el.crewMoveQueue.innerHTML = '';
     el.crewMoveQueue.appendChild(frag);
   }
@@ -3184,6 +3267,11 @@
       emptyOut.textContent = 'No OUT doors yet';
       outStrip.appendChild(emptyOut);
     } else {
+      const chipGrid = document.createElement('div');
+      chipGrid.className = 'crew-out-chips';
+      // Prefer equal-width chips; 5 OUT doors → one even row on phone
+      const cols = Math.min(Math.max(outN, 1), 5);
+      chipGrid.style.setProperty('--out-cols', String(cols));
       outDoors.forEach((d) => {
         const chip = document.createElement('div');
         chip.className = 'crew-out-target';
@@ -3212,8 +3300,9 @@
           chip.appendChild(opLine);
         }
 
-        outStrip.appendChild(chip);
+        chipGrid.appendChild(chip);
       });
+      outStrip.appendChild(chipGrid);
     }
 
     el.crewFloor.appendChild(outStrip);
@@ -3882,7 +3971,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=33').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=34').catch(() => {
       /* offline cache optional */
     });
   }

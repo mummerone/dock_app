@@ -1662,8 +1662,8 @@ button {
 
 /* Dock sub-nav (Inbound / Outbound / Demo plan) — glove-friendly */
 .dock-subnav {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 0 0 12px;
   position: relative;
@@ -1691,22 +1691,25 @@ button {
 }
 
 .dock-subtab {
+  flex: 1 1 calc(20% - 8px);
+  min-width: 72px;
   min-height: 52px;
   border-radius: 14px;
   background: #0f1828;
   border: 2px solid #3a5070;
   color: #c9d6ea;
   font-weight: 800;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   padding: 10px 6px;
   line-height: 1.15;
 }
 
+/* Same orange active accent as Log freight / view tabs — no competing emerald */
 .dock-subtab.active {
-  background: #1e6b4f;
-  border-color: #2ecf8a;
-  color: #e8fff4;
-  box-shadow: 0 4px 0 #0f3d2c;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--chip-on-text);
+  box-shadow: 0 4px 0 var(--accent-dim);
 }
 
 .dock-subtab:active {
@@ -1804,9 +1807,9 @@ button {
 
   .dock-subtab {
     flex: 1 1 calc(33.333% - 8px);
-    min-width: 96px;
+    min-width: 88px;
     min-height: 48px;
-    font-size: 0.84rem;
+    font-size: 0.82rem;
     padding: 10px 6px;
   }
 
@@ -2209,6 +2212,11 @@ button {
   opacity: 0.55;
 }
 
+.crew-door-cell.is-empty .crew-door-num {
+  color: #8a9bb0;
+  font-weight: 850;
+}
+
 .crew-door-cell.has-pull,
 .crew-door-cell.is-live {
   opacity: 1;
@@ -2223,10 +2231,11 @@ button {
 }
 
 .crew-door-num {
-  font-weight: 850;
-  font-size: 0.78rem;
-  line-height: 1.1;
+  font-weight: 900;
+  font-size: 1.05rem;
+  line-height: 1.05;
   letter-spacing: 0.01em;
+  color: #e8eef8;
 }
 
 .crew-door-ops {
@@ -2272,6 +2281,19 @@ button {
   z-index: 3;
 }
 
+.crew-door-cell.is-op-selected {
+  border-color: #ff8a3d;
+  box-shadow: 0 0 0 2px rgba(255, 138, 61, 0.45);
+}
+
+.crew-out-target.is-op-selected {
+  border-color: #ff8a3d;
+  background: #3a2810;
+  box-shadow: 0 0 0 2px rgba(255, 138, 61, 0.5), 0 2px 8px rgba(0, 0, 0, 0.4);
+  color: #fff0d8;
+}
+
+
 .crew-op-marker.is-idle {
   background: #3a4a60;
   border-color: #8aa0c0;
@@ -2288,10 +2310,9 @@ button {
 
 .crew-out-strip {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
+  flex-wrap: nowrap;
   align-items: stretch;
-  gap: 6px;
+  gap: 8px;
   padding-top: 8px;
   border-top: 1px solid #2a3c58;
 }
@@ -2303,7 +2324,7 @@ button {
   font-weight: 900;
   letter-spacing: 0.08em;
   color: #ffc070;
-  padding: 0 4px;
+  padding: 0 2px;
 }
 
 .crew-out-empty {
@@ -2314,15 +2335,22 @@ button {
   align-self: center;
 }
 
+.crew-out-chips {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--out-cols, 5), minmax(0, 1fr));
+  gap: 6px;
+}
+
 .crew-out-target {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex: 0 0 auto;
-  min-width: 56px;
-  max-width: 88px;
-  padding: 5px 7px;
+  min-width: 0;
+  width: 100%;
+  padding: 5px 4px;
   border-radius: 8px;
   border: 2px solid #f0a030;
   background: #2a2010;
@@ -2330,6 +2358,8 @@ button {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   line-height: 1.15;
   pointer-events: none;
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
 }
 
 .crew-out-label {
@@ -2374,7 +2404,7 @@ button {
 }
 
 .crew-dock-map[data-door-density="med"] .crew-door-num {
-  font-size: 0.72rem;
+  font-size: 0.95rem;
 }
 
 .crew-dock-map[data-door-density="high"] .crew-inbound-wall {
@@ -2390,7 +2420,7 @@ button {
 }
 
 .crew-dock-map[data-door-density="high"] .crew-door-num {
-  font-size: 0.66rem;
+  font-size: 0.88rem;
 }
 
 .crew-dock-map[data-door-density="high"] .crew-op-marker {
@@ -2507,10 +2537,15 @@ button {
     font-size: 1.1rem;
   }
 
+  .crew-out-chips {
+    grid-template-columns: repeat(var(--out-cols, 5), minmax(0, 1fr));
+    gap: 4px;
+  }
+
   .crew-out-target {
-    min-width: 48px;
-    max-width: 72px;
-    padding: 4px 5px;
+    min-width: 0;
+    max-width: none;
+    padding: 4px 2px;
   }
 
   .crew-out-door {
@@ -2577,22 +2612,70 @@ button {
 .crew-move-queue {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 8px;
-  max-height: 280px;
+  max-height: 420px;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
+.crew-queue-group {
+  margin: 0;
+}
+
 .crew-queue-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
   background: #0f1828;
   border: 1px solid #2a3c58;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 0.95rem;
-  font-weight: 650;
+  border-radius: 12px;
+  padding: 12px 12px;
+  font-size: 0.98rem;
+  font-weight: 700;
   color: #c8d4e8;
-  line-height: 1.35;
+  line-height: 1.3;
+}
+
+.crew-queue-num {
+  flex: 0 0 auto;
+  min-width: 2.1rem;
+  font-weight: 900;
+  color: var(--accent);
+  font-size: 0.95rem;
+  padding-top: 1px;
+}
+
+.crew-queue-lines {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.crew-queue-from {
+  font-weight: 800;
+  color: #e8eef8;
+  font-size: 1.02rem;
+}
+
+.crew-queue-to {
+  font-weight: 750;
+  color: #ffc070;
+  font-size: 0.98rem;
+}
+
+.crew-queue-arrow {
+  color: var(--accent);
+  font-weight: 900;
+  margin-right: 2px;
+}
+
+.crew-queue-pro {
+  font-weight: 700;
+  color: #9eb0c8;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 380px) {
