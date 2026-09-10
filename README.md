@@ -173,6 +173,8 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v33 Crew map: inbound doors as a **wall/grid** (busy = green border, empty muted); operator badge on the pull door cell; OUT strip below with optional Op label — **no SVG arrows**. Door count setting kept. Network-first SW (`dock-app-v33`).
+
 v32 Crew map: **Doors on this dock** setting (`dockApp.dockDoorCount.v1`, default max(20, highest seen)); always renders pull doors 1..N (empty muted, busy lit); scrollable columns + OUT row always visible. Network-first SW (`dock-app-v32`).
 
 v30 Crew rectangle map uses **actual door counts** from freight / plan / outbound stubs (first-half left, second-half right; OUT chips along bottom). No hardcoded doors 1–10. Network-first SW (`dock-app-v30`).
@@ -197,7 +199,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v32`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v33`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

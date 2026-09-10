@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=32" />
+  <link rel="stylesheet" href="styles.css?v=33" />
 </head>
 <body>
   <div id="app">
@@ -368,11 +368,9 @@
             <p class="hint crew-map-tap-hint">Tap an operator to see what they’re moving.</p>
             <div class="crew-map-layout">
               <div id="crewDockMap" class="crew-dock-map" role="img" aria-label="Dock floor map">
-                <div id="crewDoorsLeft" class="crew-doors crew-doors-left" aria-hidden="true"></div>
                 <div id="crewFloor" class="crew-floor" aria-label="Dock floor">
-                  <!-- SVG arrows, OUT targets, and operator markers injected by app.js -->
+                  <!-- Inbound door wall + OUT strip + operator badges injected by app.js -->
                 </div>
-                <div id="crewDoorsRight" class="crew-doors crew-doors-right" aria-hidden="true"></div>
               </div>
               <div id="crewOpDetail" class="crew-op-detail" hidden aria-live="polite"></div>
             </div>
@@ -474,9 +472,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=32"></script>
-  <script src="speech.js?v=32"></script>
-  <script src="loadPlan.js?v=32"></script>
-  <script src="app.js?v=32"></script>
+  <script src="storage.js?v=33"></script>
+  <script src="speech.js?v=33"></script>
+  <script src="loadPlan.js?v=33"></script>
+  <script src="app.js?v=33"></script>
 </body>
 </html>

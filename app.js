@@ -149,8 +149,6 @@
     crewRefreshBtn: document.getElementById('crewRefreshBtn'),
     crewDoorCountInput: document.getElementById('crewDoorCountInput'),
     crewDockMap: document.getElementById('crewDockMap'),
-    crewDoorsLeft: document.getElementById('crewDoorsLeft'),
-    crewDoorsRight: document.getElementById('crewDoorsRight'),
     crewFloor: document.getElementById('crewFloor'),
     crewOpDetail: document.getElementById('crewOpDetail'),
     crewStartDemoBtn: document.getElementById('crewStartDemoBtn'),
@@ -3041,106 +3039,25 @@
   }
 
   /**
-   * Split pull doors across left/right columns.
-   * Rule: first half left, second half right (ceil — odd count favors left).
-   * Example: 5 doors → left [1,2,3], right [4,5]. Empty side stays empty.
-   * @param {string[]} doors sorted pull doors
-   * @returns {{ left: string[], right: string[] }}
+   * Build a tappable operator badge for the inbound door wall.
+   * @param {object} a assignment
+   * @returns {HTMLButtonElement}
    */
-  function splitCrewPullDoors(doors) {
-    const list = Array.isArray(doors) ? doors : [];
-    const mid = Math.ceil(list.length / 2);
-    return { left: list.slice(0, mid), right: list.slice(mid) };
-  }
-
-  /**
-   * Place an operator marker near their pull door within the current left/right lists.
-   * @param {string|number} door
-   * @param {string[]} leftDoors
-   * @param {string[]} rightDoors
-   * @returns {{ left: number, top: number, side: string }}
-   */
-  function crewMarkerPosition(door, leftDoors, rightDoors) {
-    const d = String(door == null ? '' : door).trim();
-    const left = leftDoors || [];
-    const right = rightDoors || [];
-    let side = 'left';
-    let idx = left.indexOf(d);
-    let count = left.length;
-    if (idx < 0) {
-      idx = right.indexOf(d);
-      side = 'right';
-      count = right.length;
-    }
-    if (idx < 0 || count < 1) {
-      return { left: 50, top: 42, side: 'left' };
-    }
-    // Keep markers in the upper ~75% so OUT chips along the bottom stay visible.
-    const topPct = 6 + ((idx + 0.5) / count) * 68;
-    const leftPct = side === 'left' ? 18 : 82;
-    return { left: leftPct, top: topPct, side };
-  }
-
-  /**
-   * Load / OUT target on the floor map.
-   * Actual OUT doors spread along the bottom; otherwise nudge from pull side.
-   * @param {string|number} door
-   * @param {string[]} outDoors
-   * @param {string[]} leftDoors
-   * @param {string[]} rightDoors
-   * @returns {{ left: number, top: number, out: boolean }}
-   */
-  function crewLoadTargetPosition(door, outDoors, leftDoors, rightDoors) {
-    const d = String(door == null ? '' : door).trim();
-    const outs = outDoors || [];
-    const outIdx = outs.indexOf(d);
-    if (outIdx >= 0) {
-      const n = outs.length;
-      const leftPct = n <= 1 ? 50 : 10 + (outIdx / (n - 1)) * 80;
-      return { left: leftPct, top: 90, out: true };
-    }
-    if (!d) {
-      return { left: 50, top: 88, out: true };
-    }
-    const pull = crewMarkerPosition(d, leftDoors, rightDoors);
-    return {
-      left: pull.side === 'left' ? 32 : 68,
-      top: pull.top,
-      out: false,
-    };
-  }
-
-  /**
-   * Fill left/right door columns from pull door lists.
-   * @param {string[]} leftDoors
-   * @param {string[]} rightDoors
-   * @param {Set<string>} activeDoors
-   */
-  function renderCrewDoorColumns(leftDoors, rightDoors, activityDoors, livePullDoors) {
-    function fill(container, doors) {
-      if (!container) return;
-      container.innerHTML = '';
-      (doors || []).forEach((d) => {
-        const span = document.createElement('span');
-        span.className = 'crew-door';
-        span.setAttribute('data-door', d);
-        span.textContent = d;
-        const busy = activityDoors && activityDoors.has(d);
-        if (busy) {
-          span.classList.add('has-pull');
-          span.title = `Door ${d} — freight / plan activity`;
-        } else {
-          span.classList.add('is-empty');
-          span.title = `Door ${d} — empty`;
-        }
-        if (livePullDoors && livePullDoors.has(d)) {
-          span.classList.add('is-live');
-        }
-        container.appendChild(span);
-      });
-    }
-    fill(el.crewDoorsLeft, leftDoors);
-    fill(el.crewDoorsRight, rightDoors);
+  function createCrewOpMarker(a) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'crew-op-marker' + (a.idle ? ' is-idle' : '');
+    btn.setAttribute('data-op', String(a.operator));
+    btn.setAttribute('data-door', String(a.fromDoor || ''));
+    btn.setAttribute(
+      'aria-label',
+      a.idle
+        ? `Operator ${a.operator} idle`
+        : `Operator ${a.operator} at door ${a.fromDoor}`
+    );
+    btn.setAttribute('aria-pressed', 'false');
+    btn.textContent = String(a.operator);
+    return btn;
   }
 
   /**
@@ -3154,7 +3071,6 @@
     const doorCount = getDockDoorCount(list);
     const pullDoors = visibleCrewPullDoors(doorCount, activityPull);
     const outDoors = collectCrewOutDoors(list);
-    const { left: leftDoors, right: rightDoors } = splitCrewPullDoors(pullDoors);
 
     const livePullDoors = new Set(
       (list || [])
@@ -3162,6 +3078,30 @@
         .map((a) => String(a.fromDoor || '').trim())
         .filter(Boolean)
     );
+
+    /** @type {Map<string, object[]>} */
+    const opsByPull = new Map();
+    /** @type {object[]} */
+    const orphanOps = [];
+    (list || []).forEach((a) => {
+      const d = String(a.fromDoor || '').trim();
+      if (d && pullDoors.indexOf(d) >= 0) {
+        if (!opsByPull.has(d)) opsByPull.set(d, []);
+        opsByPull.get(d).push(a);
+      } else {
+        orphanOps.push(a);
+      }
+    });
+
+    /** @type {Map<string, object[]>} */
+    const opsByOut = new Map();
+    (list || []).forEach((a) => {
+      if (a.idle) return;
+      const d = String(a.toDoor || '').trim();
+      if (!d) return;
+      if (!opsByOut.has(d)) opsByOut.set(d, []);
+      opsByOut.get(d).push(a);
+    });
 
     const density =
       pullDoors.length > 30 ? 'high' : pullDoors.length > 16 ? 'med' : 'low';
@@ -3172,114 +3112,111 @@
       el.crewDoorCountInput.value = String(doorCount);
     }
 
-    renderCrewDoorColumns(leftDoors, rightDoors, activitySet, livePullDoors);
-
     const pullN = pullDoors.length;
     const outN = outDoors.length;
     const busyN = activityPull.length;
     el.crewDockMap.setAttribute(
       'aria-label',
-      `Dock floor map with ${pullN} doors (${busyN} busy), ${outN} outbound load door${outN === 1 ? '' : 's'}`
+      `Dock wall map with ${pullN} inbound doors (${busyN} busy), ${outN} outbound load door${outN === 1 ? '' : 's'}`
     );
 
     el.crewFloor.innerHTML = '';
 
-    // SVG arrow layer
-    const svgNS = 'http://www.w3.org/2000/svg';
-    const svg = document.createElementNS(svgNS, 'svg');
-    svg.setAttribute('class', 'crew-arrow-svg');
-    svg.setAttribute('viewBox', '0 0 100 100');
-    svg.setAttribute('preserveAspectRatio', 'none');
-    svg.setAttribute('aria-hidden', 'true');
-    const defs = document.createElementNS(svgNS, 'defs');
-    const marker = document.createElementNS(svgNS, 'marker');
-    marker.setAttribute('id', 'crewArrowHead');
-    marker.setAttribute('markerWidth', '6');
-    marker.setAttribute('markerHeight', '6');
-    marker.setAttribute('refX', '5');
-    marker.setAttribute('refY', '3');
-    marker.setAttribute('orient', 'auto');
-    marker.setAttribute('markerUnits', 'strokeWidth');
-    const tip = document.createElementNS(svgNS, 'path');
-    tip.setAttribute('d', 'M0,0 L6,3 L0,6 Z');
-    tip.setAttribute('fill', '#5ec8ff');
-    marker.appendChild(tip);
-    defs.appendChild(marker);
-    svg.appendChild(defs);
-    el.crewFloor.appendChild(svg);
+    const wall = document.createElement('div');
+    wall.className = 'crew-inbound-wall';
+    wall.setAttribute('aria-label', 'Inbound doors');
 
-    // OUT / load chips — flex row at bottom (wrap / scroll), always fully visible
-    const outRow = document.createElement('div');
-    outRow.className = 'crew-out-row';
-    outRow.setAttribute('aria-label', 'Outbound load doors');
+    pullDoors.forEach((d) => {
+      const cell = document.createElement('div');
+      cell.className = 'crew-door-cell';
+      cell.setAttribute('data-door', d);
+
+      const busy = activitySet.has(d);
+      if (busy) {
+        cell.classList.add('has-pull');
+        cell.title = `Door ${d} — freight / plan activity`;
+      } else {
+        cell.classList.add('is-empty');
+        cell.title = `Door ${d} — empty`;
+      }
+      if (livePullDoors.has(d)) {
+        cell.classList.add('is-live');
+      }
+
+      const num = document.createElement('span');
+      num.className = 'crew-door-num';
+      num.textContent = d;
+      cell.appendChild(num);
+
+      const ops = opsByPull.get(d) || [];
+      if (ops.length) {
+        const badgeRow = document.createElement('div');
+        badgeRow.className = 'crew-door-ops';
+        ops.forEach((a) => badgeRow.appendChild(createCrewOpMarker(a)));
+        cell.appendChild(badgeRow);
+      }
+
+      wall.appendChild(cell);
+    });
+
+    el.crewFloor.appendChild(wall);
+
+    if (orphanOps.length) {
+      const orphanRow = document.createElement('div');
+      orphanRow.className = 'crew-orphan-ops';
+      orphanRow.setAttribute('aria-label', 'Operators without a pull door on this wall');
+      orphanOps.forEach((a) => orphanRow.appendChild(createCrewOpMarker(a)));
+      el.crewFloor.appendChild(orphanRow);
+    }
+
+    const outStrip = document.createElement('div');
+    outStrip.className = 'crew-out-strip';
+    outStrip.setAttribute('aria-label', 'Outbound load doors');
+
+    const outHeading = document.createElement('div');
+    outHeading.className = 'crew-out-heading';
+    outHeading.textContent = 'OUT';
+    outStrip.appendChild(outHeading);
+
     if (!outN) {
       const emptyOut = document.createElement('div');
       emptyOut.className = 'crew-out-empty';
       emptyOut.textContent = 'No OUT doors yet';
-      outRow.appendChild(emptyOut);
+      outStrip.appendChild(emptyOut);
     } else {
       outDoors.forEach((d) => {
         const chip = document.createElement('div');
         chip.className = 'crew-out-target';
         chip.setAttribute('data-door', d);
         chip.setAttribute('title', `OUT Door ${d}`);
-        chip.innerHTML =
-          `<span class="crew-out-label">OUT</span>` +
-          `<span class="crew-out-door">` +
+
+        const label = document.createElement('span');
+        label.className = 'crew-out-label';
+        label.textContent = 'OUT';
+        chip.appendChild(label);
+
+        const doorSpan = document.createElement('span');
+        doorSpan.className = 'crew-out-door';
+        doorSpan.innerHTML =
           `<span class="crew-out-full">Door ${escapeHtml(d)}</span>` +
-          `<span class="crew-out-short" aria-hidden="true">D${escapeHtml(d)}</span>` +
-          `</span>`;
-        outRow.appendChild(chip);
+          `<span class="crew-out-short" aria-hidden="true">D${escapeHtml(d)}</span>`;
+        chip.appendChild(doorSpan);
+
+        const loaders = opsByOut.get(d) || [];
+        if (loaders.length) {
+          const opLine = document.createElement('span');
+          opLine.className = 'crew-out-ops';
+          opLine.textContent = loaders
+            .map((a) => `Op ${a.operator}`)
+            .join(' · ');
+          chip.appendChild(opLine);
+        }
+
+        outStrip.appendChild(chip);
       });
     }
-    el.crewFloor.appendChild(outRow);
 
-    if (!list || !list.length) return;
-
-    const usedSlots = new Map();
-    list.forEach((a) => {
-      const doorForPos = a.fromDoor;
-      const pos = crewMarkerPosition(doorForPos, leftDoors, rightDoors);
-      const key = `${pos.left}|${pos.top}`;
-      const bump = usedSlots.get(key) || 0;
-      usedSlots.set(key, bump + 1);
-      const topNum = bump ? Math.min(74, pos.top + bump * 7) : pos.top;
-
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = `crew-op-marker crew-op-${pos.side}` + (a.idle ? ' is-idle' : '');
-      btn.setAttribute('data-op', String(a.operator));
-      btn.setAttribute('data-door', String(a.fromDoor));
-      btn.setAttribute(
-        'aria-label',
-        a.idle
-          ? `Operator ${a.operator} idle`
-          : `Operator ${a.operator} at door ${a.fromDoor}`
-      );
-      btn.setAttribute('aria-pressed', 'false');
-      btn.textContent = String(a.operator);
-      btn.style.left = `${pos.left}%`;
-      btn.style.top = `${topNum}%`;
-      el.crewFloor.appendChild(btn);
-
-      // Arrow pull → load for active moves (target actual OUT door elements)
-      if (!a.idle && a.toDoor) {
-        const loadPos = crewLoadTargetPosition(
-          a.toDoor,
-          outDoors,
-          leftDoors,
-          rightDoors
-        );
-        const line = document.createElementNS(svgNS, 'line');
-        line.setAttribute('x1', String(pos.left));
-        line.setAttribute('y1', String(topNum));
-        line.setAttribute('x2', String(loadPos.left));
-        line.setAttribute('y2', String(loadPos.top));
-        line.setAttribute('class', 'crew-arrow-line');
-        line.setAttribute('marker-end', 'url(#crewArrowHead)');
-        svg.appendChild(line);
-      }
-    });
+    el.crewFloor.appendChild(outStrip);
   }
 
   function renderCrew() {
@@ -3945,7 +3882,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=32').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=33').catch(() => {
       /* offline cache optional */
     });
   }
