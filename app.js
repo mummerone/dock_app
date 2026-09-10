@@ -2212,6 +2212,96 @@
   /** @type {object[]} */
   let crewAssignmentsCache = [];
 
+  /**
+   * Resolve outbound (put) door for display — explicit door, else registry.
+   * @param {{ door?: string, trailer?: string, destination?: string }} opts
+   * @returns {string}
+   */
+  function resolvePutDoor(opts) {
+    const o = opts || {};
+    if (typeof DockStorage !== 'undefined' && DockStorage.outboundDoorFor) {
+      return DockStorage.outboundDoorFor({
+        door: o.door || '',
+        trailerNumber: o.trailer || '',
+        destination: o.destination || '',
+      });
+    }
+    return String(o.door || '').trim();
+  }
+
+  /**
+   * Plain-English detail for a selected operator (tap target).
+   * @param {object} a assignment
+   * @returns {string} HTML
+   */
+  function formatCrewOpDetail(a) {
+    if (a.idle) {
+      return (
+        `<div class="crew-op-detail-title">Operator ${a.operator}</div>` +
+        `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Status:</span> Idle — waiting for next pull</div>`
+      );
+    }
+    const pullParts = [`Door ${a.fromDoor}`, `Trl ${a.fromTrailer || '—'}`];
+    if (a.fromSlot) pullParts.push(`slot ${a.fromSlot}`);
+    const loadParts = [];
+    const putDoor = resolvePutDoor({
+      door: a.toDoor,
+      trailer: a.toTrailer,
+      destination: a.destination,
+    });
+    if (a.toTrailer) {
+      loadParts.push(putDoor ? `Door ${putDoor}` : 'Door —');
+      loadParts.push(`Trl ${a.toTrailer}`);
+      if (a.destination) loadParts.push(a.destination);
+      if (a.toSlot) loadParts.push(`slot ${a.toSlot}`);
+    } else if (a.destination) {
+      if (putDoor) loadParts.push(`Door ${putDoor}`);
+      loadParts.push(`${a.destination} (no plan yet)`);
+    } else {
+      loadParts.push('No load assigned yet');
+    }
+    let html = `<div class="crew-op-detail-title">Operator ${a.operator}</div>`;
+    html += `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Pulling:</span> ${escapeHtml(pullParts.join(' · '))}</div>`;
+    html += `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Loading:</span> ${escapeHtml(loadParts.join(' · '))}</div>`;
+    const meta = [];
+    if (a.pro) meta.push(`PRO ${a.pro}`);
+    if (a.pieceFraction) meta.push(`piece ${a.pieceFraction}`);
+    if (meta.length) {
+      html += `<div class="crew-op-detail-meta">${escapeHtml(meta.join(' · '))}</div>`;
+    }
+    if (a.nextLine) {
+      html += `<div class="crew-op-detail-next">${escapeHtml(a.nextLine)}</div>`;
+    }
+    return html;
+  }
+
+  function updateCrewSelectionUI() {
+    const selected = state.crewSelectedOp;
+    if (el.crewFloor) {
+      el.crewFloor.querySelectorAll('.crew-op-marker').forEach((btn) => {
+        const op = Number(btn.getAttribute('data-op'));
+        btn.classList.toggle('is-selected', op === selected);
+        btn.setAttribute('aria-pressed', op === selected ? 'true' : 'false');
+      });
+    }
+    if (el.crewBoardList) {
+      el.crewBoardList.querySelectorAll('.crew-board-row[data-op]').forEach((row) => {
+        const op = Number(row.getAttribute('data-op'));
+        row.classList.toggle('is-selected', op === selected);
+      });
+    }
+    if (el.crewOpDetail) {
+      const a = crewAssignmentsCache.find((x) => x.operator === selected);
+      if (a) {
+        el.crewOpDetail.hidden = false;
+        el.crewOpDetail.innerHTML = formatCrewOpDetail(a);
+      } else {
+        el.crewOpDetail.hidden = true;
+        el.crewOpDetail.innerHTML = '';
+      }
+    }
+  }
+
   /** Local-only live demo simulation (not persisted). */
   const CREW_DEMO_TARGET_OPS = 5;
   const CREW_DEMO_PLAY_MS = 800;
@@ -3543,8 +3633,15 @@
   }
 
   function runSeedDemoInbound() {
+    let result;
     try {
-      const result = DockLoadPlan.seedDemoInbound();
+      result = DockLoadPlan.seedDemoInbound();
+    } catch (err) {
+      console.error(err);
+      toast("Couldn't load demo freight. Try again, or refresh the page.");
+      return;
+    }
+    try {
       state.dockLevel = 'doors';
       state.dockDoor = '';
       state.dockPro = '';
@@ -3574,7 +3671,10 @@
       );
     } catch (err) {
       console.error(err);
-      toast("Couldn't load demo freight. Try again, or refresh the page.");
+      // Freight already saved — don't scare the user with a seed failure toast
+      toast(
+        `Demo inbound loaded (${result.pieceCount} pieces). Refresh Crew if the map looks stale.`
+      );
     }
   }
 
@@ -3845,7 +3945,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=30').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=32').catch(() => {
       /* offline cache optional */
     });
   }
