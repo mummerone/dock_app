@@ -111,7 +111,7 @@ One **Dock** tab covers inbound doors, outbound trailers, ground deck-build orde
 
 ### Crew
 1. Tap **Dock** → **Crew**.
-2. Rectangle **dock map** (doors 1–5 left, 6–10 right) with operator markers on the floor near their pull door — tap a number for pull/load detail.
+2. Rectangle **dock map** shows the **actual pull doors** in use (first half left, second half right) and **OUT chips** for real load doors — not a fixed 1–10 sketch. Tap an operator for pull/load detail.
 3. Plain text board below: one operator per pull (inbound) door so forklifts stay spread out.
 4. Lines come from the current load plan moves (or inbound / demo doors if there is no plan yet).
 5. **Refresh assignments** reshuffles the next open move on each door — still one operator per door; the map updates with the list (when a live demo is not running).
@@ -119,7 +119,7 @@ One **Dock** tab covers inbound doors, outbound trailers, ground deck-build orde
 ### Crew live demo
 Boss walkthrough on **Dock → Crew** (local simulation only — not saved):
 1. Load demo inbound + **Build load plan (demo)** first (or tap **Start demo** after a plan exists — Build plan also seeds the demo).
-2. Map shows forklifts at pull doors; **arrows** draw pull → load door. Outbound doors **21–25** render as small **OUT / Door N** targets along the **bottom** of the floor so arrows have somewhere to go.
+2. Map shows forklifts at pull doors; **arrows** draw pull → load door. Actual outbound doors (e.g. demo **21–25**, or whatever your stubs use) render as small **OUT / Door N** targets along the **bottom** of the floor so arrows have somewhere to go.
 3. Under the map: **Remaining dock moves** queue + progress “Moved X of Y”.
 4. **Step once** completes the earliest-started active pull; that forklift takes the next queue move whose **pull door and load/OUT door** are both free (skips conflicts — leave conflicting moves in queue).
 5. **Play** auto-steps about every 800ms; **Stop** pauses; **Reset demo** restores the full queue from the current plan.
@@ -172,6 +172,8 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v30 Crew rectangle map uses **actual door counts** from freight / plan / outbound stubs (first-half left, second-half right; OUT chips along bottom). No hardcoded doors 1–10. Network-first SW (`dock-app-v30`).
+
 v29 Section Tetris H&T planner: per outbound trailer, pack **section-by-section nose→tail** (floor A then decks B/C in each bay; never whole-floor-first). City loads stay floor-only. Ground deck-build orders still one per section with B/C. Network-first SW (`dock-app-v29`).
 
 v28 Crew live demo: concurrent forklifts use **different pull doors and different load/OUT doors** when the plan allows (Start greedily seeds up to 5; Step skips queue moves that collide on either door). Network-first SW (`dock-app-v28`).
@@ -192,7 +194,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v29`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v30`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

@@ -143,6 +143,8 @@
     crewBoardHint: document.getElementById('crewBoardHint'),
     crewRefreshBtn: document.getElementById('crewRefreshBtn'),
     crewDockMap: document.getElementById('crewDockMap'),
+    crewDoorsLeft: document.getElementById('crewDoorsLeft'),
+    crewDoorsRight: document.getElementById('crewDoorsRight'),
     crewFloor: document.getElementById('crewFloor'),
     crewOpDetail: document.getElementById('crewOpDetail'),
     crewStartDemoBtn: document.getElementById('crewStartDemoBtn'),
@@ -2733,51 +2735,162 @@
   }
 
   /**
-   * Place an operator marker on the floor near their pull door.
-   * Left doors 1–5 hug left; right doors 6–10 hug right (matches sketch).
+   * Sort door id strings numerically when possible.
+   * @param {Iterable<string>} ids
+   * @returns {string[]}
+   */
+  function sortDoorIds(ids) {
+    const uniq = Array.from(
+      new Set(
+        Array.from(ids || [])
+          .map((d) => String(d == null ? '' : d).trim())
+          .filter(Boolean)
+      )
+    );
+    return uniq.sort((a, b) => {
+      const na = Number(a);
+      const nb = Number(b);
+      if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+  }
+
+  /**
+   * Pull / inbound doors in use: freight doorNumbers, plan move from.door,
+   * demo inbound doors when that fallback is active, plus assignment fromDoors.
+   * @param {object[]} [list] current crew assignments
+   * @returns {string[]}
+   */
+  function collectCrewPullDoors(list) {
+    const set = new Set();
+    if (typeof DockStorage !== 'undefined' && DockStorage.allDoorNumbers) {
+      DockStorage.allDoorNumbers().forEach((d) => {
+        const s = String(d || '').trim();
+        if (s) set.add(s);
+      });
+    }
+    const plan =
+      typeof DockStorage !== 'undefined' && DockStorage.readLoadPlan
+        ? DockStorage.readLoadPlan()
+        : null;
+    if (plan && Array.isArray(plan.moves)) {
+      plan.moves.forEach((m) => {
+        const d = String((m.from && m.from.door) || '').trim();
+        if (d) set.add(d);
+      });
+    }
+    (list || []).forEach((a) => {
+      const d = String(a.fromDoor || '').trim();
+      if (d) set.add(d);
+    });
+    // Demo inbound doors present (DockLoadPlan.DEMO_INBOUND) — same fallback
+    // deriveCrewAssignments uses when there is no freight/plan pull data yet.
+    if (
+      !set.size &&
+      typeof DockLoadPlan !== 'undefined' &&
+      Array.isArray(DockLoadPlan.DEMO_INBOUND)
+    ) {
+      DockLoadPlan.DEMO_INBOUND.forEach((ib) => {
+        const d = String((ib && ib.door) || '').trim();
+        if (d) set.add(d);
+      });
+    }
+    return sortDoorIds(set);
+  }
+
+  /**
+   * OUT / load doors in use: outbound trailer doorNumbers, plan move to.door,
+   * plus assignment toDoors. No hardcoded 21–25.
+   * @param {object[]} [list]
+   * @returns {string[]}
+   */
+  function collectCrewOutDoors(list) {
+    const set = new Set();
+    if (typeof DockStorage !== 'undefined' && DockStorage.readOutboundTrailers) {
+      DockStorage.readOutboundTrailers().forEach((row) => {
+        const d = String((row && row.doorNumber) || '').trim();
+        if (d) set.add(d);
+      });
+    }
+    const plan =
+      typeof DockStorage !== 'undefined' && DockStorage.readLoadPlan
+        ? DockStorage.readLoadPlan()
+        : null;
+    if (plan && Array.isArray(plan.moves)) {
+      plan.moves.forEach((m) => {
+        const d = String((m.to && m.to.door) || '').trim();
+        if (d) set.add(d);
+      });
+    }
+    (list || []).forEach((a) => {
+      const d = String(a.toDoor || '').trim();
+      if (d) set.add(d);
+    });
+    return sortDoorIds(set);
+  }
+
+  /**
+   * Split pull doors across left/right columns.
+   * Rule: first half left, second half right (ceil — odd count favors left).
+   * Example: 5 doors → left [1,2,3], right [4,5]. Empty side stays empty.
+   * @param {string[]} doors sorted pull doors
+   * @returns {{ left: string[], right: string[] }}
+   */
+  function splitCrewPullDoors(doors) {
+    const list = Array.isArray(doors) ? doors : [];
+    const mid = Math.ceil(list.length / 2);
+    return { left: list.slice(0, mid), right: list.slice(mid) };
+  }
+
+  /**
+   * Place an operator marker near their pull door within the current left/right lists.
    * @param {string|number} door
+   * @param {string[]} leftDoors
+   * @param {string[]} rightDoors
    * @returns {{ left: number, top: number, side: string }}
    */
-  function crewMarkerPosition(door) {
-    const n = Number(door);
-    let doorNum = Number.isFinite(n) && n > 0 ? Math.round(n) : 1;
-    if (doorNum < 1) doorNum = 1;
-    if (doorNum > 10) doorNum = ((doorNum - 1) % 10) + 1;
-
-    const isLeft = doorNum <= 5;
-    const idx = isLeft ? doorNum - 1 : doorNum - 6;
-    const topPct = ((idx + 0.5) / 5) * 100;
-    const leftPct = isLeft ? 18 : 82;
-    return {
-      left: leftPct,
-      top: topPct,
-      side: isLeft ? 'left' : 'right',
-    };
+  function crewMarkerPosition(door, leftDoors, rightDoors) {
+    const d = String(door == null ? '' : door).trim();
+    const left = leftDoors || [];
+    const right = rightDoors || [];
+    let side = 'left';
+    let idx = left.indexOf(d);
+    let count = left.length;
+    if (idx < 0) {
+      idx = right.indexOf(d);
+      side = 'right';
+      count = right.length;
+    }
+    if (idx < 0 || count < 1) {
+      return { left: 50, top: 50, side: 'left' };
+    }
+    const topPct = ((idx + 0.5) / count) * 100;
+    const leftPct = side === 'left' ? 18 : 82;
+    return { left: leftPct, top: topPct, side };
   }
 
   /**
    * Load / OUT target on the floor map.
-   * Doors 1–10 sit near inbound sides; doors >10 (e.g. 21–25) along the bottom edge.
+   * Actual OUT doors spread along the bottom; otherwise nudge from pull side.
    * @param {string|number} door
+   * @param {string[]} outDoors
+   * @param {string[]} leftDoors
+   * @param {string[]} rightDoors
    * @returns {{ left: number, top: number, out: boolean }}
    */
-  function crewLoadTargetPosition(door) {
-    const n = Number(door);
-    if (!Number.isFinite(n) || n <= 0) {
+  function crewLoadTargetPosition(door, outDoors, leftDoors, rightDoors) {
+    const d = String(door == null ? '' : door).trim();
+    const outs = outDoors || [];
+    const outIdx = outs.indexOf(d);
+    if (outIdx >= 0) {
+      const n = outs.length;
+      const leftPct = n <= 1 ? 50 : 10 + (outIdx / (n - 1)) * 80;
+      return { left: leftPct, top: 90, out: true };
+    }
+    if (!d) {
       return { left: 50, top: 88, out: true };
     }
-    if (n > 10) {
-      // Spread OUT doors along bottom: 21→0 … 25→4 (wrap others)
-      let idx = n >= 21 && n <= 25 ? n - 21 : (Math.round(n) - 11) % 5;
-      if (idx < 0) idx = 0;
-      return {
-        left: 10 + idx * 20,
-        top: 90,
-        out: true,
-      };
-    }
-    const pull = crewMarkerPosition(n);
-    // Nudge toward center so arrows don't hide under the pull marker
+    const pull = crewMarkerPosition(d, leftDoors, rightDoors);
     return {
       left: pull.side === 'left' ? 32 : 68,
       top: pull.top,
@@ -2786,94 +2899,26 @@
   }
 
   /**
-   * Resolve put/load door for a move or assignment (registry fallback).
-   * @param {{ door?: string, trailer?: string, destination?: string }} opts
-   * @returns {string}
+   * Fill left/right door columns from pull door lists.
+   * @param {string[]} leftDoors
+   * @param {string[]} rightDoors
+   * @param {Set<string>} activeDoors
    */
-  function resolvePutDoor(opts) {
-    const o = opts || {};
-    if (typeof DockStorage !== 'undefined' && DockStorage.outboundDoorFor) {
-      return DockStorage.outboundDoorFor({
-        door: o.door || '',
-        trailerNumber: o.trailer || '',
-        destination: o.destination || '',
+  function renderCrewDoorColumns(leftDoors, rightDoors, activeDoors) {
+    function fill(container, doors) {
+      if (!container) return;
+      container.innerHTML = '';
+      (doors || []).forEach((d) => {
+        const span = document.createElement('span');
+        span.className = 'crew-door';
+        span.setAttribute('data-door', d);
+        span.textContent = d;
+        if (activeDoors && activeDoors.has(d)) span.classList.add('has-pull');
+        container.appendChild(span);
       });
     }
-    return String(o.door || '').trim();
-  }
-
-  /**
-   * Plain-English detail for a selected operator (tap target).
-   * Loading: Door (if any) · Trl · destination · slot — Door before Trl.
-   * @param {object} a assignment
-   * @returns {string} HTML
-   */
-  function formatCrewOpDetail(a) {
-    if (a.idle) {
-      return (
-        `<div class="crew-op-detail-title">Operator ${a.operator}</div>` +
-        `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Status:</span> Idle — waiting for next pull</div>`
-      );
-    }
-    const pullParts = [`Door ${a.fromDoor}`, `Trl ${a.fromTrailer || '—'}`];
-    if (a.fromSlot) pullParts.push(`slot ${a.fromSlot}`);
-    const loadParts = [];
-    const putDoor = resolvePutDoor({
-      door: a.toDoor,
-      trailer: a.toTrailer,
-      destination: a.destination,
-    });
-    if (a.toTrailer) {
-      loadParts.push(putDoor ? `Door ${putDoor}` : 'Door —');
-      loadParts.push(`Trl ${a.toTrailer}`);
-      if (a.destination) loadParts.push(a.destination);
-      if (a.toSlot) loadParts.push(`slot ${a.toSlot}`);
-    } else if (a.destination) {
-      if (putDoor) loadParts.push(`Door ${putDoor}`);
-      loadParts.push(`${a.destination} (no plan yet)`);
-    } else {
-      loadParts.push('No load assigned yet');
-    }
-    let html = `<div class="crew-op-detail-title">Operator ${a.operator}</div>`;
-    html += `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Pulling:</span> ${escapeHtml(pullParts.join(' · '))}</div>`;
-    html += `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Loading:</span> ${escapeHtml(loadParts.join(' · '))}</div>`;
-    const meta = [];
-    if (a.pro) meta.push(`PRO ${a.pro}`);
-    if (a.pieceFraction) meta.push(`piece ${a.pieceFraction}`);
-    if (meta.length) {
-      html += `<div class="crew-op-detail-meta">${escapeHtml(meta.join(' · '))}</div>`;
-    }
-    if (a.nextLine) {
-      html += `<div class="crew-op-detail-next">${escapeHtml(a.nextLine)}</div>`;
-    }
-    return html;
-  }
-
-  function updateCrewSelectionUI() {
-    const selected = state.crewSelectedOp;
-    if (el.crewFloor) {
-      el.crewFloor.querySelectorAll('.crew-op-marker').forEach((btn) => {
-        const op = Number(btn.getAttribute('data-op'));
-        btn.classList.toggle('is-selected', op === selected);
-        btn.setAttribute('aria-pressed', op === selected ? 'true' : 'false');
-      });
-    }
-    if (el.crewBoardList) {
-      el.crewBoardList.querySelectorAll('.crew-board-row[data-op]').forEach((row) => {
-        const op = Number(row.getAttribute('data-op'));
-        row.classList.toggle('is-selected', op === selected);
-      });
-    }
-    if (el.crewOpDetail) {
-      const a = crewAssignmentsCache.find((x) => x.operator === selected);
-      if (a) {
-        el.crewOpDetail.hidden = false;
-        el.crewOpDetail.innerHTML = formatCrewOpDetail(a);
-      } else {
-        el.crewOpDetail.hidden = true;
-        el.crewOpDetail.innerHTML = '';
-      }
-    }
+    fill(el.crewDoorsLeft, leftDoors);
+    fill(el.crewDoorsRight, rightDoors);
   }
 
   /**
@@ -2882,18 +2927,37 @@
   function renderCrewMap(list) {
     if (!el.crewFloor || !el.crewDockMap) return;
 
+    const pullDoors = collectCrewPullDoors(list);
+    const outDoors = collectCrewOutDoors(list);
+    const { left: leftDoors, right: rightDoors } = splitCrewPullDoors(pullDoors);
+
     const activeDoors = new Set(
       (list || [])
         .filter((a) => !a.idle)
         .map((a) => String(a.fromDoor || '').trim())
         .filter(Boolean)
     );
-    el.crewDockMap.querySelectorAll('.crew-door').forEach((doorEl) => {
-      const d = doorEl.getAttribute('data-door');
-      doorEl.classList.toggle('has-pull', activeDoors.has(String(d)));
-    });
+
+    renderCrewDoorColumns(leftDoors, rightDoors, activeDoors);
+
+    const pullN = pullDoors.length;
+    const outN = outDoors.length;
+    el.crewDockMap.setAttribute(
+      'aria-label',
+      pullN || outN
+        ? `Dock floor map with ${pullN} pull door${pullN === 1 ? '' : 's'} and ${outN} outbound load door${outN === 1 ? '' : 's'}`
+        : 'Dock floor map — no doors yet'
+    );
 
     el.crewFloor.innerHTML = '';
+
+    if (!pullN && !outN) {
+      const hint = document.createElement('div');
+      hint.className = 'crew-map-empty-hint';
+      hint.textContent = 'No doors yet — load demo inbound trailers or log freight.';
+      el.crewFloor.appendChild(hint);
+      return;
+    }
 
     // SVG arrow layer
     const svgNS = 'http://www.w3.org/2000/svg';
@@ -2919,43 +2983,26 @@
     svg.appendChild(defs);
     el.crewFloor.appendChild(svg);
 
-    // OUT / load targets for active pulls (and any door >10)
-    const outDoors = new Set();
-    (list || []).forEach((a) => {
-      if (a.idle) return;
-      const d = String(a.toDoor || '').trim();
-      if (!d) return;
-      const n = Number(d);
-      if (Number.isFinite(n) && n > 10) outDoors.add(String(Math.round(n)));
-      else if (d) outDoors.add(d);
-    });
-    // Always show demo OUT doors 21–25 when live demo is seeded (arrows need targets)
-    if (crewDemo.seeded) {
-      ['21', '22', '23', '24', '25'].forEach((d) => outDoors.add(d));
-    }
-
+    // OUT / load chips along bottom — only actual outbound doors
     const outFrag = document.createDocumentFragment();
-    Array.from(outDoors)
-      .sort((a, b) => Number(a) - Number(b))
-      .forEach((d) => {
-        const pos = crewLoadTargetPosition(d);
-        if (!pos.out && Number(d) <= 10) return; // inbound doors already on sides
-        const chip = document.createElement('div');
-        chip.className = 'crew-out-target';
-        chip.setAttribute('data-door', d);
-        chip.innerHTML = `<span class="crew-out-label">OUT</span><span class="crew-out-door">Door ${d}</span>`;
-        chip.style.left = `${pos.left}%`;
-        chip.style.top = `${pos.top}%`;
-        outFrag.appendChild(chip);
-      });
+    outDoors.forEach((d) => {
+      const pos = crewLoadTargetPosition(d, outDoors, leftDoors, rightDoors);
+      const chip = document.createElement('div');
+      chip.className = 'crew-out-target';
+      chip.setAttribute('data-door', d);
+      chip.innerHTML = `<span class="crew-out-label">OUT</span><span class="crew-out-door">Door ${d}</span>`;
+      chip.style.left = `${pos.left}%`;
+      chip.style.top = `${pos.top}%`;
+      outFrag.appendChild(chip);
+    });
     el.crewFloor.appendChild(outFrag);
 
     if (!list || !list.length) return;
 
     const usedSlots = new Map();
     list.forEach((a) => {
-      const doorForPos = a.idle ? a.fromDoor : a.fromDoor;
-      const pos = crewMarkerPosition(doorForPos);
+      const doorForPos = a.fromDoor;
+      const pos = crewMarkerPosition(doorForPos, leftDoors, rightDoors);
       const key = `${pos.left}|${pos.top}`;
       const bump = usedSlots.get(key) || 0;
       usedSlots.set(key, bump + 1);
@@ -2978,9 +3025,14 @@
       btn.style.top = `${topNum}%`;
       el.crewFloor.appendChild(btn);
 
-      // Arrow pull → load for active moves
+      // Arrow pull → load for active moves (target actual OUT door elements)
       if (!a.idle && a.toDoor) {
-        const loadPos = crewLoadTargetPosition(a.toDoor);
+        const loadPos = crewLoadTargetPosition(
+          a.toDoor,
+          outDoors,
+          leftDoors,
+          rightDoors
+        );
         const line = document.createElementNS(svgNS, 'line');
         line.setAttribute('x1', String(pos.left));
         line.setAttribute('y1', String(topNum));
@@ -3646,7 +3698,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=29').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=30').catch(() => {
       /* offline cache optional */
     });
   }
