@@ -2789,19 +2789,29 @@
       g.items.push({ m, idx });
     });
 
+    // Remember which outbound groups were collapsed so Step/Play re-render
+    // does not force everything open (and so expand/collapse stays stable).
+    const previouslyOpen = new Map();
+    el.crewMoveQueue.querySelectorAll('details.crew-queue-group').forEach((d) => {
+      const titleEl = d.querySelector('.plan-move-group-title');
+      const key = titleEl ? titleEl.textContent.trim() : '';
+      if (key) previouslyOpen.set(key, d.open);
+    });
+
     const frag = document.createDocumentFragment();
-    let groupIndex = 0;
     groups.forEach((g) => {
       const details = document.createElement('details');
       details.className = 'plan-move-group crew-queue-group';
-      details.open = true;
-      if (groupIndex === 0) details.setAttribute('open', '');
-      groupIndex += 1;
       const count = g.items.length;
       const trailerLabel =
         g.trailer && g.trailer !== '—'
           ? `Trailer ${g.trailer}`
           : `Destination ${g.destination}`;
+      const titleKey = `${trailerLabel} · ${g.destination}`;
+      const keepOpen = previouslyOpen.has(titleKey) ? previouslyOpen.get(titleKey) : true;
+      details.open = keepOpen;
+      if (keepOpen) details.setAttribute('open', '');
+      else details.removeAttribute('open');
       const summary = document.createElement('summary');
       summary.className = 'plan-move-group-head';
       summary.innerHTML = `
@@ -3971,7 +3981,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=34').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=35').catch(() => {
       /* offline cache optional */
     });
   }

@@ -173,9 +173,11 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v35 Fix: Crew “Remaining dock moves” group headers no longer crush/overlap at ~390px (flex children were shrinking inside the max-height queue). Network-first SW (`dock-app-v35`).
+
 v34 UX polish: Crew remaining moves grouped by outbound trailer (Plan-style collapse headers + short multi-line rows); Dock subnav one orange-accent row (Inbound | Outbound | Ground | Crew | Plan); map door numerals bigger + equal-width OUT chips + op-selection highlight. Network-first SW (`dock-app-v34`).
 
-v33 Crew map: inbound doors as a **wall/grid** (busy = green border, empty muted); operator badge on the pull door cell; OUT strip below with optional Op label — **no SVG arrows**. Door count setting kept. Network-first SW (`dock-app-v34`).
+v33 Crew map: inbound doors as a **wall/grid** (busy = green border, empty muted); operator badge on the pull door cell; OUT strip below with optional Op label — **no SVG arrows**. Door count setting kept. Network-first SW (`dock-app-v33`).
 
 v32 Crew map: **Doors on this dock** setting (`dockApp.dockDoorCount.v1`, default max(20, highest seen)); always renders pull doors 1..N (empty muted, busy lit); scrollable columns + OUT row always visible. Network-first SW (`dock-app-v32`).
 
@@ -201,7 +203,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v34`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v35`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

@@ -2612,21 +2612,58 @@ button {
 .crew-move-queue {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 8px;
-  max-height: 420px;
+  max-height: min(70vh, 640px);
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* Critical: do NOT let flex kids shrink — that crushed open <details> groups
+     into thin overlapping strips at ~390px (v34 Vision Critic blocker). */
+  align-items: stretch;
+}
+
+/* Each outbound group keeps its natural height; list scrolls instead of crushing */
+.crew-move-queue > .crew-queue-group,
+.crew-move-queue > .plan-move-group {
+  flex: 0 0 auto;
+  min-height: auto;
+  align-self: stretch;
+  margin: 0;
+  /* Keep radius clip without allowing height collapse */
+  overflow: hidden;
 }
 
 .crew-queue-group {
   margin: 0;
 }
 
+.crew-queue-group > .plan-move-group-head,
+.crew-queue-group .plan-move-group-head-inner {
+  flex-shrink: 0;
+  min-height: 64px;
+  height: auto;
+  overflow: visible;
+}
+
+.crew-queue-group .plan-move-group-body {
+  min-height: auto;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+.crew-queue-group .plan-move-group-title {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .crew-queue-row {
   display: flex;
   gap: 10px;
   align-items: flex-start;
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
   background: #0f1828;
   border: 1px solid #2a3c58;
   border-radius: 12px;
@@ -2685,3 +2722,41 @@ button {
   }
 }
 
+
+/* v35: phone Remaining dock moves — headers never crush */
+@media (max-width: 480px) {
+  .crew-move-queue {
+    max-height: min(65vh, 560px);
+    gap: 12px;
+  }
+
+  .crew-move-queue > .crew-queue-group,
+  .crew-move-queue > .plan-move-group {
+    flex: 0 0 auto;
+    min-height: auto;
+  }
+
+  .crew-queue-group > .plan-move-group-head,
+  .crew-queue-group .plan-move-group-head-inner {
+    min-height: 64px;
+    height: auto;
+    overflow: visible;
+  }
+
+  .crew-queue-row {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  .crew-queue-lines {
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .crew-queue-from,
+  .crew-queue-to,
+  .crew-queue-pro {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
