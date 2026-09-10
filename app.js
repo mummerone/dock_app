@@ -26,6 +26,11 @@
   const LOADOUT_DONE_KEY = 'dockApp.loadoutDone.v1';
   /** localStorage: done marks for Ground deck-build orders (per plan) */
   const GROUND_DONE_KEY = 'dockApp.groundDone.v1';
+  /** localStorage: how many pull doors the physical dock has (Crew map 1..N) */
+  const DOCK_DOOR_COUNT_KEY = 'dockApp.dockDoorCount.v1';
+  const DOCK_DOOR_COUNT_MIN = 1;
+  const DOCK_DOOR_COUNT_MAX = 80;
+  const DOCK_DOOR_COUNT_DEFAULT = 20;
 
   const state = {
     section: null,
@@ -142,6 +147,7 @@
     crewBoardList: document.getElementById('crewBoardList'),
     crewBoardHint: document.getElementById('crewBoardHint'),
     crewRefreshBtn: document.getElementById('crewRefreshBtn'),
+    crewDoorCountInput: document.getElementById('crewDoorCountInput'),
     crewDockMap: document.getElementById('crewDockMap'),
     crewDoorsLeft: document.getElementById('crewDoorsLeft'),
     crewDoorsRight: document.getElementById('crewDoorsRight'),
@@ -2712,6 +2718,15 @@
     if (el.crewResetDemoBtn) {
       el.crewResetDemoBtn.addEventListener('click', () => onCrewResetDemo());
     }
+    if (el.crewDoorCountInput) {
+      const syncCount = () => {
+        const n = setDockDoorCount(el.crewDoorCountInput.value);
+        el.crewDoorCountInput.value = String(n);
+        renderCrew();
+      };
+      el.crewDoorCountInput.addEventListener('change', syncCount);
+      el.crewDoorCountInput.addEventListener('blur', syncCount);
+    }
     if (el.crewFloor) {
       el.crewFloor.addEventListener('click', (ev) => {
         const btn = ev.target.closest('.crew-op-marker');
@@ -2753,6 +2768,112 @@
       if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
       return a.localeCompare(b, undefined, { numeric: true });
     });
+  }
+
+  /**
+   * Highest numeric door id seen in freight / plan / outbound / assignments.
+   * Used for default N = max(20, highest).
+   * @param {object[]} [list]
+   * @returns {number}
+   */
+  function highestDoorSeenInData(list) {
+    let max = 0;
+    function consider(d) {
+      const n = Number(String(d == null ? '' : d).trim());
+      if (Number.isFinite(n) && n > max) max = n;
+    }
+    collectCrewPullDoors(list || []).forEach(consider);
+    collectCrewOutDoors(list || []).forEach(consider);
+    return max;
+  }
+
+  /**
+   * @param {number} n
+   * @returns {number}
+   */
+  function clampDockDoorCount(n) {
+    const v = Math.round(Number(n));
+    if (!Number.isFinite(v)) return DOCK_DOOR_COUNT_DEFAULT;
+    return Math.min(DOCK_DOOR_COUNT_MAX, Math.max(DOCK_DOOR_COUNT_MIN, v));
+  }
+
+  /**
+   * Default when nothing saved: max(20, highest door in data), capped at 80.
+   * @param {object[]} [list]
+   * @returns {number}
+   */
+  function defaultDockDoorCount(list) {
+    return clampDockDoorCount(
+      Math.max(DOCK_DOOR_COUNT_DEFAULT, highestDoorSeenInData(list))
+    );
+  }
+
+  /**
+   * Saved dock door count, or null if unset / invalid.
+   * @returns {number|null}
+   */
+  function readSavedDockDoorCount() {
+    try {
+      const raw = localStorage.getItem(DOCK_DOOR_COUNT_KEY);
+      if (raw == null || String(raw).trim() === '') return null;
+      const n = Number(String(raw).trim());
+      if (!Number.isFinite(n)) return null;
+      return clampDockDoorCount(n);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Effective N for the Crew map (saved setting, else smart default).
+   * @param {object[]} [list]
+   * @returns {number}
+   */
+  function getDockDoorCount(list) {
+    const saved = readSavedDockDoorCount();
+    if (saved != null) return saved;
+    return defaultDockDoorCount(list);
+  }
+
+  /**
+   * Persist N and return clamped value.
+   * @param {number|string} n
+   * @returns {number}
+   */
+  function setDockDoorCount(n) {
+    const v = clampDockDoorCount(n);
+    try {
+      localStorage.setItem(DOCK_DOOR_COUNT_KEY, String(v));
+    } catch (e) {
+      /* ignore quota */
+    }
+    return v;
+  }
+
+  /**
+   * Visible pull doors = 1..N union any activity doors above N (or non-numeric).
+   * @param {number} n
+   * @param {string[]} activityDoors
+   * @returns {string[]}
+   */
+  function visibleCrewPullDoors(n, activityDoors) {
+    const count = clampDockDoorCount(n);
+    const doors = [];
+    for (let i = 1; i <= count; i++) doors.push(String(i));
+    const set = new Set(doors);
+    (activityDoors || []).forEach((d) => {
+      const s = String(d || '').trim();
+      if (!s || set.has(s)) return;
+      const num = Number(s);
+      if (Number.isFinite(num) && num > count) {
+        set.add(s);
+        doors.push(s);
+      } else if (!Number.isFinite(num)) {
+        set.add(s);
+        doors.push(s);
+      }
+    });
+    return sortDoorIds(doors);
   }
 
   /**
@@ -2862,9 +2983,10 @@
       count = right.length;
     }
     if (idx < 0 || count < 1) {
-      return { left: 50, top: 50, side: 'left' };
+      return { left: 50, top: 42, side: 'left' };
     }
-    const topPct = ((idx + 0.5) / count) * 100;
+    // Keep markers in the upper ~75% so OUT chips along the bottom stay visible.
+    const topPct = 6 + ((idx + 0.5) / count) * 68;
     const leftPct = side === 'left' ? 18 : 82;
     return { left: leftPct, top: topPct, side };
   }
@@ -2904,7 +3026,7 @@
    * @param {string[]} rightDoors
    * @param {Set<string>} activeDoors
    */
-  function renderCrewDoorColumns(leftDoors, rightDoors, activeDoors) {
+  function renderCrewDoorColumns(leftDoors, rightDoors, activityDoors, livePullDoors) {
     function fill(container, doors) {
       if (!container) return;
       container.innerHTML = '';
@@ -2913,7 +3035,17 @@
         span.className = 'crew-door';
         span.setAttribute('data-door', d);
         span.textContent = d;
-        if (activeDoors && activeDoors.has(d)) span.classList.add('has-pull');
+        const busy = activityDoors && activityDoors.has(d);
+        if (busy) {
+          span.classList.add('has-pull');
+          span.title = `Door ${d} — freight / plan activity`;
+        } else {
+          span.classList.add('is-empty');
+          span.title = `Door ${d} — empty`;
+        }
+        if (livePullDoors && livePullDoors.has(d)) {
+          span.classList.add('is-live');
+        }
         container.appendChild(span);
       });
     }
@@ -2927,37 +3059,40 @@
   function renderCrewMap(list) {
     if (!el.crewFloor || !el.crewDockMap) return;
 
-    const pullDoors = collectCrewPullDoors(list);
+    const activityPull = collectCrewPullDoors(list);
+    const activitySet = new Set(activityPull);
+    const doorCount = getDockDoorCount(list);
+    const pullDoors = visibleCrewPullDoors(doorCount, activityPull);
     const outDoors = collectCrewOutDoors(list);
     const { left: leftDoors, right: rightDoors } = splitCrewPullDoors(pullDoors);
 
-    const activeDoors = new Set(
+    const livePullDoors = new Set(
       (list || [])
         .filter((a) => !a.idle)
         .map((a) => String(a.fromDoor || '').trim())
         .filter(Boolean)
     );
 
-    renderCrewDoorColumns(leftDoors, rightDoors, activeDoors);
+    const density =
+      pullDoors.length > 30 ? 'high' : pullDoors.length > 16 ? 'med' : 'low';
+    el.crewDockMap.dataset.doorCount = String(pullDoors.length);
+    el.crewDockMap.dataset.doorDensity = density;
+
+    if (el.crewDoorCountInput && document.activeElement !== el.crewDoorCountInput) {
+      el.crewDoorCountInput.value = String(doorCount);
+    }
+
+    renderCrewDoorColumns(leftDoors, rightDoors, activitySet, livePullDoors);
 
     const pullN = pullDoors.length;
     const outN = outDoors.length;
+    const busyN = activityPull.length;
     el.crewDockMap.setAttribute(
       'aria-label',
-      pullN || outN
-        ? `Dock floor map with ${pullN} pull door${pullN === 1 ? '' : 's'} and ${outN} outbound load door${outN === 1 ? '' : 's'}`
-        : 'Dock floor map — no doors yet'
+      `Dock floor map with ${pullN} doors (${busyN} busy), ${outN} outbound load door${outN === 1 ? '' : 's'}`
     );
 
     el.crewFloor.innerHTML = '';
-
-    if (!pullN && !outN) {
-      const hint = document.createElement('div');
-      hint.className = 'crew-map-empty-hint';
-      hint.textContent = 'No doors yet — load demo inbound trailers or log freight.';
-      el.crewFloor.appendChild(hint);
-      return;
-    }
 
     // SVG arrow layer
     const svgNS = 'http://www.w3.org/2000/svg';
@@ -2983,19 +3118,31 @@
     svg.appendChild(defs);
     el.crewFloor.appendChild(svg);
 
-    // OUT / load chips along bottom — only actual outbound doors
-    const outFrag = document.createDocumentFragment();
-    outDoors.forEach((d) => {
-      const pos = crewLoadTargetPosition(d, outDoors, leftDoors, rightDoors);
-      const chip = document.createElement('div');
-      chip.className = 'crew-out-target';
-      chip.setAttribute('data-door', d);
-      chip.innerHTML = `<span class="crew-out-label">OUT</span><span class="crew-out-door">Door ${d}</span>`;
-      chip.style.left = `${pos.left}%`;
-      chip.style.top = `${pos.top}%`;
-      outFrag.appendChild(chip);
-    });
-    el.crewFloor.appendChild(outFrag);
+    // OUT / load chips — flex row at bottom (wrap / scroll), always fully visible
+    const outRow = document.createElement('div');
+    outRow.className = 'crew-out-row';
+    outRow.setAttribute('aria-label', 'Outbound load doors');
+    if (!outN) {
+      const emptyOut = document.createElement('div');
+      emptyOut.className = 'crew-out-empty';
+      emptyOut.textContent = 'No OUT doors yet';
+      outRow.appendChild(emptyOut);
+    } else {
+      outDoors.forEach((d) => {
+        const chip = document.createElement('div');
+        chip.className = 'crew-out-target';
+        chip.setAttribute('data-door', d);
+        chip.setAttribute('title', `OUT Door ${d}`);
+        chip.innerHTML =
+          `<span class="crew-out-label">OUT</span>` +
+          `<span class="crew-out-door">` +
+          `<span class="crew-out-full">Door ${escapeHtml(d)}</span>` +
+          `<span class="crew-out-short" aria-hidden="true">D${escapeHtml(d)}</span>` +
+          `</span>`;
+        outRow.appendChild(chip);
+      });
+    }
+    el.crewFloor.appendChild(outRow);
 
     if (!list || !list.length) return;
 
@@ -3006,7 +3153,7 @@
       const key = `${pos.left}|${pos.top}`;
       const bump = usedSlots.get(key) || 0;
       usedSlots.set(key, bump + 1);
-      const topNum = bump ? Math.min(96, pos.top + bump * 7) : pos.top;
+      const topNum = bump ? Math.min(74, pos.top + bump * 7) : pos.top;
 
       const btn = document.createElement('button');
       btn.type = 'button';

@@ -111,10 +111,11 @@ One **Dock** tab covers inbound doors, outbound trailers, ground deck-build orde
 
 ### Crew
 1. Tap **Dock** → **Crew**.
-2. Rectangle **dock map** shows the **actual pull doors** in use (first half left, second half right) and **OUT chips** for real load doors — not a fixed 1–10 sketch. Tap an operator for pull/load detail.
-3. Plain text board below: one operator per pull (inbound) door so forklifts stay spread out.
-4. Lines come from the current load plan moves (or inbound / demo doors if there is no plan yet).
-5. **Refresh assignments** reshuffles the next open move on each door — still one operator per door; the map updates with the list (when a live demo is not running).
+2. Set **Doors on this dock** (1–80, default 20 or high enough for your data). The map always shows pull doors **1..N** (first half left, second half right); empty doors stay muted, busy doors light up. Activity doors above N still appear.
+3. **OUT chips** for real load doors sit along the floor bottom (wrap / scroll; short **D21** labels on narrow phones). Tap an operator for pull/load detail.
+4. Plain text board below: one operator per pull (inbound) door so forklifts stay spread out.
+5. Lines come from the current load plan moves (or inbound / demo doors if there is no plan yet).
+6. **Refresh assignments** reshuffles the next open move on each door — still one operator per door; the map updates with the list (when a live demo is not running).
 
 ### Crew live demo
 Boss walkthrough on **Dock → Crew** (local simulation only — not saved):
@@ -172,6 +173,8 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v31 Crew map: **Doors on this dock** setting (`dockApp.dockDoorCount.v1`, default max(20, highest seen)); always renders pull doors 1..N (empty muted, busy lit); scrollable columns + OUT row always visible. Network-first SW (`dock-app-v31`).
+
 v30 Crew rectangle map uses **actual door counts** from freight / plan / outbound stubs (first-half left, second-half right; OUT chips along bottom). No hardcoded doors 1–10. Network-first SW (`dock-app-v30`).
 
 v29 Section Tetris H&T planner: per outbound trailer, pack **section-by-section nose→tail** (floor A then decks B/C in each bay; never whole-floor-first). City loads stay floor-only. Ground deck-build orders still one per section with B/C. Network-first SW (`dock-app-v29`).
@@ -194,7 +197,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v30`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v31`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

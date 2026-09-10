@@ -2132,6 +2132,15 @@ button {
 
 /* ---------- v25: rectangle dock map on Crew ---------- */
 
+.crew-door-count-field {
+  margin: 8px 0 4px;
+  max-width: 220px;
+}
+
+.crew-door-count-field input {
+  max-width: 6.5rem;
+}
+
 .crew-map-tap-hint {
   margin: 0 0 12px;
   font-size: 0.95rem;
@@ -2153,39 +2162,74 @@ button {
   width: 100%;
   max-width: 420px;
   margin: 0 auto;
-  min-height: 280px;
+  min-height: 340px;
   user-select: none;
 }
 
 .crew-doors {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 6px;
+  justify-content: flex-start;
+  gap: 4px;
   padding: 4px 0;
+  max-height: min(70vh, 480px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .crew-door {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 1;
-  min-height: 40px;
-  border: 2px solid #5a6e8a;
+  flex: 0 0 auto;
+  min-height: 32px;
+  border: 2px solid #3a4a60;
   border-radius: 8px;
-  background: #152033;
-  color: #c8d4e8;
+  background: #101828;
+  color: #6e8098;
   font-weight: 800;
-  font-size: 0.95rem;
+  font-size: 0.85rem;
   line-height: 1;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  opacity: 0.72;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, opacity 0.15s;
+}
+
+.crew-door.is-empty {
+  /* muted empty doors — always visible */
+  opacity: 0.55;
 }
 
 .crew-door.has-pull {
+  opacity: 1;
   border-color: #5ec8ff;
   background: #1a3050;
   box-shadow: 0 0 0 1px rgba(94, 200, 255, 0.35);
   color: #e8f6ff;
+}
+
+.crew-door.has-pull.is-live {
+  border-color: #7dffb0;
+  box-shadow: 0 0 0 2px rgba(125, 255, 176, 0.35);
+}
+
+.crew-dock-map[data-door-density="med"] .crew-door {
+  min-height: 24px;
+  font-size: 0.75rem;
+  border-radius: 6px;
+}
+
+.crew-dock-map[data-door-density="high"] .crew-door {
+  min-height: 18px;
+  font-size: 0.68rem;
+  border-width: 1px;
+  border-radius: 4px;
+  gap: 2px;
+}
+
+.crew-dock-map[data-door-density="high"] .crew-doors {
+  gap: 2px;
 }
 
 .crew-map-empty-hint {
@@ -2210,7 +2254,7 @@ button {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
     #0c1422;
-  min-height: 280px;
+  min-height: 340px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
@@ -2333,11 +2377,11 @@ button {
 @media (max-width: 380px) {
   .crew-dock-map {
     grid-template-columns: 34px minmax(0, 1fr) 34px;
-    min-height: 260px;
+    min-height: 300px;
   }
 
   .crew-floor {
-    min-height: 260px;
+    min-height: 300px;
   }
 
   .crew-op-marker {
@@ -2349,8 +2393,8 @@ button {
   }
 
   .crew-door {
-    min-height: 36px;
-    font-size: 0.85rem;
+    min-height: 28px;
+    font-size: 0.78rem;
   }
 }
 
@@ -2425,9 +2469,10 @@ button {
 }
 
 .crew-floor {
-  /* room for OUT chips along bottom */
-  min-height: 300px;
-  padding-bottom: 4px;
+  /* room for OUT chip row along bottom — never clipped under operators */
+  min-height: 360px;
+  padding-bottom: 72px;
+  box-sizing: border-box;
 }
 
 .crew-arrow-svg {
@@ -2447,15 +2492,42 @@ button {
   fill: none;
 }
 
-.crew-out-target {
+.crew-out-row {
   position: absolute;
-  transform: translate(-50%, -50%);
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 6px;
+  max-height: 68px;
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  pointer-events: none;
+}
+
+.crew-out-empty {
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: #6e8098;
+  padding: 4px 8px;
+}
+
+.crew-out-target {
+  position: relative;
+  transform: none;
   z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-width: 52px;
+  flex: 0 0 auto;
+  min-width: 48px;
+  max-width: 72px;
   padding: 4px 6px;
   border-radius: 8px;
   border: 2px solid #f0a030;
@@ -2477,6 +2549,15 @@ button {
   font-size: 0.78rem;
   font-weight: 800;
   white-space: nowrap;
+  text-align: center;
+}
+
+.crew-out-short {
+  display: none;
+}
+
+.crew-out-full {
+  display: inline;
 }
 
 .crew-op-marker.is-idle {
@@ -2497,11 +2578,36 @@ button {
   }
 
   .crew-out-target {
-    min-width: 46px;
+    min-width: 40px;
+    max-width: 56px;
     padding: 3px 4px;
   }
 
   .crew-out-door {
     font-size: 0.7rem;
   }
+
+  .crew-out-full {
+    display: none;
+  }
+
+  .crew-out-short {
+    display: inline;
+  }
+
+  .crew-out-row {
+    max-height: 72px;
+    flex-wrap: wrap;
+  }
+
+  .crew-floor {
+    padding-bottom: 76px;
+  }
+}
+
+
+/* ---------- v31: dock door count + full door map visibility ---------- */
+.crew-doors-left,
+.crew-doors-right {
+  align-self: stretch;
 }
