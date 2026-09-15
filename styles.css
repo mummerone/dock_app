@@ -3009,6 +3009,39 @@ button {
   line-height: 1.35;
 }
 
+.crew-door-count-details {
+  margin: 6px 0 4px;
+  padding: 6px 10px 8px;
+  border-radius: 10px;
+  border: 1px solid #2a3548;
+  background: #0e141e;
+}
+
+.crew-door-count-summary {
+  cursor: pointer;
+  font-weight: 750;
+  font-size: 0.9rem;
+  color: #b8c8dc;
+  list-style: none;
+}
+
+.crew-door-count-summary::-webkit-details-marker {
+  display: none;
+}
+
+.crew-door-count-summary::before {
+  content: '▸ ';
+  color: #7a8aa0;
+}
+
+.crew-door-count-details[open] .crew-door-count-summary::before {
+  content: '▾ ';
+}
+
+.crew-door-count-details .crew-door-count-field {
+  margin: 8px 0 4px;
+}
+
 .crew-god-hud {
   display: flex;
   flex-direction: column;
@@ -3113,14 +3146,36 @@ button {
 
 .crew-door-cell.is-flash,
 .crew-out-target.is-flash {
-  animation: crew-flash-pulse 0.3s ease-out;
-  box-shadow: 0 0 0 3px rgba(255, 220, 100, 0.75);
+  animation: crew-flash-pulse 0.7s ease-out;
+  box-shadow:
+    0 0 0 4px rgba(255, 220, 80, 0.95),
+    0 0 22px 6px rgba(255, 200, 60, 0.55);
   border-color: #ffe066;
+  border-width: 3px;
+  background-color: #3a3420;
+  z-index: 2;
+  filter: brightness(1.45) saturate(1.25);
 }
 
 @keyframes crew-flash-pulse {
-  0% { filter: brightness(1.35); }
-  100% { filter: brightness(1); }
+  0% {
+    filter: brightness(1.7) saturate(1.4);
+    box-shadow:
+      0 0 0 5px rgba(255, 230, 100, 1),
+      0 0 28px 8px rgba(255, 200, 40, 0.7);
+  }
+  55% {
+    filter: brightness(1.45) saturate(1.25);
+    box-shadow:
+      0 0 0 4px rgba(255, 220, 80, 0.95),
+      0 0 22px 6px rgba(255, 200, 60, 0.55);
+  }
+  100% {
+    filter: brightness(1.15);
+    box-shadow:
+      0 0 0 2px rgba(255, 220, 100, 0.45),
+      0 0 10px 2px rgba(255, 200, 60, 0.25);
+  }
 }
 
 .plan-agent-banner {
@@ -3137,9 +3192,16 @@ button {
   min-height: 48px;
 }
 
-.plan-agent-banner .btn:disabled {
-  opacity: 0.55;
-  cursor: default;
+.plan-agent-banner .btn:disabled,
+.plan-agent-banner .btn.is-agent-disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: grayscale(0.85) brightness(0.7);
+  box-shadow: none;
+  background: #3a4540;
+  border-color: #555;
+  color: #9aa8a0;
 }
 
 .plan-unplaced {

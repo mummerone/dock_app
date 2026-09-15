@@ -173,6 +173,8 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v38 Polish: Crew god HUD above door-count (door config in `<details>`); Step dual-flash ~700ms and brighter; hide ghost OUT pills/chips with planned 0 (e.g. D23 SAT 0/0); agent stub one clear line + clearly disabled button. Keeps v37 packing honesty / LOAD SLOT / OUT panel / queue scroll. Network-first SW (`dock-app-v38`).
+
 v37 Boss god-view + packing honesty: Crew HUD (live/idle · Moved X/Y · OUT fill `D21 DEN k/n`), richer IN/OUT chips, Step dual-flash; planner never reuses last slot — unique slots or explicit unplaced; optional **Agent packed this (demo)** second pass. Keeps v36 LOAD SLOT + OUT panel and v35 queue scroll. Network-first SW (`dock-app-v37`).
 
 v36 Forklift demo: **LOAD SLOT** (e.g. `1/A/Left`) is impossible to miss on Crew operator detail, Active forklifts, and Remaining moves / Step·Play queue. Tap an **OUT** chip to open a scroll-friendly outbound trailer panel (trailer # · destination · door · PRO · piece · slot · from inbound). Reuses plan `outboundLoadouts` / moves. Network-first SW (`dock-app-v36`).
@@ -207,7 +209,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v37`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v38`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

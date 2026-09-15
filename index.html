@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=37" />
+  <link rel="stylesheet" href="styles.css?v=38" />
 </head>
 <body>
   <div id="app">
@@ -361,16 +361,18 @@
             <p class="hint" id="crewDemoProgress" aria-live="polite">Moved 0 of 0</p>
             <div id="crewDemoDone" class="crew-demo-done" hidden role="status">Dock loaded — Ready</div>
 
-            <label class="field crew-door-count-field">
-              <span class="label-text">Doors on this dock</span>
-              <input id="crewDoorCountInput" type="number" min="1" max="80" step="1" inputmode="numeric" autocomplete="off" />
-            </label>
-            <p class="hint" id="crewDoorCountHint">Set how many doors your dock has. Empty doors show muted; busy doors light up.</p>
-
             <div id="crewGodHud" class="crew-god-hud" aria-live="polite">
               <div id="crewGodPulse" class="crew-god-pulse">● 0 live · 0 idle · Moved 0/0</div>
               <div id="crewGodOutPills" class="crew-god-out-pills" role="list" aria-label="Outbound fill"></div>
             </div>
+
+            <details class="crew-door-count-details">
+              <summary class="crew-door-count-summary">Doors on this dock</summary>
+              <label class="field crew-door-count-field" for="crewDoorCountInput">
+                <input id="crewDoorCountInput" type="number" min="1" max="80" step="1" inputmode="numeric" autocomplete="off" aria-describedby="crewDoorCountHint" />
+              </label>
+              <p class="hint" id="crewDoorCountHint">Set how many doors your dock has. Empty doors show muted; busy doors light up.</p>
+            </details>
             <p class="hint crew-map-tap-hint">Tap an operator or <strong>OUT</strong> chip for detail.</p>
             <div class="crew-map-layout">
               <div id="crewDockMap" class="crew-dock-map" role="img" aria-label="Dock floor map">
@@ -408,11 +410,6 @@
             <p class="hint">Tip: generate freight first with <strong>Load demo inbound trailers</strong> on the Inbound section.</p>
             <button type="button" id="runLoadPlanBtn" class="btn speak-btn demo-primary-btn">Build load plan (demo)</button>
             <button type="button" id="clearPlanBtn" class="btn muted-btn demo-secondary-btn">Clear plan</button>
-            <div id="planAgentBanner" class="plan-agent-banner" hidden>
-              <p class="hint" id="planAgentBannerText"></p>
-              <button type="button" id="planAgentPackBtn" class="btn accept-btn demo-primary-btn">Agent packed this (demo)</button>
-              <p class="hint" id="planAgentHint">Runs a local second pass on unplaced PROs only. May add outbound stubs. Labels the plan as agent packed.</p>
-            </div>
             <p class="hint" id="planStatusHint" aria-live="polite"></p>
           </section>
 
@@ -420,6 +417,11 @@
             <h2 id="plan-summary-heading">Plan summary</h2>
             <div id="planSummary" class="plan-summary">
               <div class="empty-state">No plan yet. On Inbound, load demo inbound trailers (or log freight), then tap Build load plan (demo) above.</div>
+            </div>
+            <div id="planAgentBanner" class="plan-agent-banner" hidden>
+              <p class="hint" id="planAgentBannerText"></p>
+              <button type="button" id="planAgentPackBtn" class="btn accept-btn demo-primary-btn">Agent packed this (demo)</button>
+              <p class="hint" id="planAgentHint">Runs a local second pass on unplaced PROs only. May add outbound stubs. Labels the plan as agent packed.</p>
             </div>
           </section>
 
@@ -491,9 +493,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=37"></script>
-  <script src="speech.js?v=37"></script>
-  <script src="loadPlan.js?v=37"></script>
-  <script src="app.js?v=37"></script>
+  <script src="storage.js?v=38"></script>
+  <script src="speech.js?v=38"></script>
+  <script src="loadPlan.js?v=38"></script>
+  <script src="app.js?v=38"></script>
 </body>
 </html>

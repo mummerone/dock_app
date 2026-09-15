@@ -2350,7 +2350,8 @@
    * }} */
   let crewDemo = emptyCrewDemo();
 
-  /** Brief dual-flash of pull+OUT doors on Step (~300ms, CSS only). */
+  /** Dual-flash of pull+OUT doors on Step (~700ms, CSS only — no SVG arrows). */
+  const CREW_FLASH_MS = 700;
   let crewFlashDoors = { from: '', to: '', timer: null };
 
   function flashCrewStepDoors(fromDoor, toDoor) {
@@ -2370,7 +2371,7 @@
       if (el.crewFloor) {
         el.crewFloor.querySelectorAll('.is-flash').forEach((n) => n.classList.remove('is-flash'));
       }
-    }, 300);
+    }, CREW_FLASH_MS);
   }
 
 
@@ -3208,6 +3209,15 @@
   }
 
   /**
+   * OUT doors that have planned freight (n > 0). Hides ghost chips like D23 SAT 0/0.
+   * @param {object[]} [list]
+   * @returns {string[]}
+   */
+  function collectCrewOutDoorsWithFreight(list) {
+    return collectCrewOutDoors(list).filter((d) => outFillForDoor(d, list).n > 0);
+  }
+
+  /**
    * Resolve outbound trailer stub for an OUT door (registry, then plan load-outs, then assignments).
    * @param {string} door
    * @param {object[]} [list] crew assignments
@@ -3299,7 +3309,7 @@
       el.crewGodPulse.textContent = `● ${live} live · ${idle} idle · Moved ${moved}/${total}`;
     }
     if (!el.crewGodOutPills) return;
-    const outDoors = collectCrewOutDoors(rows);
+    const outDoors = collectCrewOutDoorsWithFreight(rows);
     if (!outDoors.length) {
       el.crewGodOutPills.innerHTML =
         '<span class="crew-god-pill is-empty">No OUT yet</span>';
@@ -3593,7 +3603,7 @@
     const activitySet = new Set(activityPull);
     const doorCount = getDockDoorCount(list);
     const pullDoors = visibleCrewPullDoors(doorCount, activityPull);
-    const outDoors = collectCrewOutDoors(list);
+    const outDoors = collectCrewOutDoorsWithFreight(list);
 
     const livePullDoors = new Set(
       (list || [])
@@ -4112,25 +4122,32 @@
       btn.disabled = false;
       btn.hidden = false;
       btn.removeAttribute('hidden');
+      btn.classList.remove('is-agent-disabled');
       if (textEl) {
         textEl.textContent =
           `Demo planner packed ${packed}/${total} — ${n} PRO(s) need expert pass` +
           (s.unplacedPieceCount ? ` (${s.unplacedPieceCount} pieces)` : '');
       }
       if (hint) {
+        hint.hidden = false;
+        hint.removeAttribute('hidden');
         hint.textContent =
           'Runs a local second pass on unplaced PROs only. May add outbound stubs. Labels the plan as agent packed.';
       }
     } else {
       btn.disabled = true;
+      btn.classList.add('is-agent-disabled');
       if (textEl) {
         textEl.textContent =
           plan.planner === 'agent-demo'
             ? (s.agentNote || 'Agent packed — dock clear.')
             : 'Planner cleared the dock — agent not needed.';
       }
+      // One status line only — do not repeat "Planner cleared the dock" in the hint.
       if (hint) {
-        hint.textContent = 'Planner cleared the dock.';
+        hint.textContent = '';
+        hint.hidden = true;
+        hint.setAttribute('hidden', '');
       }
     }
   }
@@ -4620,7 +4637,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=37').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=38').catch(() => {
       /* offline cache optional */
     });
   }
