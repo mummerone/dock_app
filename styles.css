@@ -3272,3 +3272,210 @@ button {
     font-size: 0.75rem;
   }
 }
+
+
+/* ---------- v39: Solo forklift + Ground walkthrough demo ---------- */
+
+.crew-mode-start {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 6px;
+}
+
+.crew-mode-btn {
+  flex: 1 1 calc(50% - 6px);
+  min-width: 9.5rem;
+  min-height: 56px;
+  font-size: 1.05rem;
+  font-weight: 850;
+  margin-top: 0;
+}
+
+.crew-mode-btn.is-active-mode {
+  box-shadow: 0 0 0 3px rgba(255, 180, 60, 0.55);
+  border-color: #f5a623;
+}
+
+.crew-solo-copy {
+  margin: 0 0 8px;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #c8d4e8;
+}
+
+.crew-solo-job-card {
+  margin: 0 0 14px;
+  padding: 16px 14px 14px;
+  border-radius: 16px;
+  border: 2px solid #f5a623;
+  background: linear-gradient(180deg, #2a2410 0%, #0f1828 100%);
+  color: #e8eef8;
+}
+
+.crew-solo-job-card[hidden] {
+  display: none !important;
+}
+
+.crew-solo-kicker {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #f5a623;
+  margin-bottom: 6px;
+}
+
+.crew-solo-title {
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
+.crew-solo-pull,
+.crew-solo-out {
+  margin-top: 10px;
+  font-size: 1.15rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.crew-solo-label {
+  display: inline-block;
+  min-width: 3.2rem;
+  margin-right: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #243652;
+  color: #9ec9ff;
+  font-size: 0.75rem;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.crew-solo-load-slot {
+  margin-top: 10px;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.crew-solo-pro {
+  margin-top: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #b8c7dc;
+}
+
+.crew-solo-progress {
+  margin-top: 12px;
+  font-size: 1.1rem;
+  font-weight: 850;
+  color: #b8ffe0;
+}
+
+.crew-solo-tap-hint {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: #9eb0c8;
+}
+
+.ground-demo-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 10px;
+}
+
+.ground-demo-controls .demo-primary-btn {
+  flex: 1 1 100%;
+  margin-top: 0;
+  min-height: 56px;
+}
+
+.ground-demo-controls .btn:not(.demo-primary-btn) {
+  flex: 1 1 calc(50% - 6px);
+  min-width: 7.5rem;
+  min-height: 48px;
+  font-weight: 800;
+}
+
+.ground-current-order {
+  margin: 0 0 14px;
+  padding: 16px 14px 14px;
+  border-radius: 16px;
+  border: 2px solid #3d9eff;
+  background: linear-gradient(180deg, #142438 0%, #0f1828 100%);
+}
+
+.ground-current-order[hidden] {
+  display: none !important;
+}
+
+.ground-current-kicker {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6ec8ff;
+  margin-bottom: 6px;
+}
+
+.ground-current-title {
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1.3;
+  color: #e8eef8;
+}
+
+.ground-current-out {
+  margin-top: 8px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #c8d4e8;
+}
+
+.ground-current-detail {
+  margin-top: 8px;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: #b8c7dc;
+  line-height: 1.35;
+}
+
+.ground-current-progress {
+  margin-top: 12px;
+  font-size: 1.05rem;
+  font-weight: 850;
+  color: #b8ffe0;
+}
+
+.ground-order-step.is-current {
+  border-color: #3d9eff;
+  box-shadow: 0 0 0 2px rgba(61, 158, 255, 0.35);
+  background: #132438;
+}
+
+.ground-howto-card .hint {
+  margin-bottom: 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #c8d4e8;
+}
+
+@media (max-width: 480px) {
+  .crew-mode-btn {
+    flex: 1 1 100%;
+    min-height: 58px;
+  }
+
+  .crew-solo-pull,
+  .crew-solo-out {
+    font-size: 1.08rem;
+  }
+
+  .ground-current-title {
+    font-size: 1.15rem;
+  }
+}

@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=38" />
+  <link rel="stylesheet" href="styles.css?v=39" />
 </head>
 <body>
   <div id="app">
@@ -316,10 +316,11 @@
         <div id="dockPanelGround" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubGround" hidden>
           <section class="card ground-howto-card" aria-labelledby="ground-howto-heading">
             <h2 id="ground-howto-heading">Ground — deck builds</h2>
+            <p class="hint" id="groundHowtoBlurb">Ground sets decks so forklifts can load high-and-tight. Same plan as Crew.</p>
             <ol class="loadout-howto">
-              <li>After a load plan is built, this list shows where decks must go up <strong>before</strong> freight is stacked on B or C.</li>
-              <li>One order per section on each outbound trailer (not one per piece).</li>
-              <li>Tap an order when the deck is built. City / floor-only trailers never need decks.</li>
+              <li>Build a load plan on <strong>Plan</strong> first (same plan Crew uses).</li>
+              <li>Orders follow section Tetris: nose→tail; city / floor-only trailers skip decks.</li>
+              <li><strong>Start ground demo</strong>, then <strong>Step</strong> through builds — or tap Done on any order.</li>
             </ol>
           </section>
 
@@ -328,8 +329,14 @@
               <h2 id="ground-orders-heading">Deck-build orders</h2>
               <button type="button" id="groundClearDoneBtn" class="btn tiny muted-btn">Clear done</button>
             </div>
+            <div class="ground-demo-controls" id="groundDemoControls" role="group" aria-label="Ground walkthrough demo">
+              <button type="button" id="groundStartDemoBtn" class="btn accept-btn demo-primary-btn">Start ground demo</button>
+              <button type="button" id="groundStepBtn" class="btn speak-btn">Step</button>
+              <button type="button" id="groundResetDemoBtn" class="btn muted-btn">Reset</button>
+            </div>
             <p class="hint" id="groundOrdersHint">From the current load plan. Glove-friendly — tap when done.</p>
             <p class="loadout-work-progress" id="groundOrdersProgress" aria-live="polite"></p>
+            <div id="groundCurrentOrder" class="ground-current-order" hidden aria-live="polite"></div>
             <div id="groundOrdersList" class="ground-orders-list" role="list">
               <div class="empty-state">No deck builds yet. Build a load plan first (non-city trailers may need decks).</div>
             </div>
@@ -340,7 +347,7 @@
           <section class="card crew-howto-card" aria-labelledby="crew-howto-heading">
             <details class="crew-howto-details">
               <summary id="crew-howto-heading">Crew — live demo</summary>
-              <p class="hint">Build a plan (<strong>Plan</strong>), then <strong>Start demo</strong>. HUD + wall show live/idle and OUT fill. Tap OUT for trailer contents · LOAD SLOT on detail/queue. Step/Play advance moves (~800ms).</p>
+              <p class="hint">Build a plan (<strong>Plan</strong>), then start <strong>Solo forklift</strong> (one op, first pull to last put) or <strong>Crew (5)</strong> (multi-op boss view). HUD + wall show live/idle and OUT fill. Tap OUT for trailer contents · LOAD SLOT on detail/queue. Step/Play advance moves (~800ms).</p>
             </details>
           </section>
 
@@ -351,14 +358,20 @@
             </div>
             <p class="hint" id="crewBoardHint">From the current load plan. One operator per inbound door.</p>
 
+            <div class="crew-mode-start" id="crewModeStart" role="group" aria-label="Start demo mode">
+              <button type="button" id="crewSoloStartBtn" class="btn accept-btn crew-mode-btn">Solo forklift</button>
+              <button type="button" id="crewMultiStartBtn" class="btn accept-btn crew-mode-btn">Crew (5)</button>
+            </div>
+            <p class="hint crew-solo-copy" id="crewSoloCopy">One forklift — first pull to last put, high-and-tight.</p>
             <div class="crew-demo-controls" id="crewDemoControls" role="group" aria-label="Live demo controls">
-              <button type="button" id="crewStartDemoBtn" class="btn accept-btn demo-primary-btn">Start demo</button>
+              <button type="button" id="crewStartDemoBtn" class="btn accept-btn demo-primary-btn" hidden>Start demo</button>
               <button type="button" id="crewStepBtn" class="btn speak-btn">Step once</button>
               <button type="button" id="crewPlayBtn" class="btn muted-btn">Play</button>
               <button type="button" id="crewStopBtn" class="btn muted-btn">Stop</button>
               <button type="button" id="crewResetDemoBtn" class="btn muted-btn">Reset demo</button>
             </div>
             <p class="hint" id="crewDemoProgress" aria-live="polite">Moved 0 of 0</p>
+            <div id="crewSoloJobCard" class="crew-solo-job-card" hidden aria-live="polite"></div>
             <div id="crewDemoDone" class="crew-demo-done" hidden role="status">Dock loaded — Ready</div>
 
             <div id="crewGodHud" class="crew-god-hud" aria-live="polite">
@@ -493,9 +506,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=38"></script>
-  <script src="speech.js?v=38"></script>
-  <script src="loadPlan.js?v=38"></script>
-  <script src="app.js?v=38"></script>
+  <script src="storage.js?v=39"></script>
+  <script src="speech.js?v=39"></script>
+  <script src="loadPlan.js?v=39"></script>
+  <script src="app.js?v=39"></script>
 </body>
 </html>

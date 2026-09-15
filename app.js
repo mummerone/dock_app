@@ -143,6 +143,10 @@
     groundOrdersHint: document.getElementById('groundOrdersHint'),
     groundOrdersProgress: document.getElementById('groundOrdersProgress'),
     groundClearDoneBtn: document.getElementById('groundClearDoneBtn'),
+    groundStartDemoBtn: document.getElementById('groundStartDemoBtn'),
+    groundStepBtn: document.getElementById('groundStepBtn'),
+    groundResetDemoBtn: document.getElementById('groundResetDemoBtn'),
+    groundCurrentOrder: document.getElementById('groundCurrentOrder'),
     dockSubCrew: document.getElementById('dockSubCrew'),
     dockPanelCrew: document.getElementById('dockPanelCrew'),
     crewBoardList: document.getElementById('crewBoardList'),
@@ -156,6 +160,10 @@
     crewOutTrailerBody: document.getElementById('crewOutTrailerBody'),
     crewOutTrailerCloseBtn: document.getElementById('crewOutTrailerCloseBtn'),
     crewStartDemoBtn: document.getElementById('crewStartDemoBtn'),
+    crewSoloStartBtn: document.getElementById('crewSoloStartBtn'),
+    crewMultiStartBtn: document.getElementById('crewMultiStartBtn'),
+    crewSoloJobCard: document.getElementById('crewSoloJobCard'),
+    crewSoloCopy: document.getElementById('crewSoloCopy'),
     crewStepBtn: document.getElementById('crewStepBtn'),
     crewPlayBtn: document.getElementById('crewPlayBtn'),
     crewStopBtn: document.getElementById('crewStopBtn'),
@@ -2051,7 +2059,18 @@
   }
 
 
-  // ---------- Ground deck-build orders ----------
+  // ---------- Ground deck-build orders + walkthrough demo ----------
+
+  /** Local-only ground walkthrough cursor (done marks still in localStorage). */
+  let groundDemo = {
+    seeded: false,
+    /** @type {string|null} current order id when demo is active */
+    currentId: null,
+  };
+
+  function resetGroundDemoCursor() {
+    groundDemo = { seeded: false, currentId: null };
+  }
 
   function readGroundDoneStore() {
     try {
@@ -2098,6 +2117,123 @@
     writeGroundDoneStore(store);
   }
 
+  /**
+   * First undone order id in Tetris list order, or null if all done / empty.
+   * @param {object[]} orders
+   * @param {string} fp
+   * @returns {string|null}
+   */
+  function firstUndoneGroundOrderId(orders, fp) {
+    for (let i = 0; i < orders.length; i++) {
+      if (!isGroundOrderDone(fp, orders[i].id)) return orders[i].id;
+    }
+    return null;
+  }
+
+  /**
+   * @param {object[]} orders
+   * @param {string|null} id
+   * @returns {object|null}
+   */
+  function findGroundOrder(orders, id) {
+    if (!id) return null;
+    return orders.find((o) => o.id === id) || null;
+  }
+
+  function onGroundStartDemo() {
+    const plan = DockStorage.readLoadPlan();
+    if (!isPlanPresent(plan)) {
+      toast('Build a load plan first (Dock → Plan)');
+      return;
+    }
+    const orders =
+      typeof DockLoadPlan !== 'undefined' && DockLoadPlan.deriveGroundOrders
+        ? DockLoadPlan.deriveGroundOrders(plan)
+        : [];
+    if (!orders.length) {
+      resetGroundDemoCursor();
+      toast('No decks this plan — city/floor-only');
+      renderGround();
+      return;
+    }
+    const fp = planFingerprint(plan);
+    clearGroundDone(fp);
+    groundDemo = {
+      seeded: true,
+      currentId: orders[0].id,
+    };
+    toast(`Ground demo — ${orders.length} deck build${orders.length === 1 ? '' : 's'}`);
+    renderGround();
+  }
+
+  function onGroundStepDemo() {
+    const plan = DockStorage.readLoadPlan();
+    if (!isPlanPresent(plan)) {
+      toast('Build a load plan first (Dock → Plan)');
+      return;
+    }
+    const orders =
+      typeof DockLoadPlan !== 'undefined' && DockLoadPlan.deriveGroundOrders
+        ? DockLoadPlan.deriveGroundOrders(plan)
+        : [];
+    if (!orders.length) {
+      toast('No decks this plan — city/floor-only');
+      renderGround();
+      return;
+    }
+    const fp = planFingerprint(plan);
+    if (!groundDemo.seeded) {
+      groundDemo = {
+        seeded: true,
+        currentId: firstUndoneGroundOrderId(orders, fp) || orders[0].id,
+      };
+      renderGround();
+      toast('Ground demo ready — tap Step again to mark done');
+      return;
+    }
+    let curId = groundDemo.currentId || firstUndoneGroundOrderId(orders, fp);
+    if (!curId || !findGroundOrder(orders, curId)) {
+      curId = firstUndoneGroundOrderId(orders, fp);
+    }
+    if (!curId) {
+      toast('All deck builds done — Reset to run again');
+      renderGround();
+      return;
+    }
+    setGroundOrderDone(fp, curId, true);
+    const nextId = firstUndoneGroundOrderId(orders, fp);
+    groundDemo.currentId = nextId;
+    if (!nextId) {
+      toast('Ground decks complete');
+    }
+    renderGround();
+  }
+
+  function onGroundResetDemo() {
+    const plan = DockStorage.readLoadPlan();
+    if (!isPlanPresent(plan)) {
+      resetGroundDemoCursor();
+      toast('No plan to reset — build a load plan first');
+      renderGround();
+      return;
+    }
+    const fp = planFingerprint(plan);
+    clearGroundDone(fp);
+    const orders =
+      typeof DockLoadPlan !== 'undefined' && DockLoadPlan.deriveGroundOrders
+        ? DockLoadPlan.deriveGroundOrders(plan)
+        : [];
+    if (!orders.length) {
+      resetGroundDemoCursor();
+      toast('No decks this plan — city/floor-only');
+      renderGround();
+      return;
+    }
+    groundDemo = { seeded: true, currentId: orders[0].id };
+    toast('Ground demo reset');
+    renderGround();
+  }
+
   function bindGround() {
     if (el.groundClearDoneBtn) {
       el.groundClearDoneBtn.addEventListener('click', () => {
@@ -2108,9 +2244,25 @@
           return;
         }
         clearGroundDone(fp);
+        if (groundDemo.seeded) {
+          const orders =
+            typeof DockLoadPlan !== 'undefined' && DockLoadPlan.deriveGroundOrders
+              ? DockLoadPlan.deriveGroundOrders(plan)
+              : [];
+          groundDemo.currentId = orders.length ? orders[0].id : null;
+        }
         renderGround();
         toast('Cleared ground done marks');
       });
+    }
+    if (el.groundStartDemoBtn) {
+      el.groundStartDemoBtn.addEventListener('click', () => onGroundStartDemo());
+    }
+    if (el.groundStepBtn) {
+      el.groundStepBtn.addEventListener('click', () => onGroundStepDemo());
+    }
+    if (el.groundResetDemoBtn) {
+      el.groundResetDemoBtn.addEventListener('click', () => onGroundResetDemo());
     }
     if (el.groundOrdersList) {
       el.groundOrdersList.addEventListener('click', (e) => {
@@ -2122,9 +2274,42 @@
         if (!fp || !orderId) return;
         const done = isGroundOrderDone(fp, orderId);
         setGroundOrderDone(fp, orderId, !done);
+        if (groundDemo.seeded) {
+          const orders =
+            typeof DockLoadPlan !== 'undefined' && DockLoadPlan.deriveGroundOrders
+              ? DockLoadPlan.deriveGroundOrders(plan)
+              : [];
+          groundDemo.currentId = firstUndoneGroundOrderId(orders, fp);
+        }
         renderGround();
       });
     }
+  }
+
+  /**
+   * Big current-order card for ground walkthrough.
+   * @param {object|null} order
+   * @param {number} doneCount
+   * @param {number} total
+   */
+  function renderGroundCurrentCard(order, doneCount, total) {
+    if (!el.groundCurrentOrder) return;
+    if (!order) {
+      el.groundCurrentOrder.hidden = true;
+      el.groundCurrentOrder.innerHTML = '';
+      return;
+    }
+    el.groundCurrentOrder.hidden = false;
+    const dest = order.destination
+      ? ` → ${escapeHtml(order.destination)}`
+      : '';
+    el.groundCurrentOrder.innerHTML = `
+      <div class="ground-current-kicker">Current deck build</div>
+      <div class="ground-current-title">${escapeHtml(order.label)}</div>
+      <div class="ground-current-out">OUT Trl ${escapeHtml(order.trailerNumber)}${dest} · Section ${escapeHtml(String(order.section))}</div>
+      <div class="ground-current-detail">${escapeHtml(order.detail)}</div>
+      <div class="ground-current-progress">Done ${doneCount} of ${total} deck builds</div>
+    `;
   }
 
   function renderGround() {
@@ -2143,27 +2328,50 @@
           'Build a load plan on Plan first. Then come back here for deck-build orders.';
       }
       if (el.groundOrdersProgress) el.groundOrdersProgress.textContent = '';
+      renderGroundCurrentCard(null, 0, 0);
       return;
     }
 
     if (!orders.length) {
       el.groundOrdersList.innerHTML =
-        '<div class="empty-state">No deck builds yet. Build a load plan first (non-city trailers may need decks).</div>';
+        '<div class="empty-state">No decks this plan — city/floor-only.</div>';
       if (el.groundOrdersHint) {
         el.groundOrdersHint.textContent =
-          'This plan has no B/C freight (or all outbound trailers are city floor-only). Floor (A) only — no deck builds.';
+          'No decks this plan — city/floor-only. Floor (A) only — nothing for ground to build.';
       }
-      if (el.groundOrdersProgress) el.groundOrdersProgress.textContent = '';
+      if (el.groundOrdersProgress) el.groundOrdersProgress.textContent = 'Done 0 of 0 deck builds';
+      renderGroundCurrentCard(null, 0, 0);
+      resetGroundDemoCursor();
       return;
     }
 
     if (el.groundOrdersHint) {
       el.groundOrdersHint.textContent =
-        'Build these decks before stacking freight on B or C. One order per section. Tap when done.';
+        'Ground sets decks so forklifts can load high-and-tight. Same plan as Crew. Tap Done or use Step.';
     }
 
     const fp = planFingerprint(plan);
     let doneCount = 0;
+    orders.forEach((o) => {
+      if (isGroundOrderDone(fp, o.id)) doneCount += 1;
+    });
+
+    // Keep cursor on first undone when seeded
+    if (groundDemo.seeded) {
+      const still = findGroundOrder(orders, groundDemo.currentId);
+      if (!still || isGroundOrderDone(fp, groundDemo.currentId)) {
+        groundDemo.currentId = firstUndoneGroundOrderId(orders, fp);
+      }
+    }
+    const currentId = groundDemo.seeded
+      ? groundDemo.currentId
+      : firstUndoneGroundOrderId(orders, fp);
+    const currentOrder = findGroundOrder(orders, currentId);
+    renderGroundCurrentCard(
+      groundDemo.seeded || doneCount < orders.length ? currentOrder : null,
+      doneCount,
+      orders.length
+    );
 
     // Group by trailer for readability
     /** @type {Map<string, object[]>} */
@@ -2188,21 +2396,24 @@
       list.forEach((o) => {
         globalNum += 1;
         const done = isGroundOrderDone(fp, o.id);
-        if (done) doneCount += 1;
+        const isCurrent = !done && currentId === o.id;
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'ground-order-step' + (done ? ' is-done' : '');
+        btn.className =
+          'ground-order-step' +
+          (done ? ' is-done' : '') +
+          (isCurrent ? ' is-current' : '');
         btn.setAttribute('data-ground-id', o.id);
         btn.setAttribute('role', 'listitem');
         btn.setAttribute('aria-pressed', done ? 'true' : 'false');
         btn.innerHTML = `
           <div class="loadout-work-step-top">
             <span class="loadout-work-num">${globalNum}</span>
-            <span class="loadout-work-check" aria-hidden="true">${done ? '✓' : ''}</span>
+            <span class="loadout-work-check" aria-hidden="true">${done ? '✓' : isCurrent ? '▶' : ''}</span>
             <span class="loadout-work-pro">${escapeHtml(o.label)}</span>
           </div>
           <div class="ground-order-detail">${escapeHtml(o.detail)}</div>
-          <div class="loadout-work-tap-hint">${done ? 'Done — tap to undo' : 'Tap when deck is built'}</div>
+          <div class="loadout-work-tap-hint">${done ? 'Done — tap to undo' : isCurrent ? 'Current — tap Done or Step' : 'Tap when deck is built'}</div>
         `;
         frag.appendChild(btn);
       });
@@ -2211,7 +2422,7 @@
     el.groundOrdersList.innerHTML = '';
     el.groundOrdersList.appendChild(frag);
     if (el.groundOrdersProgress) {
-      el.groundOrdersProgress.textContent = `${doneCount} of ${orders.length} done`;
+      el.groundOrdersProgress.textContent = `Done ${doneCount} of ${orders.length} deck builds`;
     }
   }
 
@@ -2336,10 +2547,16 @@
 
   /** Local-only live demo simulation (not persisted). */
   const CREW_DEMO_TARGET_OPS = 5;
+  const CREW_DEMO_SOLO_OPS = 1;
   const CREW_DEMO_PLAY_MS = 800;
+
+  /** Preferred start mode when Reset / Step auto-seed without an explicit button. */
+  let crewDemoPreferredMode = 'crew'; // 'solo' | 'crew'
 
   /** @type {{
    *  seeded: boolean,
+   *  mode: string,
+   *  targetOps: number,
    *  queue: object[],
    *  active: object[],
    *  doneCount: number,
@@ -2378,6 +2595,8 @@
   function emptyCrewDemo() {
     return {
       seeded: false,
+      mode: 'crew',
+      targetOps: CREW_DEMO_TARGET_OPS,
       queue: [],
       active: [],
       doneCount: 0,
@@ -2386,6 +2605,14 @@
       playTimer: null,
       nextStartSeq: 0,
     };
+  }
+
+  /**
+   * @param {'solo'|'crew'|string} [mode]
+   * @returns {number}
+   */
+  function crewTargetOpsForMode(mode) {
+    return mode === 'solo' ? CREW_DEMO_SOLO_OPS : CREW_DEMO_TARGET_OPS;
   }
 
   function stopCrewDemoPlay() {
@@ -2484,10 +2711,12 @@
   /**
    * Seed queue + assign first K operators on distinct pull AND load doors.
    * Caps concurrent ops at unique OUT destinations available (do not pile onto one OUT).
+   * Solo mode uses K=1; Crew (multi) uses CREW_DEMO_TARGET_OPS (5).
    * @param {object|null} [plan]
+   * @param {{ mode?: string, targetOps?: number }} [opts]
    * @returns {boolean}
    */
-  function seedCrewDemo(plan) {
+  function seedCrewDemo(plan, opts) {
     const p = plan || DockStorage.readLoadPlan();
     const all = planMovesNormalized(p);
     stopCrewDemoPlay();
@@ -2495,6 +2724,21 @@
       resetCrewDemoState();
       return false;
     }
+
+    const mode =
+      (opts && opts.mode) ||
+      crewDemo.mode ||
+      crewDemoPreferredMode ||
+      'crew';
+    const targetOps = Math.max(
+      1,
+      Number(
+        (opts && opts.targetOps) != null
+          ? opts.targetOps
+          : crewTargetOpsForMode(mode)
+      ) || CREW_DEMO_TARGET_OPS
+    );
+    crewDemoPreferredMode = mode === 'solo' ? 'solo' : 'crew';
 
     /** @type {object[]} */
     const remaining = all.slice();
@@ -2504,7 +2748,7 @@
     const usedLoad = new Set();
     let op = 1;
 
-    while (active.length < CREW_DEMO_TARGET_OPS) {
+    while (active.length < targetOps) {
       let pickIdx = -1;
       for (let i = 0; i < remaining.length; i++) {
         const move = remaining[i];
@@ -2533,6 +2777,8 @@
 
     crewDemo = {
       seeded: true,
+      mode: mode === 'solo' ? 'solo' : 'crew',
+      targetOps,
       queue: diversifyQueueByLoad(remaining),
       active,
       doneCount: 0,
@@ -2541,7 +2787,7 @@
       playTimer: null,
       nextStartSeq: active.length,
     };
-    state.crewSelectedOp = null;
+    state.crewSelectedOp = mode === 'solo' ? 1 : null;
     return true;
   }
 
@@ -2651,7 +2897,8 @@
 
   function startCrewDemoPlay() {
     if (!crewDemo.seeded) {
-      const ok = seedCrewDemo();
+      const mode = crewDemoPreferredMode === 'solo' ? 'solo' : 'crew';
+      const ok = seedCrewDemo(null, { mode, targetOps: crewTargetOpsForMode(mode) });
       if (!ok) {
         toast('Build a load plan first (Dock → Plan)');
         return;
@@ -2672,21 +2919,30 @@
     updateCrewDemoChrome();
   }
 
-  function onCrewStartDemo() {
+  /**
+   * @param {'solo'|'crew'} mode
+   */
+  function onCrewStartDemo(mode) {
+    const m = mode === 'solo' ? 'solo' : 'crew';
     const plan = DockStorage.readLoadPlan();
-    const ok = seedCrewDemo(plan);
+    const ok = seedCrewDemo(plan, { mode: m, targetOps: crewTargetOpsForMode(m) });
     if (!ok) {
       toast('Build a load plan first (Dock → Plan)');
       renderCrew();
       return;
     }
-    toast(`Demo started — ${crewDemo.active.length} forklifts · ${crewDemo.total} moves`);
+    if (m === 'solo') {
+      toast(`Solo forklift — 1 op · ${crewDemo.total} moves · high-and-tight`);
+    } else {
+      toast(`Crew demo — ${crewDemo.active.length} forklifts · ${crewDemo.total} moves`);
+    }
     renderCrew();
   }
 
   function onCrewStepOnce() {
     if (!crewDemo.seeded) {
-      const ok = seedCrewDemo();
+      const mode = crewDemoPreferredMode === 'solo' ? 'solo' : 'crew';
+      const ok = seedCrewDemo(null, { mode, targetOps: crewTargetOpsForMode(mode) });
       if (!ok) {
         toast('Build a load plan first (Dock → Plan)');
         return;
@@ -2709,14 +2965,17 @@
 
   function onCrewResetDemo() {
     const plan = DockStorage.readLoadPlan();
-    const ok = seedCrewDemo(plan);
+    const mode =
+      crewDemo.mode ||
+      (crewDemoPreferredMode === 'solo' ? 'solo' : 'crew');
+    const ok = seedCrewDemo(plan, { mode, targetOps: crewTargetOpsForMode(mode) });
     if (!ok) {
       resetCrewDemoState();
       toast('No plan to reset — build a load plan first');
       renderCrew();
       return;
     }
-    toast('Demo reset');
+    toast(mode === 'solo' ? 'Solo demo reset' : 'Crew demo reset');
     renderCrew();
   }
 
@@ -2791,11 +3050,31 @@
   }
 
   function updateCrewDemoChrome() {
+    const solo = crewDemo.seeded && crewDemo.mode === 'solo';
+    if (el.crewSoloCopy) {
+      el.crewSoloCopy.hidden = false;
+      el.crewSoloCopy.textContent = solo
+        ? 'One forklift — first pull to last put, high-and-tight.'
+        : 'Solo forklift = 1 op end-to-end · Crew (5) = multi-op boss view. Same plan.';
+    }
+    if (el.crewSoloStartBtn) {
+      el.crewSoloStartBtn.classList.toggle('is-active-mode', solo || (!crewDemo.seeded && crewDemoPreferredMode === 'solo'));
+    }
+    if (el.crewMultiStartBtn) {
+      const multi = crewDemo.seeded && crewDemo.mode !== 'solo';
+      el.crewMultiStartBtn.classList.toggle(
+        'is-active-mode',
+        multi || (!crewDemo.seeded && crewDemoPreferredMode !== 'solo')
+      );
+    }
     if (el.crewDemoProgress) {
       if (!crewDemo.seeded) {
-        el.crewDemoProgress.textContent = 'Moved 0 of 0 — Start demo after you build a plan';
+        el.crewDemoProgress.textContent =
+          'Moved 0 of 0 — tap Solo forklift or Crew (5) after you build a plan';
       } else {
-        el.crewDemoProgress.textContent = `Moved ${crewDemo.doneCount} of ${crewDemo.total}` +
+        const modeLabel = solo ? 'Solo' : 'Crew';
+        el.crewDemoProgress.textContent =
+          `${modeLabel} · Moved ${crewDemo.doneCount} of ${crewDemo.total}` +
           (crewDemo.playing ? ' · Playing…' : '');
       }
     }
@@ -2807,6 +3086,62 @@
       el.crewPlayBtn.textContent = crewDemo.playing ? 'Playing…' : 'Play';
       el.crewPlayBtn.disabled = crewDemo.playing;
     }
+    renderCrewSoloJobCard();
+  }
+
+  /**
+   * Big current-job card for Solo forklift mode (always visible while seeded).
+   */
+  function renderCrewSoloJobCard() {
+    if (!el.crewSoloJobCard) return;
+    const solo = crewDemo.seeded && crewDemo.mode === 'solo';
+    if (!solo) {
+      el.crewSoloJobCard.hidden = true;
+      el.crewSoloJobCard.innerHTML = '';
+      return;
+    }
+    el.crewSoloJobCard.hidden = false;
+    if (crewDemoAllDone()) {
+      el.crewSoloJobCard.innerHTML = `
+        <div class="crew-solo-kicker">Solo forklift</div>
+        <div class="crew-solo-title">Dock loaded — Ready</div>
+        <div class="crew-solo-progress">Moved ${crewDemo.doneCount} of ${crewDemo.total}</div>
+      `;
+      return;
+    }
+    const active = crewDemo.active.find((a) => a.move && !a.idle) || crewDemo.active[0];
+    const m = active && active.move;
+    if (!m) {
+      el.crewSoloJobCard.innerHTML = `
+        <div class="crew-solo-kicker">Solo forklift</div>
+        <div class="crew-solo-title">Waiting for next pull…</div>
+        <div class="crew-solo-progress">Moved ${crewDemo.doneCount} of ${crewDemo.total}</div>
+      `;
+      return;
+    }
+    const pull =
+      `Door ${escapeHtml(m.fromDoor || '—')} · Trl ${escapeHtml(m.fromTrailer || '—')}` +
+      (m.fromSlot ? ` · ${escapeHtml(m.fromSlot)}` : '');
+    const loadSlot = m.toSlot
+      ? `<div class="crew-solo-load-slot"><span class="crew-load-slot-label">LOAD SLOT</span> <span class="crew-load-slot-value">${escapeHtml(m.toSlot)}</span></div>`
+      : '';
+    const outBits = [];
+    if (m.toDoor) outBits.push(`Door ${m.toDoor}`);
+    if (m.toTrailer) outBits.push(`Trl ${m.toTrailer}`);
+    if (m.destination) outBits.push(m.destination);
+    const out = outBits.length ? outBits.join(' · ') : '—';
+    const proBits = [];
+    if (m.pro) proBits.push(`PRO ${m.pro}`);
+    if (m.pieceFraction) proBits.push(m.pieceFraction);
+    el.crewSoloJobCard.innerHTML = `
+      <div class="crew-solo-kicker">Current job · Solo forklift</div>
+      <div class="crew-solo-pull"><span class="crew-solo-label">Pull</span> ${pull}</div>
+      ${loadSlot}
+      <div class="crew-solo-out"><span class="crew-solo-label">OUT</span> ${escapeHtml(out)}</div>
+      ${proBits.length ? `<div class="crew-solo-pro">${escapeHtml(proBits.join(' · '))}</div>` : ''}
+      <div class="crew-solo-progress">Moved ${crewDemo.doneCount} of ${crewDemo.total}</div>
+      <div class="crew-solo-tap-hint">Tap OUT on the wall for trailer contents · Step / Play to advance</div>
+    `;
   }
 
   function renderCrewMoveQueue() {
@@ -2938,7 +3273,13 @@
       });
     }
     if (el.crewStartDemoBtn) {
-      el.crewStartDemoBtn.addEventListener('click', () => onCrewStartDemo());
+      el.crewStartDemoBtn.addEventListener('click', () => onCrewStartDemo('crew'));
+    }
+    if (el.crewSoloStartBtn) {
+      el.crewSoloStartBtn.addEventListener('click', () => onCrewStartDemo('solo'));
+    }
+    if (el.crewMultiStartBtn) {
+      el.crewMultiStartBtn.addEventListener('click', () => onCrewStartDemo('crew'));
     }
     if (el.crewStepBtn) {
       el.crewStepBtn.addEventListener('click', () => onCrewStepOnce());
@@ -3835,9 +4176,14 @@
 
     if (crewDemo.seeded) {
       list = assignmentsFromCrewDemo();
-      note = crewDemoAllDone()
-        ? 'Dock loaded — all plan moves complete.'
-        : `Live demo — ${crewDemo.active.filter((a) => a.move && !a.idle).length} pulling · ${crewDemo.queue.length} in queue. Different pull doors and different load doors when the plan allows.`;
+      if (crewDemoAllDone()) {
+        note = 'Dock loaded — all plan moves complete.';
+      } else if (crewDemo.mode === 'solo') {
+        note =
+          'Solo forklift — one op works the whole queue, first pull to last put, high-and-tight.';
+      } else {
+        note = `Live demo — ${crewDemo.active.filter((a) => a.move && !a.idle).length} pulling · ${crewDemo.queue.length} in queue. Different pull doors and different load doors when the plan allows.`;
+      }
     } else {
       const plan = DockStorage.readLoadPlan();
       const result =
@@ -4637,7 +4983,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=38').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=39').catch(() => {
       /* offline cache optional */
     });
   }
