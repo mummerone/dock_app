@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=35" />
+  <link rel="stylesheet" href="styles.css?v=36" />
 </head>
 <body>
   <div id="app">
@@ -339,7 +339,7 @@
         <div id="dockPanelCrew" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubCrew" hidden>
           <section class="card crew-howto-card" aria-labelledby="crew-howto-heading">
             <h2 id="crew-howto-heading">Crew — live demo</h2>
-            <p class="hint">How to: build a load plan (<strong>Plan</strong>), then <strong>Start demo</strong>. Map shows forklifts on pull doors; OUT chips below. Queue under the map lists remaining moves by outbound trailer. <strong>Step once</strong> finishes the earliest move and that forklift takes the next free pull+load doors. <strong>Play</strong> auto-steps (~800ms). Active forklifts use different pull doors and different load doors when the plan allows.</p>
+            <p class="hint">How to: build a load plan (<strong>Plan</strong>), then <strong>Start demo</strong>. Map shows forklifts on pull doors; <strong>tap an OUT chip</strong> to see that outbound trailer and everything planned into it. Queue under the map lists remaining moves by outbound trailer — each row shows the <strong>LOAD SLOT</strong> (where it goes in the OUT trailer). <strong>Step once</strong> finishes the earliest move and that forklift takes the next free pull+load doors. <strong>Play</strong> auto-steps (~800ms). Active forklifts use different pull doors and different load doors when the plan allows.</p>
           </section>
 
           <section class="card" aria-labelledby="crew-board-heading">
@@ -365,7 +365,7 @@
             </label>
             <p class="hint" id="crewDoorCountHint">Set how many doors your dock has. Empty doors show muted; busy doors light up.</p>
 
-            <p class="hint crew-map-tap-hint">Tap an operator to see what they’re moving.</p>
+            <p class="hint crew-map-tap-hint">Tap an operator to see what they’re moving. Tap an <strong>OUT</strong> chip to open that outbound trailer.</p>
             <div class="crew-map-layout">
               <div id="crewDockMap" class="crew-dock-map" role="img" aria-label="Dock floor map">
                 <div id="crewFloor" class="crew-floor" aria-label="Dock floor">
@@ -373,6 +373,14 @@
                 </div>
               </div>
               <div id="crewOpDetail" class="crew-op-detail" hidden aria-live="polite"></div>
+            </div>
+
+            <div id="crewOutTrailerPanel" class="crew-out-trailer-panel" hidden>
+              <div class="crew-out-trailer-panel-bar">
+                <h3 class="crew-out-trailer-panel-heading" id="crew-out-trailer-heading">Outbound trailer</h3>
+                <button type="button" id="crewOutTrailerCloseBtn" class="btn tiny muted-btn">Close</button>
+              </div>
+              <div id="crewOutTrailerBody" class="crew-out-trailer-body" aria-live="polite"></div>
             </div>
 
             <h3 class="crew-queue-heading">Remaining dock moves</h3>
@@ -414,7 +422,7 @@
 
           <section class="card" aria-labelledby="plan-out-heading">
             <h2 id="plan-out-heading">Outbound load-outs (planned)</h2>
-            <p class="hint bol-note">Grouped by outbound trailer / destination. Same PRO stays on one trailer.</p>
+            <p class="hint bol-note">Grouped by outbound trailer / destination. Same PRO stays on one trailer. Each piece shows its OUT slot and inbound from-door. On Crew, tap an OUT chip for the same list on the phone.</p>
             <div id="planOutboundList" class="plan-outbound-list">
               <div class="empty-state">No planned load-outs yet. Build a load plan above to see them here.</div>
             </div>
@@ -472,9 +480,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=35"></script>
-  <script src="speech.js?v=35"></script>
-  <script src="loadPlan.js?v=35"></script>
-  <script src="app.js?v=35"></script>
+  <script src="storage.js?v=36"></script>
+  <script src="speech.js?v=36"></script>
+  <script src="loadPlan.js?v=36"></script>
+  <script src="app.js?v=36"></script>
 </body>
 </html>

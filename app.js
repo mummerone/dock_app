@@ -47,6 +47,7 @@
     dockSection: 'inbound', // 'inbound' | 'outbound' | 'ground' | 'crew' | 'plan'
     crewRotate: 0, // Refresh assignments offset
     crewSelectedOp: null, // selected operator on dock map
+    crewOutDoor: null, // selected OUT door for trailer contents panel
     loadoutTrailer: '',
     pieceLocked: false, // mid-sequence: piece field forced to k/n
     destinationLocked: false, // PRO already has a destination — reuse until edited
@@ -151,6 +152,9 @@
     crewDockMap: document.getElementById('crewDockMap'),
     crewFloor: document.getElementById('crewFloor'),
     crewOpDetail: document.getElementById('crewOpDetail'),
+    crewOutTrailerPanel: document.getElementById('crewOutTrailerPanel'),
+    crewOutTrailerBody: document.getElementById('crewOutTrailerBody'),
+    crewOutTrailerCloseBtn: document.getElementById('crewOutTrailerCloseBtn'),
     crewStartDemoBtn: document.getElementById('crewStartDemoBtn'),
     crewStepBtn: document.getElementById('crewStepBtn'),
     crewPlayBtn: document.getElementById('crewPlayBtn'),
@@ -2240,7 +2244,7 @@
       );
     }
     const pullParts = [`Door ${a.fromDoor}`, `Trl ${a.fromTrailer || '—'}`];
-    if (a.fromSlot) pullParts.push(`slot ${a.fromSlot}`);
+    if (a.fromSlot) pullParts.push(a.fromSlot);
     const loadParts = [];
     const putDoor = resolvePutDoor({
       door: a.toDoor,
@@ -2251,7 +2255,6 @@
       loadParts.push(putDoor ? `Door ${putDoor}` : 'Door —');
       loadParts.push(`Trl ${a.toTrailer}`);
       if (a.destination) loadParts.push(a.destination);
-      if (a.toSlot) loadParts.push(`slot ${a.toSlot}`);
     } else if (a.destination) {
       if (putDoor) loadParts.push(`Door ${putDoor}`);
       loadParts.push(`${a.destination} (no plan yet)`);
@@ -2260,7 +2263,16 @@
     }
     let html = `<div class="crew-op-detail-title">Operator ${a.operator}</div>`;
     html += `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Pulling:</span> ${escapeHtml(pullParts.join(' · '))}</div>`;
-    html += `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Loading:</span> ${escapeHtml(loadParts.join(' · '))}</div>`;
+    html += `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Loading into:</span> ${escapeHtml(loadParts.join(' · '))}</div>`;
+    // Load slot is the forklift’s put target — impossible to miss (equal/greater than pull slot)
+    if (a.toSlot) {
+      html += `<div class="crew-op-detail-load-slot" role="status"><span class="crew-load-slot-label">LOAD SLOT</span> <span class="crew-load-slot-value">${escapeHtml(a.toSlot)}</span></div>`;
+    } else if (a.toTrailer) {
+      html += `<div class="crew-op-detail-load-slot is-missing" role="status"><span class="crew-load-slot-label">LOAD SLOT</span> <span class="crew-load-slot-value">—</span></div>`;
+    }
+    if (a.fromSlot) {
+      html += `<div class="crew-op-detail-pull-slot"><span class="crew-op-detail-label">Pull slot:</span> ${escapeHtml(a.fromSlot)}</div>`;
+    }
     const meta = [];
     if (a.pro) meta.push(`PRO ${a.pro}`);
     if (a.pieceFraction) meta.push(`piece ${a.pieceFraction}`);
@@ -2291,7 +2303,11 @@
       });
       el.crewFloor.querySelectorAll('.crew-out-target[data-door]').forEach((chip) => {
         const d = chip.getAttribute('data-door') || '';
-        chip.classList.toggle('is-op-selected', !!selected && !!outDoor && d === outDoor);
+        const opHit = !!selected && !!outDoor && d === outDoor;
+        const panelHit = !!state.crewOutDoor && d === String(state.crewOutDoor);
+        chip.classList.toggle('is-op-selected', opHit);
+        chip.classList.toggle('is-panel-open', panelHit);
+        chip.setAttribute('aria-pressed', panelHit ? 'true' : 'false');
       });
     }
     if (el.crewBoardList) {
@@ -2717,7 +2733,8 @@
       const putDoor = m.toDoor || '';
       const loadPhrase = m.toTrailer
         ? `${putDoor ? `Door ${putDoor}` : 'Door —'} · Trl ${m.toTrailer}` +
-          (m.destination ? ` · ${m.destination}` : '')
+          (m.destination ? ` · ${m.destination}` : '') +
+          (m.toSlot ? ` · LOAD ${m.toSlot}` : '')
         : m.destination || '—';
       return {
         operator: a.operator,
@@ -2834,9 +2851,13 @@
         row.setAttribute('role', 'listitem');
         const fromDoor = m.fromDoor || '—';
         const fromTr = m.fromTrailer || '—';
+        const fromSlot = m.fromSlot || '';
         const putDoor = m.toDoor || '';
         const toTr = m.toTrailer || '—';
+        const toSlot = m.toSlot || '';
         const dest = m.destination || '';
+        const pullBits = [`Door ${fromDoor}`, `Trl ${fromTr}`];
+        if (fromSlot) pullBits.push(fromSlot);
         const loadBits = [];
         if (putDoor) loadBits.push(`Door ${putDoor}`);
         else if (toTr && toTr !== '—') loadBits.push('Door —');
@@ -2846,11 +2867,15 @@
         const proBits = [];
         if (m.pro) proBits.push(`PRO ${m.pro}`);
         if (m.pieceFraction) proBits.push(m.pieceFraction);
+        const loadSlotHtml = toSlot
+          ? `<div class="crew-queue-load-slot"><span class="crew-load-slot-label">LOAD SLOT</span> <span class="crew-load-slot-value">${escapeHtml(toSlot)}</span></div>`
+          : '';
         row.innerHTML = `
           <div class="crew-queue-num">#${idx + 1}</div>
           <div class="crew-queue-lines">
-            <div class="crew-queue-from">Door ${escapeHtml(fromDoor)} · Trl ${escapeHtml(fromTr)}</div>
+            <div class="crew-queue-from">${escapeHtml(pullBits.join(' · '))}</div>
             <div class="crew-queue-to"><span class="crew-queue-arrow" aria-hidden="true">→</span> ${escapeHtml(loadBits.join(' · '))}</div>
+            ${loadSlotHtml}
             ${proBits.length ? `<div class="crew-queue-pro">${escapeHtml(proBits.join(' · '))}</div>` : ''}
           </div>
         `;
@@ -2910,6 +2935,12 @@
     }
     if (el.crewFloor) {
       el.crewFloor.addEventListener('click', (ev) => {
+        const outChip = ev.target.closest('.crew-out-target[data-door]');
+        if (outChip) {
+          const door = outChip.getAttribute('data-door') || '';
+          if (door) openCrewOutTrailerPanel(door);
+          return;
+        }
         const btn = ev.target.closest('.crew-op-marker');
         if (!btn) return;
         const op = Number(btn.getAttribute('data-op'));
@@ -2927,6 +2958,9 @@
         state.crewSelectedOp = state.crewSelectedOp === op ? null : op;
         updateCrewSelectionUI();
       });
+    }
+    if (el.crewOutTrailerCloseBtn) {
+      el.crewOutTrailerCloseBtn.addEventListener('click', () => closeCrewOutTrailerPanel());
     }
   }
 
@@ -3132,6 +3166,242 @@
   }
 
   /**
+   * Resolve outbound trailer stub for an OUT door (registry, then plan load-outs, then assignments).
+   * @param {string} door
+   * @param {object[]} [list] crew assignments
+   * @returns {{ door: string, trailerNumber: string, destination: string, cityFloorOnly: boolean }}
+   */
+  function resolveOutTrailerForDoor(door, list) {
+    const d = String(door || '').trim();
+    let trailerNumber = '';
+    let destination = '';
+    let cityFloorOnly = false;
+
+    if (d && typeof DockStorage !== 'undefined' && DockStorage.readOutboundTrailers) {
+      const row = DockStorage.readOutboundTrailers().find(
+        (r) => String((r && r.doorNumber) || '').trim() === d
+      );
+      if (row) {
+        trailerNumber = String(row.trailerNumber || '').trim();
+        destination = String(row.destination || '').trim();
+        cityFloorOnly = Boolean(row.cityFloorOnly);
+      }
+    }
+
+    const plan =
+      typeof DockStorage !== 'undefined' && DockStorage.readLoadPlan
+        ? DockStorage.readLoadPlan()
+        : null;
+    if (plan && Array.isArray(plan.outboundLoadouts)) {
+      const load = plan.outboundLoadouts.find((L) => {
+        const ld = resolvePutDoor({
+          door: L.doorNumber || '',
+          trailer: L.trailerNumber || '',
+          destination: L.destination || '',
+        });
+        if (d && ld === d) return true;
+        if (trailerNumber && String(L.trailerNumber || '').trim() === trailerNumber) return true;
+        return false;
+      });
+      if (load) {
+        if (!trailerNumber) trailerNumber = String(load.trailerNumber || '').trim();
+        if (!destination) destination = String(load.destination || '').trim();
+        cityFloorOnly = Boolean(load.cityFloorOnly);
+      }
+    }
+
+    if ((!trailerNumber || !destination) && Array.isArray(list)) {
+      const hit = list.find((a) => !a.idle && String(a.toDoor || '').trim() === d);
+      if (hit) {
+        if (!trailerNumber) trailerNumber = String(hit.toTrailer || '').trim();
+        if (!destination) destination = String(hit.destination || '').trim();
+      }
+    }
+
+    return { door: d, trailerNumber, destination, cityFloorOnly };
+  }
+
+  /**
+   * Pieces planned into an outbound trailer — reuse plan outboundLoadouts / moves (no second model).
+   * @param {string} trailerNumber
+   * @returns {{ pro: string, pieceFraction: string, slot: string, fromDoor: string, fromTrailer: string, fromSlot: string, done: boolean }[]}
+   */
+  function piecesForOutboundTrailer(trailerNumber) {
+    const t = String(trailerNumber || '').trim();
+    if (!t) return [];
+    const plan =
+      typeof DockStorage !== 'undefined' && DockStorage.readLoadPlan
+        ? DockStorage.readLoadPlan()
+        : null;
+    if (!plan) return [];
+
+    /** @type {Set<string>} keys still remaining in demo (pro|piece|slot) */
+    const remainingKeys = new Set();
+    let trackDone = false;
+    if (crewDemo.seeded) {
+      trackDone = true;
+      const mark = (m) => {
+        if (!m) return;
+        if (String(m.toTrailer || '').trim() !== t) return;
+        remainingKeys.add(
+          `${m.pro || ''}|${m.pieceFraction || ''}|${m.toSlot || ''}`
+        );
+      };
+      crewDemo.queue.forEach(mark);
+      crewDemo.active.forEach((a) => mark(a && a.move));
+    }
+
+    const isDone = (pro, pieceFraction, slot) => {
+      if (!trackDone) return false;
+      const key = `${pro || ''}|${pieceFraction || ''}|${slot || ''}`;
+      return !remainingKeys.has(key);
+    };
+
+    const load = (plan.outboundLoadouts || []).find(
+      (L) => String(L.trailerNumber || '').trim() === t
+    );
+    if (load && Array.isArray(load.groups) && load.groups.length) {
+      const out = [];
+      load.groups.forEach((g) => {
+        (g.pieces || []).forEach((p) => {
+          const pro = g.pro || p.pro || '';
+          const pieceFraction = p.pieceFraction || '';
+          const slot = p.slot || '';
+          out.push({
+            pro,
+            pieceFraction,
+            slot,
+            fromDoor: p.fromDoor || '',
+            fromTrailer: p.fromTrailer || '',
+            fromSlot: p.fromSlot || '',
+            done: isDone(pro, pieceFraction, slot),
+          });
+        });
+      });
+      return out;
+    }
+
+    // Fallback: plan moves for this trailer
+    const moves = Array.isArray(plan.moves) ? plan.moves : [];
+    return moves
+      .filter((m) => String((m.to && m.to.trailer) || '').trim() === t)
+      .map((m) => {
+        const pro = m.pro || '';
+        const pieceFraction = m.pieceFraction || '';
+        const slot = (m.to && m.to.slot) || '';
+        return {
+          pro,
+          pieceFraction,
+          slot,
+          fromDoor: (m.from && m.from.door) || '',
+          fromTrailer: (m.from && m.from.trailer) || '',
+          fromSlot: (m.from && m.from.slot) || '',
+          done: isDone(pro, pieceFraction, slot),
+        };
+      });
+  }
+
+  /**
+   * Short trailer label for an OUT chip (glove scan).
+   * @param {string} door
+   * @param {object[]} list
+   * @returns {string}
+   */
+  function outChipTrailerHint(door, list) {
+    const info = resolveOutTrailerForDoor(door, list);
+    if (info.trailerNumber) return `Trl ${info.trailerNumber}`;
+    if (info.destination) return info.destination;
+    return '';
+  }
+
+  function closeCrewOutTrailerPanel() {
+    state.crewOutDoor = null;
+    renderCrewOutTrailerPanel();
+    updateCrewSelectionUI();
+  }
+
+  function openCrewOutTrailerPanel(door) {
+    const d = String(door || '').trim();
+    if (!d) return;
+    state.crewOutDoor = state.crewOutDoor === d ? null : d;
+    renderCrewOutTrailerPanel();
+    updateCrewSelectionUI();
+  }
+
+  function renderCrewOutTrailerPanel() {
+    const panel = el.crewOutTrailerPanel;
+    const body = el.crewOutTrailerBody;
+    if (!panel || !body) return;
+
+    const door = state.crewOutDoor ? String(state.crewOutDoor).trim() : '';
+    if (!door) {
+      panel.hidden = true;
+      panel.setAttribute('hidden', '');
+      body.innerHTML = '';
+      return;
+    }
+
+    const info = resolveOutTrailerForDoor(door, crewAssignmentsCache);
+    const pieces = piecesForOutboundTrailer(info.trailerNumber);
+    const titleTrl = info.trailerNumber || '—';
+    const dest = info.destination || '—';
+    const doneN = pieces.filter((p) => p.done).length;
+
+    let listHtml = '';
+    if (!info.trailerNumber) {
+      listHtml =
+        '<div class="empty-state">No outbound trailer linked to this OUT door yet. Open an outbound trailer on Dock → Outbound, or build a load plan.</div>';
+    } else if (!pieces.length) {
+      listHtml =
+        '<div class="empty-state">Nothing planned into this trailer yet. Build a load plan first.</div>';
+    } else {
+      listHtml = pieces
+        .map((p) => {
+          const top = [
+            p.pro ? `PRO ${p.pro}` : 'PRO —',
+            p.pieceFraction ? `piece ${p.pieceFraction}` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          const fromBits = [
+            p.fromDoor ? `Door ${p.fromDoor}` : '',
+            p.fromTrailer ? `Trl ${p.fromTrailer}` : '',
+            p.fromSlot || '',
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          return (
+            `<div class="crew-out-piece${p.done ? ' is-done' : ''}" role="listitem">` +
+            `<div class="crew-out-piece-top">${escapeHtml(top)}</div>` +
+            `<div class="crew-out-piece-slot"><span class="crew-load-slot-label">SLOT</span> <span class="crew-load-slot-value">${escapeHtml(p.slot || '—')}</span></div>` +
+            `<div class="crew-out-piece-from">from ${escapeHtml(fromBits || '—')}</div>` +
+            (p.done ? '<div class="crew-out-piece-done">Loaded</div>' : '') +
+            `</div>`
+          );
+        })
+        .join('');
+    }
+
+    const progressBit =
+      pieces.length && crewDemo.seeded
+        ? `<div class="crew-out-trailer-progress">${doneN} of ${pieces.length} loaded</div>`
+        : pieces.length
+          ? `<div class="crew-out-trailer-progress">${pieces.length} piece${pieces.length === 1 ? '' : 's'} planned</div>`
+          : '';
+
+    body.innerHTML = `
+      <div class="crew-out-trailer-head">
+        <div class="crew-out-trailer-title">OUT Trailer ${escapeHtml(titleTrl)}</div>
+        <div class="crew-out-trailer-meta">Door ${escapeHtml(door)} · ${escapeHtml(dest)}</div>
+        ${progressBit}
+      </div>
+      <div class="crew-out-piece-list" role="list">${listHtml}</div>
+    `;
+    panel.hidden = false;
+    panel.removeAttribute('hidden');
+  }
+
+  /**
    * Build a tappable operator badge for the inbound door wall.
    * @param {object} a assignment
    * @returns {HTMLButtonElement}
@@ -3283,10 +3553,22 @@
       const cols = Math.min(Math.max(outN, 1), 5);
       chipGrid.style.setProperty('--out-cols', String(cols));
       outDoors.forEach((d) => {
-        const chip = document.createElement('div');
+        const chip = document.createElement('button');
+        chip.type = 'button';
         chip.className = 'crew-out-target';
         chip.setAttribute('data-door', d);
-        chip.setAttribute('title', `OUT Door ${d}`);
+        const hint = outChipTrailerHint(d, list);
+        chip.setAttribute(
+          'title',
+          hint ? `OUT Door ${d} — ${hint}. Tap to see what’s inside.` : `OUT Door ${d}. Tap to see what’s inside.`
+        );
+        chip.setAttribute(
+          'aria-label',
+          hint
+            ? `OUT Door ${d}, ${hint}. Show trailer contents.`
+            : `OUT Door ${d}. Show trailer contents.`
+        );
+        chip.setAttribute('aria-pressed', 'false');
 
         const label = document.createElement('span');
         label.className = 'crew-out-label';
@@ -3299,6 +3581,13 @@
           `<span class="crew-out-full">Door ${escapeHtml(d)}</span>` +
           `<span class="crew-out-short" aria-hidden="true">D${escapeHtml(d)}</span>`;
         chip.appendChild(doorSpan);
+
+        if (hint) {
+          const trlSpan = document.createElement('span');
+          trlSpan.className = 'crew-out-trl';
+          trlSpan.textContent = hint;
+          chip.appendChild(trlSpan);
+        }
 
         const loaders = opsByOut.get(d) || [];
         if (loaders.length) {
@@ -3362,6 +3651,7 @@
       el.crewBoardList.innerHTML =
         '<div class="empty-state">No assignments yet. Load demo inbound trailers or build a load plan.</div>';
       updateCrewSelectionUI();
+      renderCrewOutTrailerPanel();
       return;
     }
 
@@ -3376,6 +3666,14 @@
       main.className = 'crew-board-line';
       main.textContent = a.line;
       row.appendChild(main);
+      if (!a.idle && a.toSlot) {
+        const slot = document.createElement('div');
+        slot.className = 'crew-board-load-slot';
+        slot.innerHTML =
+          `<span class="crew-load-slot-label">LOAD SLOT</span> ` +
+          `<span class="crew-load-slot-value">${escapeHtml(a.toSlot)}</span>`;
+        row.appendChild(slot);
+      }
       if (a.nextLine) {
         const next = document.createElement('div');
         next.className = 'crew-board-next';
@@ -3387,6 +3685,7 @@
     el.crewBoardList.innerHTML = '';
     el.crewBoardList.appendChild(frag);
     updateCrewSelectionUI();
+    renderCrewOutTrailerPanel();
   }
 
   function bindEditPro() {
@@ -3981,7 +4280,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=35').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=36').catch(() => {
       /* offline cache optional */
     });
   }

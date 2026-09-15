@@ -173,6 +173,8 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v36 Forklift demo: **LOAD SLOT** (e.g. `1/A/Left`) is impossible to miss on Crew operator detail, Active forklifts, and Remaining moves / Step·Play queue. Tap an **OUT** chip to open a scroll-friendly outbound trailer panel (trailer # · destination · door · PRO · piece · slot · from inbound). Reuses plan `outboundLoadouts` / moves. Network-first SW (`dock-app-v36`).
+
 v35 Fix: Crew “Remaining dock moves” group headers no longer crush/overlap at ~390px (flex children were shrinking inside the max-height queue). Network-first SW (`dock-app-v35`).
 
 v34 UX polish: Crew remaining moves grouped by outbound trailer (Plan-style collapse headers + short multi-line rows); Dock subnav one orange-accent row (Inbound | Outbound | Ground | Crew | Plan); map door numerals bigger + equal-width OUT chips + op-selection highlight. Network-first SW (`dock-app-v34`).
@@ -203,7 +205,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v35`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v36`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
