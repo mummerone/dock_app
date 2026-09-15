@@ -1691,8 +1691,8 @@ button {
 }
 
 .dock-subtab {
-  flex: 1 1 calc(20% - 8px);
-  min-width: 72px;
+  flex: 1 1 calc(16.66% - 8px);
+  min-width: 64px;
   min-height: 52px;
   border-radius: 14px;
   background: #0f1828;
@@ -3510,5 +3510,175 @@ button {
 
   .ground-current-title {
     font-size: 1.15rem;
+  }
+}
+
+/* ---------- v41: Operator (My jobs) — glove directions only ---------- */
+
+.operator-panel-card .operator-blurb {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #c8d4e8;
+}
+
+.operator-head {
+  align-items: center;
+  gap: 10px;
+}
+
+.operator-head .build-stamp {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.operator-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 10px;
+}
+
+.operator-controls .demo-primary-btn {
+  width: 100%;
+  margin-top: 0;
+  min-height: 64px;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.operator-controls .btn:not(.demo-primary-btn) {
+  flex: 1 1 calc(50% - 10px);
+  min-height: 56px;
+  font-weight: 800;
+}
+
+.operator-demo-plan-btn[hidden] {
+  display: none !important;
+}
+
+.operator-job-card {
+  margin: 8px 0 12px;
+  padding: 18px 16px 16px;
+  border-radius: 18px;
+  border: 3px solid #f5a623;
+  background: linear-gradient(180deg, #2a2410 0%, #0f1828 100%);
+  color: #e8eef8;
+}
+
+.operator-kicker {
+  font-size: 0.85rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #f5a623;
+  margin-bottom: 8px;
+}
+
+.operator-title {
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1.25;
+  margin-bottom: 8px;
+}
+
+.operator-detail {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #d4deee;
+  margin-bottom: 12px;
+}
+
+.operator-slot {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #132438;
+  border: 2px solid #3d9eff;
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.operator-load-slot {
+  border-color: #f5a623;
+  background: #2a2410;
+}
+
+.operator-slot-label {
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  color: #9eb4d0;
+}
+
+.operator-slot-value {
+  color: #fff;
+  font-size: 1.35rem;
+}
+
+.operator-confirm-btn {
+  width: 100%;
+  min-height: 64px;
+  margin-top: 8px;
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.operator-phase-tag {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #8fd48f;
+  margin: 6px 0;
+}
+
+.operator-progress-line {
+  margin-top: 8px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #9eb4d0;
+}
+
+.operator-done {
+  margin: 8px 0 12px;
+  padding: 16px;
+  border-radius: 16px;
+  background: #14301c;
+  border: 2px solid #3d9a5f;
+  color: #b8f0c8;
+  font-size: 1.25rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.operator-done[hidden] {
+  display: none !important;
+}
+
+.operator-back-row {
+  margin: 4px 0 0;
+  text-align: center;
+}
+
+.operator-back-link {
+  min-height: 44px;
+  font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .operator-title {
+    font-size: 1.35rem;
+  }
+
+  .operator-confirm-btn,
+  .operator-controls .demo-primary-btn {
+    min-height: 64px;
+    font-size: 1.3rem;
+  }
+
+  .dock-subtab {
+    flex: 1 1 calc(33.33% - 8px);
+    min-width: 96px;
   }
 }

@@ -164,6 +164,7 @@ Works even if some pieces were logged before destination existed.
 10. Tap **Dock** → **Outbound** to register trailers you are loading out (optional **City load — floor only**).
 11. Tap **Dock** → **Ground** for deck-build orders after a plan.
 12. Tap **Dock** → **Crew** for the dock-wide forklift board and live demo (different pull + load doors when the plan allows; Step / Play through the plan).
+12b. Tap **Dock** → **Operator** (My jobs) for one-move pick/load directions only — glove-sized confirms, no map.
 13. Tap **Dock** → **Plan** to build the local demo load plan.
 14. Tap **Edit bill** on Recent, Dock PRO view, or Trailer load-out to set/change destination (and door/trailer) without re-entering pieces.
 
@@ -173,7 +174,9 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
-v40 Solo/Crew mode buttons first (stacked full-width, glove ≥56px); remove legacy Start demo; empty copy says Solo/Crew; visible **v40** build stamp; hard SW cache bump `dock-app-v40`. Keeps v39 Solo + Ground demos.
+v41 **Operator (My jobs)** — Dock subtab with one-move-at-a-time directions (PICK → Got it on forks → LOAD → Loaded). No map / no remaining-moves list. Reuses plan moves; optional Use demo plan. Keeps Crew Solo / Crew(5) / Ground. Stamp + SW `dock-app-v41`.
+
+v40 Solo/Crew mode buttons first (stacked full-width, glove ≥56px); remove legacy Start demo; empty copy says Solo/Crew; visible **v40** build stamp; hard SW cache bump `dock-app-v41`. Keeps v39 Solo + Ground demos.
 
 v39 Two demos from the same plan: **Solo forklift** (1 op, first pull→last put H&T, big current-job card) and **Crew (5)** multi-op; Ground walkthrough (**Start ground demo** / Step / Reset) with large current deck order. Keeps v38 fold/flash/ghost OUT / agent stub. Network-first SW (`dock-app-v39`).
 
@@ -213,7 +216,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v40`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v41`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

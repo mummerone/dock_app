@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=40" />
+  <link rel="stylesheet" href="styles.css?v=41" />
 </head>
 <body>
   <div id="app">
@@ -20,7 +20,7 @@
         <span class="brand-mark" aria-hidden="true">▮</span>
         <div>
           <h1>Dock App</h1>
-          <p class="tagline">Freight log · same PRO = same trailer · <span class="build-stamp" title="Build version">v40</span></p>
+          <p class="tagline">Freight log · same PRO = same trailer · <span class="build-stamp" title="Build version">v41</span></p>
         </div>
       </div>
       <div id="speechStatus" class="speech-status" aria-live="polite">
@@ -252,6 +252,9 @@
         <button type="button" class="dock-subtab" id="dockSubCrew" role="tab" aria-selected="false" aria-controls="dockPanelCrew">
           Crew
         </button>
+        <button type="button" class="dock-subtab" id="dockSubOperator" role="tab" aria-selected="false" aria-controls="dockPanelOperator">
+          Operator
+        </button>
         <button type="button" class="dock-subtab" id="dockSubPlan" role="tab" aria-selected="false" aria-controls="dockPanelPlan">
           Plan
         </button>
@@ -347,7 +350,7 @@
           <section class="card crew-mode-card" aria-labelledby="crew-mode-heading">
             <div class="card-head crew-mode-head">
               <h2 id="crew-mode-heading">Start mode</h2>
-              <span class="build-stamp" title="Build version">v40</span>
+              <span class="build-stamp" title="Build version">v41</span>
             </div>
             <div class="crew-mode-start" id="crewModeStart" role="group" aria-label="Start demo mode">
               <button type="button" id="crewSoloStartBtn" class="btn accept-btn crew-mode-btn">Solo forklift</button>
@@ -419,6 +422,30 @@
             <div id="crewBoardList" class="crew-board-list" role="list">
               <div class="empty-state">No assignments yet. Load demo inbound trailers or build a load plan.</div>
             </div>
+          </section>
+        </div>
+
+        <div id="dockPanelOperator" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubOperator" hidden>
+          <section class="card operator-panel-card" aria-labelledby="operator-heading">
+            <div class="card-head operator-head">
+              <h2 id="operator-heading">My jobs</h2>
+              <span class="build-stamp" title="Build version">v41</span>
+            </div>
+            <p class="hint operator-blurb">One move at a time — directions only. No map.</p>
+            <div class="operator-controls" id="operatorControls" role="group" aria-label="Operator demo">
+              <button type="button" id="operatorStartBtn" class="btn accept-btn demo-primary-btn">Start my jobs</button>
+              <button type="button" id="operatorDemoPlanBtn" class="btn speak-btn operator-demo-plan-btn" hidden>Use demo plan</button>
+              <button type="button" id="operatorStepBtn" class="btn speak-btn">Step</button>
+              <button type="button" id="operatorResetBtn" class="btn muted-btn">Reset</button>
+            </div>
+            <p class="loadout-work-progress" id="operatorProgress" aria-live="polite"></p>
+            <div id="operatorJobCard" class="operator-job-card" aria-live="polite">
+              <div class="empty-state">Build a load plan (Dock → Plan), then Start my jobs — or Use demo plan.</div>
+            </div>
+            <div id="operatorDone" class="operator-done" hidden role="status">Dock loaded — Ready</div>
+            <p class="operator-back-row">
+              <button type="button" id="operatorBackToDockBtn" class="btn tiny muted-btn operator-back-link">Back to Dock</button>
+            </p>
           </section>
         </div>
 
@@ -512,9 +539,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=40"></script>
-  <script src="speech.js?v=40"></script>
-  <script src="loadPlan.js?v=40"></script>
-  <script src="app.js?v=40"></script>
+  <script src="storage.js?v=41"></script>
+  <script src="speech.js?v=41"></script>
+  <script src="loadPlan.js?v=41"></script>
+  <script src="app.js?v=41"></script>
 </body>
 </html>

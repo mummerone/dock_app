@@ -44,7 +44,7 @@
     listening: false,
     padBuffer: '',
     view: 'entry', // 'entry' | 'loadout' | 'dock'
-    dockSection: 'inbound', // 'inbound' | 'outbound' | 'ground' | 'crew' | 'plan'
+    dockSection: 'inbound', // 'inbound' | 'outbound' | 'ground' | 'crew' | 'operator' | 'plan'
     crewRotate: 0, // Refresh assignments offset
     crewSelectedOp: null, // selected operator on dock map
     crewOutDoor: null, // selected OUT door for trailer contents panel
@@ -149,6 +149,16 @@
     groundCurrentOrder: document.getElementById('groundCurrentOrder'),
     dockSubCrew: document.getElementById('dockSubCrew'),
     dockPanelCrew: document.getElementById('dockPanelCrew'),
+    dockSubOperator: document.getElementById('dockSubOperator'),
+    dockPanelOperator: document.getElementById('dockPanelOperator'),
+    operatorStartBtn: document.getElementById('operatorStartBtn'),
+    operatorDemoPlanBtn: document.getElementById('operatorDemoPlanBtn'),
+    operatorStepBtn: document.getElementById('operatorStepBtn'),
+    operatorResetBtn: document.getElementById('operatorResetBtn'),
+    operatorProgress: document.getElementById('operatorProgress'),
+    operatorJobCard: document.getElementById('operatorJobCard'),
+    operatorDone: document.getElementById('operatorDone'),
+    operatorBackToDockBtn: document.getElementById('operatorBackToDockBtn'),
     crewBoardList: document.getElementById('crewBoardList'),
     crewBoardHint: document.getElementById('crewBoardHint'),
     crewRefreshBtn: document.getElementById('crewRefreshBtn'),
@@ -213,6 +223,7 @@
     bindOutbound();
     bindGround();
     bindCrew();
+    bindOperator();
     bindPlan();
     bindDestination();
     bindEditPro();
@@ -226,6 +237,7 @@
     renderOutboundList();
     renderGround();
     renderCrew();
+    renderOperator();
     renderPlan();
     setupSpeechStatus();
     bindPieceSequenceWatchers();
@@ -1014,6 +1026,9 @@
     if (el.dockSubCrew) {
       el.dockSubCrew.addEventListener('click', () => showDockSection('crew'));
     }
+    if (el.dockSubOperator) {
+      el.dockSubOperator.addEventListener('click', () => showDockSection('operator'));
+    }
     if (el.dockSubPlan) {
       el.dockSubPlan.addEventListener('click', () => showDockSection('plan'));
     }
@@ -1031,6 +1046,7 @@
       outbound: el.dockPanelOutbound,
       ground: el.dockPanelGround,
       crew: el.dockPanelCrew,
+      operator: el.dockPanelOperator,
       plan: el.dockPanelPlan,
     };
     const tabs = {
@@ -1038,6 +1054,7 @@
       outbound: el.dockSubOutbound,
       ground: el.dockSubGround,
       crew: el.dockSubCrew,
+      operator: el.dockSubOperator,
       plan: el.dockSubPlan,
     };
     Object.keys(panels).forEach((key) => {
@@ -1056,6 +1073,7 @@
     if (section === 'outbound') renderOutboundList();
     if (section === 'ground') renderGround();
     if (section === 'crew') renderCrew();
+    if (section === 'operator') renderOperator();
     if (section === 'plan') renderPlan();
   }
 
@@ -3344,6 +3362,333 @@
     }
   }
 
+  /* ---------- v41: Operator (My jobs) — one move at a time, directions only ---------- */
+
+  /** @type {{ seeded: boolean, moves: object[], index: number, phase: 'pick'|'load', total: number }} */
+  let operatorDemo = {
+    seeded: false,
+    moves: [],
+    index: 0,
+    phase: 'pick',
+    total: 0,
+  };
+
+  function resetOperatorDemoState() {
+    operatorDemo = {
+      seeded: false,
+      moves: [],
+      index: 0,
+      phase: 'pick',
+      total: 0,
+    };
+  }
+
+  /**
+   * Seed operator walkthrough from plan moves (same order as planMovesNormalized / solo first-pull sequence).
+   * @param {object|null} [plan]
+   * @returns {boolean}
+   */
+  function seedOperatorDemo(plan) {
+    const p = plan || DockStorage.readLoadPlan();
+    const all = planMovesNormalized(p);
+    if (!all.length) {
+      resetOperatorDemoState();
+      return false;
+    }
+    // Match solo queue order: first plan move, then diversify remaining by load key
+    const first = all[0];
+    const rest = diversifyQueueByLoad(all.slice(1));
+    const moves = first ? [first].concat(rest) : rest;
+    operatorDemo = {
+      seeded: true,
+      moves,
+      index: 0,
+      phase: 'pick',
+      total: moves.length,
+    };
+    return true;
+  }
+
+  function operatorAllDone() {
+    return (
+      operatorDemo.seeded &&
+      operatorDemo.total > 0 &&
+      operatorDemo.index >= operatorDemo.total
+    );
+  }
+
+  function currentOperatorMove() {
+    if (!operatorDemo.seeded) return null;
+    if (operatorDemo.index < 0 || operatorDemo.index >= operatorDemo.moves.length) return null;
+    return operatorDemo.moves[operatorDemo.index] || null;
+  }
+
+  /** Advance pick→load, or load→next pick. @returns {boolean} */
+  function advanceOperatorPhase() {
+    if (!operatorDemo.seeded || operatorAllDone()) return false;
+    if (operatorDemo.phase === 'pick') {
+      operatorDemo.phase = 'load';
+      return true;
+    }
+    operatorDemo.index += 1;
+    operatorDemo.phase = 'pick';
+    return true;
+  }
+
+  function onOperatorStart() {
+    const plan = DockStorage.readLoadPlan();
+    const moves = planMovesNormalized(plan);
+    if (!moves.length) {
+      toast('Build a load plan first (Dock → Plan)');
+      updateOperatorEmptyHint();
+      renderOperator();
+      return;
+    }
+    const ok = seedOperatorDemo(plan);
+    if (!ok) {
+      toast('Build a load plan first (Dock → Plan)');
+      renderOperator();
+      return;
+    }
+    toast(`Operator — Move 1 of ${operatorDemo.total} · pick then load`);
+    renderOperator();
+  }
+
+  function onOperatorUseDemoPlan() {
+    const plan = DockStorage.readLoadPlan();
+    const existingMoves = planMovesNormalized(plan);
+    if (existingMoves.length) {
+      const ok = seedOperatorDemo(plan);
+      if (ok) {
+        toast(`Operator — ${operatorDemo.total} moves from current plan`);
+        renderOperator();
+      }
+      return;
+    }
+    const freight = DockStorage.readAll().length;
+    if (freight > 0) {
+      if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.runLoadPlan) {
+        toast("Planner didn't load. Refresh the page and try again.");
+        return;
+      }
+      const built = DockLoadPlan.runLoadPlan();
+      renderPlan();
+      renderOutboundList();
+      renderGround();
+      if (built && built.moves && built.moves.length) {
+        seedCrewDemo(built);
+      } else {
+        resetCrewDemoState();
+      }
+      renderCrew();
+      refreshLoadoutTrailerPicker();
+      updateLoadoutPlanBanner();
+      const ok = seedOperatorDemo(built);
+      if (!ok) {
+        toast('Nothing to plan yet — load freight first');
+        renderOperator();
+        return;
+      }
+      toast(`Operator — ${operatorDemo.total} moves · pick then load`);
+      renderOperator();
+      return;
+    }
+    // No freight — one-tap seed inbound + build + start (confirm wipe)
+    toast('Opening confirm…');
+    if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.seedDemoInbound) {
+      toast("Planner didn't load. Refresh the page and try again.");
+      return;
+    }
+    openConfirmSheet({
+      title: 'Use demo plan',
+      message:
+        'Load demo inbound freight and build a load plan, then start Operator jobs? This replaces logged freight + last plan on this device.',
+      action: 'seedDemoAndOperator',
+    });
+  }
+
+  function onOperatorConfirmPrimary() {
+    if (!operatorDemo.seeded) {
+      onOperatorStart();
+      return;
+    }
+    if (operatorAllDone()) {
+      toast('Dock loaded — Reset to run again');
+      renderOperator();
+      return;
+    }
+    const wasPick = operatorDemo.phase === 'pick';
+    advanceOperatorPhase();
+    if (operatorAllDone()) {
+      toast('Dock loaded — Ready');
+    } else if (wasPick) {
+      toast('Got it — now load');
+    } else {
+      const n = operatorDemo.index + 1;
+      toast(`Loaded — Move ${n} of ${operatorDemo.total}`);
+    }
+    renderOperator();
+  }
+
+  function onOperatorStep() {
+    if (!operatorDemo.seeded) {
+      const ok = seedOperatorDemo(null);
+      if (!ok) {
+        toast('Build a load plan first (Dock → Plan)');
+        updateOperatorEmptyHint();
+        renderOperator();
+        return;
+      }
+      renderOperator();
+      toast('Ready — tap Step again (or Got it on forks)');
+      return;
+    }
+    if (operatorAllDone()) {
+      toast('Dock loaded — Reset to run again');
+      renderOperator();
+      return;
+    }
+    advanceOperatorPhase();
+    renderOperator();
+    if (operatorAllDone()) toast('Dock loaded — Ready');
+  }
+
+  function onOperatorReset() {
+    const plan = DockStorage.readLoadPlan();
+    const ok = seedOperatorDemo(plan);
+    if (!ok) {
+      resetOperatorDemoState();
+      toast('No plan to reset — build a load plan first');
+      updateOperatorEmptyHint();
+      renderOperator();
+      return;
+    }
+    toast('Operator reset — Move 1 pick');
+    renderOperator();
+  }
+
+  function updateOperatorEmptyHint() {
+    if (!el.operatorDemoPlanBtn) return;
+    const plan = DockStorage.readLoadPlan();
+    const hasMoves = planMovesNormalized(plan).length > 0;
+    el.operatorDemoPlanBtn.hidden = hasMoves;
+  }
+
+  function renderOperator() {
+    updateOperatorEmptyHint();
+    let remainCount = 0;
+    if (operatorDemo.seeded && !operatorAllDone()) {
+      remainCount = operatorDemo.total - operatorDemo.index;
+    }
+
+    if (el.operatorProgress) {
+      if (!operatorDemo.seeded) {
+        el.operatorProgress.textContent = 'Move 0 of 0 — Start my jobs after a plan';
+      } else if (operatorAllDone()) {
+        el.operatorProgress.textContent = `Move ${operatorDemo.total} of ${operatorDemo.total} · Remaining 0`;
+      } else {
+        const n = operatorDemo.index + 1;
+        el.operatorProgress.textContent =
+          `Move ${n} of ${operatorDemo.total} · Remaining ${remainCount}`;
+      }
+    }
+
+    if (el.operatorDone) {
+      el.operatorDone.hidden = !operatorAllDone();
+    }
+
+    if (!el.operatorJobCard) return;
+
+    if (!operatorDemo.seeded) {
+      const plan = DockStorage.readLoadPlan();
+      const hasMoves = planMovesNormalized(plan).length > 0;
+      el.operatorJobCard.innerHTML = hasMoves
+        ? `<div class="empty-state">Plan ready — tap <strong>Start my jobs</strong>.</div>`
+        : `<div class="empty-state">No plan yet. Load inbound + <strong>Build load plan</strong> on Plan, or tap <strong>Use demo plan</strong>.</div>`;
+      return;
+    }
+
+    if (operatorAllDone()) {
+      el.operatorJobCard.innerHTML = `
+        <div class="operator-kicker">Operator</div>
+        <div class="operator-title">Dock loaded — Ready</div>
+        <div class="operator-phase-tag">All moves complete</div>
+        <div class="operator-progress-line">Moved ${operatorDemo.total} of ${operatorDemo.total}</div>
+      `;
+      return;
+    }
+
+    const m = currentOperatorMove();
+    if (!m) {
+      el.operatorJobCard.innerHTML = `
+        <div class="operator-kicker">Operator</div>
+        <div class="operator-title">Waiting…</div>
+      `;
+      return;
+    }
+
+    const n = operatorDemo.index + 1;
+    const phase = operatorDemo.phase;
+    if (phase === 'pick') {
+      const fromSlot = m.fromSlot
+        ? `<div class="operator-slot"><span class="operator-slot-label">FROM SLOT</span> <span class="operator-slot-value">${escapeHtml(m.fromSlot)}</span></div>`
+        : '';
+      const proBits = [];
+      if (m.pro) proBits.push(`PRO ${m.pro}`);
+      if (m.pieceFraction) proBits.push(`piece ${m.pieceFraction}`);
+      el.operatorJobCard.innerHTML = `
+        <div class="operator-kicker">PICK · Move ${n} of ${operatorDemo.total}</div>
+        <div class="operator-title">Go to door ${escapeHtml(m.fromDoor || '—')} trailer ${escapeHtml(m.fromTrailer || '—')}</div>
+        <div class="operator-detail">and get ${escapeHtml(proBits.join(' · ') || 'freight')}${m.fromSlot ? ` in position ${escapeHtml(m.fromSlot)}` : ''}.</div>
+        ${fromSlot}
+        <button type="button" id="operatorConfirmBtn" class="btn accept-btn operator-confirm-btn">Got it on forks</button>
+      `;
+    } else {
+      const loadSlot = m.toSlot
+        ? `<div class="operator-slot operator-load-slot"><span class="operator-slot-label">LOAD SLOT</span> <span class="operator-slot-value">${escapeHtml(m.toSlot)}</span></div>`
+        : '';
+      const destBits = [];
+      if (m.toDoor) destBits.push(`door ${m.toDoor}`);
+      if (m.toTrailer) destBits.push(`trailer ${m.toTrailer}`);
+      if (m.destination) destBits.push(m.destination);
+      const destLine = destBits.length ? destBits.join(' · ') : 'outbound';
+      const slotPhrase = m.toSlot ? ` in position ${escapeHtml(m.toSlot)}` : '';
+      el.operatorJobCard.innerHTML = `
+        <div class="operator-kicker">LOAD · Move ${n} of ${operatorDemo.total}</div>
+        <div class="operator-title">Go to ${escapeHtml(destLine)}</div>
+        <div class="operator-detail">and load${slotPhrase}.</div>
+        ${loadSlot}
+        <button type="button" id="operatorConfirmBtn" class="btn accept-btn operator-confirm-btn">Loaded</button>
+      `;
+    }
+
+    const confirmBtn = document.getElementById('operatorConfirmBtn');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => onOperatorConfirmPrimary());
+    }
+  }
+
+  function bindOperator() {
+    if (el.operatorStartBtn) {
+      el.operatorStartBtn.addEventListener('click', () => onOperatorStart());
+    }
+    if (el.operatorDemoPlanBtn) {
+      el.operatorDemoPlanBtn.addEventListener('click', () => onOperatorUseDemoPlan());
+    }
+    if (el.operatorStepBtn) {
+      el.operatorStepBtn.addEventListener('click', () => onOperatorStep());
+    }
+    if (el.operatorResetBtn) {
+      el.operatorResetBtn.addEventListener('click', () => onOperatorReset());
+    }
+    if (el.operatorBackToDockBtn) {
+      el.operatorBackToDockBtn.addEventListener('click', () => {
+        showView('dock');
+        showDockSection('inbound');
+      });
+    }
+  }
+
   /**
    * Sort door id strings numerically when possible.
    * @param {Iterable<string>} ids
@@ -4353,6 +4698,7 @@
       else if (state.dockSection === 'outbound') renderOutboundList();
       else if (state.dockSection === 'ground') renderGround();
       else if (state.dockSection === 'crew') renderCrew();
+      else if (state.dockSection === 'operator') renderOperator();
       else if (state.dockSection === 'plan') renderPlan();
     }
     syncPieceSequenceFromStorage();
@@ -4404,6 +4750,31 @@
     if (!pending || !pending.action) return;
     if (pending.action === 'seedDemoInbound' || pending.action === 'loadDemo') {
       runSeedDemoInbound();
+      return;
+    }
+    if (pending.action === 'seedDemoAndOperator') {
+      runSeedDemoInbound();
+      const plan = typeof DockLoadPlan !== 'undefined' && DockLoadPlan.runLoadPlan
+        ? DockLoadPlan.runLoadPlan()
+        : null;
+      renderPlan();
+      renderOutboundList();
+      renderGround();
+      if (plan && plan.moves && plan.moves.length) {
+        seedCrewDemo(plan);
+      } else {
+        resetCrewDemoState();
+      }
+      renderCrew();
+      refreshLoadoutTrailerPicker();
+      updateLoadoutPlanBanner();
+      const ok = seedOperatorDemo(plan);
+      if (ok) {
+        toast(`Operator — ${operatorDemo.total} moves · pick then load`);
+      } else {
+        toast('Demo loaded but no moves — check Plan');
+      }
+      renderOperator();
       return;
     }
     if (pending.action === 'clearPlan') {
@@ -4525,7 +4896,9 @@
     } else {
       resetCrewDemoState();
     }
+    resetOperatorDemoState();
     renderCrew();
+    renderOperator();
     refreshLoadoutTrailerPicker();
     updateLoadoutPlanBanner();
     const ns = (next && next.summary) || {};
@@ -4572,11 +4945,14 @@
         else if (state.dockSection === 'outbound') renderOutboundList();
         else if (state.dockSection === 'ground') renderGround();
         else if (state.dockSection === 'crew') renderCrew();
+        else if (state.dockSection === 'operator') renderOperator();
         else if (state.dockSection === 'plan') renderPlan();
       }
       renderGround();
       resetCrewDemoState();
+      resetOperatorDemoState();
       renderCrew();
+      renderOperator();
       toast('All freight and the load plan were cleared.');
     } catch (err) {
       console.error(err);
@@ -4592,7 +4968,9 @@
       state.crewRotate = 0;
       state.crewSelectedOp = null;
       resetCrewDemoState();
+      resetOperatorDemoState();
       renderCrew();
+      renderOperator();
       if (el.planStatusHint) el.planStatusHint.textContent = 'Plan cleared.';
       toast('Plan cleared');
       // Drop plan-only OUT chips; keep inbound freight chips
@@ -4655,12 +5033,15 @@
       state.crewRotate = 0;
       state.crewSelectedOp = null;
       resetCrewDemoState();
+      resetOperatorDemoState();
       renderCrew();
+      renderOperator();
       if (state.view === 'loadout') renderLoadout('');
       if (state.view === 'dock' && state.dockSection === 'inbound') renderDock();
       if (state.view === 'dock' && state.dockSection === 'outbound') renderOutboundList();
       if (state.view === 'dock' && state.dockSection === 'ground') renderGround();
       if (state.view === 'dock' && state.dockSection === 'crew') renderCrew();
+      if (state.view === 'dock' && state.dockSection === 'operator') renderOperator();
       if (el.planStatusHint) {
         el.planStatusHint.textContent =
           `Demo loaded: ${result.inboundTrailers} inbound trailers · ${result.proCount} PROs · ${result.pieceCount} pieces` +
@@ -4694,7 +5075,9 @@
     } else {
       resetCrewDemoState();
     }
+    resetOperatorDemoState();
     renderCrew();
+    renderOperator();
     const s = plan.summary || {};
     const noteSafe = sanitizePlanNote(s.note || '');
     if (el.planStatusHint) {
@@ -4979,13 +5362,13 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=40').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=41').catch(() => {
       /* offline cache optional */
     });
   }
 
   // Expose parse for quick console tests
-  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, renderGround, renderCrew, renderPlan, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro, openEditPro, closeEditPro, runLoadPlan: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.runLoadPlan(), seedDemoInbound: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.seedDemoInbound() };
+  window.DockApp = { state, parse: (t) => DockSpeech.parseDimensionsUtterance(t), showView, renderLoadout, renderDock, renderOutboundList, renderGround, renderCrew, renderOperator, renderPlan, normalizePieceInput, syncPieceSequenceFromStorage, syncDestinationFromPro, openEditPro, closeEditPro, runLoadPlan: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.runLoadPlan(), seedDemoInbound: () => typeof DockLoadPlan !== 'undefined' && DockLoadPlan.seedDemoInbound() };
 
   init();
 })();
