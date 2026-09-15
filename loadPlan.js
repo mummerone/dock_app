@@ -176,6 +176,210 @@
    * Does not clear the outbound registry (only adds stubs).
    * @returns {{inboundTrailers:number, proCount:number, pieceCount:number, outboundCreated:number}}
    */
+
+  /**
+   * All outbound registry rows for a destination (case-insensitive).
+   * @param {string} destination
+   * @returns {object[]}
+   */
+  function outboundTrailersForDestination(destination) {
+    const dest = String(destination || '').trim().toLowerCase();
+    if (!dest || dest === 'open') return [];
+    return DockStorage.readOutboundTrailers().filter(
+      (r) => String(r.destination || '').trim().toLowerCase() === dest
+    );
+  }
+
+  /**
+   * Create an extra outbound stub for the same destination when the first is full.
+   * Copies cityFloorOnly from the primary when present. Uses free door 26+ and unique trailer #.
+   * @param {string} destination
+   * @param {object|null} primary
+   * @returns {object|null}
+   */
+  function createExtraOutboundStub(destination, primary) {
+    const dest = String(destination || '').trim();
+    if (!dest) return null;
+    const existing = DockStorage.readOutboundTrailers();
+    const usedDoors = new Set(
+      existing.map((r) => String(r.doorNumber || '').trim()).filter(Boolean)
+    );
+    const usedTrailers = new Set(
+      existing.map((r) => String(r.trailerNumber || '').trim()).filter(Boolean)
+    );
+    let doorNum = 26;
+    while (usedDoors.has(String(doorNum))) doorNum += 1;
+    let trailerNum = 90101;
+    while (usedTrailers.has(String(trailerNum))) trailerNum += 1;
+    const cityFloorOnly = Boolean(primary && primary.cityFloorOnly);
+    return DockStorage.saveOutboundTrailer({
+      trailerNumber: String(trailerNum),
+      doorNumber: String(doorNum),
+      destination: dest,
+      cityFloorOnly,
+    });
+  }
+
+  /**
+   * Init per-trailer pack state (unique slots only — never reuse last slot).
+   * @param {object} outbound
+   * @returns {{outbound:object, cityFloorOnly:boolean, slotOrder:object[], cursor:number, usedLabels:Set<string>, loadGroups:object[]}}
+   */
+  function initTrailerPackState(outbound) {
+    const cityFloorOnly = Boolean(outbound && outbound.cityFloorOnly);
+    const slotOrder = cityFloorOnly
+      ? buildFloorOnlySlotOrder()
+      : buildHighTightSlotOrder();
+    return {
+      outbound,
+      cityFloorOnly,
+      slotOrder,
+      cursor: 0,
+      usedLabels: new Set(),
+      loadGroups: [],
+    };
+  }
+
+  function freeSlotCount(state) {
+    let free = 0;
+    for (let c = 0; c < state.slotOrder.length; c++) {
+      const lab = state.slotOrder[c].slotLabel;
+      if (!state.usedLabels.has(lab)) free += 1;
+    }
+    return free;
+  }
+
+  function nextFreeSlot(state) {
+    while (
+      state.cursor < state.slotOrder.length &&
+      state.usedLabels.has(state.slotOrder[state.cursor].slotLabel)
+    ) {
+      state.cursor += 1;
+    }
+    if (state.cursor >= state.slotOrder.length) return null;
+    return state.slotOrder[state.cursor];
+  }
+
+  /**
+   * Place an entire PRO onto one trailer using unique slots only.
+   * Caller must ensure freeSlotCount(state) >= ship.pieces.length.
+   * @returns {{pro:string, pieces:object[]}|null}
+   */
+  function placeEntireProOnTrailer(ship, state, moves) {
+    const destination = ship.destination;
+    const outbound = state.outbound;
+    const pool = ship.pieces.slice();
+    const plannedPieces = [];
+    const n = pool.length;
+    // Capacity must be checked by caller; still skip any already-used labels.
+    const startMoveLen = moves.length;
+    const startCursor = state.cursor;
+    /** @type {string[]} */
+    const addedLabels = [];
+    const rollback = () => {
+      moves.length = startMoveLen;
+      addedLabels.forEach((lab) => state.usedLabels.delete(lab));
+      state.cursor = startCursor;
+    };
+    for (let i = 0; i < n; i++) {
+      const slot = nextFreeSlot(state);
+      if (!slot) {
+        rollback();
+        return null;
+      }
+      state.cursor += 1;
+      state.usedLabels.add(slot.slotLabel);
+      addedLabels.push(slot.slotLabel);
+      const e = takePieceForLevel(pool, slot.level) || pool.shift();
+      if (!e) break;
+      const fromSlot =
+        e.slotLabel ||
+        DockStorage.formatSlot(e.section, e.level, e.lateral);
+      const toSlot = slot.slotLabel;
+      const toDoor =
+        String(outbound.doorNumber || '').trim() ||
+        (DockStorage.outboundDoorFor
+          ? DockStorage.outboundDoorFor({
+              trailerNumber: outbound.trailerNumber,
+              destination,
+            })
+          : '');
+      moves.push({
+        entryId: e.id,
+        pro: ship.pro,
+        pieceFraction: e.pieceFraction,
+        destination,
+        from: {
+          door: String(e.doorNumber || '').trim(),
+          trailer: String(e.trailerNumber || '').trim(),
+          slot: fromSlot,
+          section: e.section,
+          level: e.level,
+          lateral: e.lateral,
+        },
+        to: {
+          trailer: outbound.trailerNumber,
+          door: toDoor,
+          slot: toSlot,
+          section: slot.section,
+          level: slot.level,
+          lateral: slot.lateral,
+        },
+        h: e.h,
+        w: e.w,
+        d: e.d,
+        weight: e.weight,
+      });
+      plannedPieces.push({
+        entryId: e.id,
+        pieceFraction: e.pieceFraction,
+        slot: toSlot,
+        section: slot.section,
+        level: slot.level,
+        lateral: slot.lateral,
+        h: e.h,
+        w: e.w,
+        d: e.d,
+        weight: e.weight,
+        fromDoor: String(e.doorNumber || '').trim(),
+        fromTrailer: String(e.trailerNumber || '').trim(),
+        fromSlot,
+      });
+    }
+    if (plannedPieces.length !== n) {
+      rollback();
+      return null;
+    }
+    const group = { pro: ship.pro, pieces: plannedPieces };
+    state.loadGroups.push(group);
+    return group;
+  }
+
+  function finalizeLoadoutFromState(state, destination) {
+    const loadGroups = state.loadGroups;
+    const pieceCount = loadGroups.reduce((n, g) => n + g.pieces.length, 0);
+    let weightSum = 0;
+    let weightCount = 0;
+    loadGroups.forEach((g) => {
+      g.pieces.forEach((p) => {
+        if (p.weight != null && !Number.isNaN(Number(p.weight))) {
+          weightSum += Number(p.weight);
+          weightCount += 1;
+        }
+      });
+    });
+    return {
+      trailerNumber: state.outbound.trailerNumber,
+      doorNumber: String(state.outbound.doorNumber || '').trim(),
+      destination,
+      cityFloorOnly: state.cityFloorOnly,
+      proCount: loadGroups.length,
+      pieceCount,
+      totalWeight: weightCount ? weightSum : null,
+      groups: loadGroups,
+    };
+  }
+
   function seedDemoInbound() {
     // Clear freight + destinations; keep outbound list but ensure stubs
     DockStorage.clearAll();
@@ -424,7 +628,7 @@
 
     ensureOutboundStubs(destOrder);
 
-    /** Map dest -> outbound trailer row */
+    /** Map dest -> primary outbound trailer row */
     const outboundByDest = {};
     destOrder.forEach((destination) => {
       const row = DockStorage.outboundForDestination(destination);
@@ -435,138 +639,112 @@
     const moves = [];
     /** @type {object[]} */
     const outboundLoadouts = [];
+    /** @type {{pro:string, destination:string, pieceCount:number, reason:string, pieces?:object[]}[]} */
+    const unplaced = [];
+    /** @type {{pro:string, reason:string}[]} */
+    const skipped = [];
 
     let cityFloorOnlyCount = 0;
+    let secondStubCount = 0;
 
     destOrder.forEach((destination) => {
-      const outbound = outboundByDest[destination];
-      if (!outbound) return;
+      const primary = outboundByDest[destination];
+      if (!primary) return;
 
-      // Soft-spread PRO order (heavy/light alternate) so nose is not all heaviest
       const destShipments = softSpreadProOrder(
         shipments.filter((s) => s.destination === destination)
       );
 
-      const cityFloorOnly = Boolean(outbound.cityFloorOnly);
-      if (cityFloorOnly) cityFloorOnlyCount += 1;
-
-      // Section Tetris slot list (or floor-only for city). Cursor advances
-      // only after each PRO's pieces are placed into contiguous slots.
-      const slotOrder = cityFloorOnly
-        ? buildFloorOnlySlotOrder()
-        : buildHighTightSlotOrder();
-      let cursor = 0;
-      /** @type {{pro:string, pieces:object[]}[]} */
-      const loadGroups = [];
+      /** @type {ReturnType<typeof initTrailerPackState>[]} */
+      const trailerStates = [initTrailerPackState(primary)];
+      if (trailerStates[0].cityFloorOnly) cityFloorOnlyCount += 1;
 
       destShipments.forEach((ship) => {
-        // Entire PRO on this one outbound trailer (permanent rule) —
-        // finish this PRO's pieces in nearby sections before the next PRO.
-        const pool = ship.pieces.slice();
-        const plannedPieces = [];
-        const n = pool.length;
-        for (let i = 0; i < n; i++) {
-          const fallback = cityFloorOnly
-            ? { section: 12, level: 'A', lateral: 'Right', slotLabel: '12/A/Right' }
-            : { section: 12, level: 'C', lateral: 'Right', slotLabel: '12/C/Right' };
-          const slot =
-            slotOrder[cursor] ||
-            slotOrder[slotOrder.length - 1] ||
-            fallback;
-          cursor += 1;
-          // Heavy on floor / short+light on deck for this slot's level
-          const e = takePieceForLevel(pool, slot.level) || pool.shift();
-          if (!e) break;
-          const fromSlot =
-            e.slotLabel ||
-            DockStorage.formatSlot(e.section, e.level, e.lateral);
-          const toSlot = slot.slotLabel;
-          moves.push({
-            entryId: e.id,
+        const n = ship.pieces.length;
+        let placed = false;
+
+        // Prefer existing trailers that can take the WHOLE PRO (same-PRO intact).
+        for (let ti = 0; ti < trailerStates.length; ti++) {
+          if (freeSlotCount(trailerStates[ti]) >= n) {
+            const ok = placeEntireProOnTrailer(ship, trailerStates[ti], moves);
+            if (ok) {
+              placed = true;
+              break;
+            }
+          }
+        }
+
+        // Policy: try one second outbound stub for same dest when full.
+        if (!placed && trailerStates.length < 2) {
+          const extra = createExtraOutboundStub(destination, primary);
+          if (extra) {
+            secondStubCount += 1;
+            const st = initTrailerPackState(extra);
+            trailerStates.push(st);
+            if (freeSlotCount(st) >= n) {
+              const ok = placeEntireProOnTrailer(ship, st, moves);
+              if (ok) placed = true;
+            }
+          }
+        }
+
+        if (!placed) {
+          const reason = trailerStates.some((s) => s.cityFloorOnly)
+            ? 'city_floor_full'
+            : 'no_capacity';
+          unplaced.push({
             pro: ship.pro,
-            pieceFraction: e.pieceFraction,
             destination,
-            from: {
-              door: String(e.doorNumber || '').trim(),
-              trailer: String(e.trailerNumber || '').trim(),
-              slot: fromSlot,
-              section: e.section,
-              level: e.level,
-              lateral: e.lateral,
-            },
-            to: {
-              trailer: outbound.trailerNumber,
-              door:
-                String(outbound.doorNumber || '').trim() ||
-                (DockStorage.outboundDoorFor
-                  ? DockStorage.outboundDoorFor({
-                      trailerNumber: outbound.trailerNumber,
-                      destination,
-                    })
-                  : ''),
-              slot: toSlot,
-              section: slot.section,
-              level: slot.level,
-              lateral: slot.lateral,
-            },
-            h: e.h,
-            w: e.w,
-            d: e.d,
-            weight: e.weight,
-          });
-          plannedPieces.push({
-            entryId: e.id,
-            pieceFraction: e.pieceFraction,
-            slot: toSlot,
-            section: slot.section,
-            level: slot.level,
-            lateral: slot.lateral,
-            h: e.h,
-            w: e.w,
-            d: e.d,
-            weight: e.weight,
-            fromDoor: String(e.doorNumber || '').trim(),
-            fromTrailer: String(e.trailerNumber || '').trim(),
-            fromSlot,
+            pieceCount: n,
+            reason,
+            pieces: ship.pieces.map((e) => ({
+              entryId: e.id,
+              pieceFraction: e.pieceFraction,
+              fromDoor: String(e.doorNumber || '').trim(),
+              fromTrailer: String(e.trailerNumber || '').trim(),
+            })),
           });
         }
-        loadGroups.push({ pro: ship.pro, pieces: plannedPieces });
       });
 
-      const pieceCount = loadGroups.reduce((n, g) => n + g.pieces.length, 0);
-      let weightSum = 0;
-      let weightCount = 0;
-      loadGroups.forEach((g) => {
-        g.pieces.forEach((p) => {
-          if (p.weight != null && !Number.isNaN(Number(p.weight))) {
-            weightSum += Number(p.weight);
-            weightCount += 1;
-          }
-        });
-      });
-
-      outboundLoadouts.push({
-        trailerNumber: outbound.trailerNumber,
-        doorNumber: String(outbound.doorNumber || '').trim(),
-        destination,
-        cityFloorOnly,
-        proCount: loadGroups.length,
-        pieceCount,
-        totalWeight: weightCount ? weightSum : null,
-        groups: loadGroups,
+      trailerStates.forEach((st) => {
+        if (st.loadGroups.length) {
+          outboundLoadouts.push(finalizeLoadoutFromState(st, destination));
+        }
       });
     });
 
+    // Bills with no destination already counted; mirror into skipped[]
+    Object.keys(groups).forEach((pro) => {
+      if (!DockStorage.getProDestination(pro)) {
+        skipped.push({ pro, reason: 'no_dest' });
+      }
+    });
+
+    const packedCount = moves.length;
+    const unplacedPieceCount = unplaced.reduce((n, u) => n + (u.pieceCount || 0), 0);
+    const totalDestPieces = packedCount + unplacedPieceCount;
+
     let note;
-    if (skippedNoDest > 0) {
+    if (unplaced.length > 0) {
+      note =
+        `Demo planner packed ${packedCount}/${totalDestPieces} pieces — ` +
+        `${unplaced.length} PRO(s) unplaced (${unplacedPieceCount} piece(s)). ` +
+        `Unique slots only (no last-slot reuse). ` +
+        (secondStubCount
+          ? `Opened ${secondStubCount} second outbound stub(s). `
+          : '') +
+        `Use Agent packed this (demo) for leftovers, or free capacity / clear city floor-only.`;
+    } else if (skippedNoDest > 0) {
       note = `${skippedNoDest} bill(s) skipped — no destination set. Tap Edit bill on each, then build again.`;
     } else if (cityFloorOnlyCount > 0) {
       note =
         `Packed section-by-section (nose→tail): floor then decks per bay; never whole-floor-first. ` +
-        `City loads floor-only. ${cityFloorOnlyCount} city load(s) used floor only (level A) — no decks.`;
+        `City loads floor-only. ${cityFloorOnlyCount} city load(s) used floor only (level A) — no decks. ` +
+        `Every piece has a unique outbound slot.`;
     } else {
       note =
-        'Packed section-by-section (nose→tail): floor then decks per bay; never whole-floor-first. City loads floor-only.';
+        'Packed section-by-section (nose→tail): floor then decks per bay; never whole-floor-first. City loads floor-only. Every piece has a unique outbound slot.';
     }
 
     const plan = {
@@ -576,12 +754,18 @@
       moves,
       outboundLoadouts,
       summary: {
-        moveCount: moves.length,
+        moveCount: packedCount,
         proCount: shipments.length,
-        pieceCount: moves.length,
+        pieceCount: totalDestPieces,
+        packedCount,
+        unplacedCount: unplaced.length,
+        unplacedPieceCount,
         outboundCount: outboundLoadouts.length,
         skippedNoDest,
         cityFloorOnlyCount,
+        secondStubCount,
+        unplaced,
+        skipped,
         note,
       },
     };
@@ -876,19 +1060,21 @@
         });
       }
 
-      function loadingPhrase(trl, doorNum, destination) {
+      function loadingPhrase(trl, doorNum, destination, slot) {
         const parts = [];
         if (doorNum) parts.push(`Door ${doorNum}`);
         else if (trl) parts.push('Door —');
         if (trl) parts.push(`Trl ${trl}`);
         if (destination) parts.push(destination);
+        if (slot) parts.push(`LOAD ${slot}`);
         return parts.join(' · ');
       }
 
+      const toSlot = pick.toSlot || '';
       let line;
       if (toTrl) {
         line =
-          `Operator ${opNum} — pulling Door ${door} · Trl ${fromTrl} → loading ${loadingPhrase(toTrl, toDoor, dest)}`;
+          `Operator ${opNum} — pulling Door ${door} · Trl ${fromTrl} → loading ${loadingPhrase(toTrl, toDoor, dest, toSlot)}`;
       } else if (dest) {
         const loadBit = toDoor
           ? `loading Door ${toDoor} · ${dest} (no plan yet)`
@@ -913,7 +1099,7 @@
         }
         if (next.toTrailer) {
           nextLine =
-            `Next up: Door ${door} · Trl ${next.fromTrailer || fromTrl} → loading ${loadingPhrase(next.toTrailer, nextToDoor, next.destination || '')}`;
+            `Next up: Door ${door} · Trl ${next.fromTrailer || fromTrl} → loading ${loadingPhrase(next.toTrailer, nextToDoor, next.destination || '', next.toSlot || '')}`;
         } else if (next.destination) {
           nextLine =
             `Next up: Door ${door} · Trl ${next.fromTrailer || fromTrl} → ` +
@@ -954,6 +1140,290 @@
     return { assignments, note, doorCount: doors.length, source };
   }
 
+
+  /**
+   * Demo agent second pass — only touches summary.unplaced.
+   * May add outbound stubs; writes unique slots or leaves explicit final skips.
+   * Stamps planner/label so UI never confuses this with the built-in demo plan.
+   * @param {object|null} plan
+   * @returns {object|null}
+   */
+  function runAgentPackDemo(plan) {
+    if (!plan || !plan.summary) return plan;
+    const pending = Array.isArray(plan.summary.unplaced)
+      ? plan.summary.unplaced.slice()
+      : [];
+    if (!pending.length) {
+      plan.summary.agentNote =
+        plan.summary.agentNote || 'Planner cleared the dock — agent not needed.';
+      DockStorage.writeLoadPlan(plan);
+      return plan;
+    }
+
+    const entriesById = new Map();
+    DockStorage.readAll().forEach((e) => {
+      if (e && e.id) entriesById.set(e.id, e);
+    });
+
+    const moves = Array.isArray(plan.moves) ? plan.moves.slice() : [];
+    /** Rebuild trailer pack states from existing loadouts so we never reuse slots */
+    /** @type {Map<string, ReturnType<typeof initTrailerPackState>>} */
+    const stateByTrailer = new Map();
+    const destTrailerOrder = new Map(); // dest -> trailerNumbers[]
+
+    const ensureState = (outbound) => {
+      const key = String(outbound.trailerNumber || '').trim();
+      if (!key) return null;
+      if (stateByTrailer.has(key)) return stateByTrailer.get(key);
+      const st = initTrailerPackState(outbound);
+      // Mark slots already used in this plan's loadout / moves
+      (plan.outboundLoadouts || []).forEach((L) => {
+        if (String(L.trailerNumber || '').trim() !== key) return;
+        (L.groups || []).forEach((g) => {
+          (g.pieces || []).forEach((p) => {
+            if (p.slot) {
+              st.usedLabels.add(p.slot);
+              // Advance cursor past used indices when possible
+            }
+          });
+        });
+      });
+      // Sync cursor to first unused slot in order
+      while (
+        st.cursor < st.slotOrder.length &&
+        st.usedLabels.has(st.slotOrder[st.cursor].slotLabel)
+      ) {
+        st.cursor += 1;
+      }
+      // Also count used slots that may be out of order — rebuild free list conceptually
+      // by skipping any used label when placing (placeEntireProOnTrailer checks usedLabels)
+      stateByTrailer.set(key, st);
+      const dest = String(outbound.destination || '').trim();
+      if (dest) {
+        if (!destTrailerOrder.has(dest)) destTrailerOrder.set(dest, []);
+        const arr = destTrailerOrder.get(dest);
+        if (arr.indexOf(key) < 0) arr.push(key);
+      }
+      return st;
+    };
+
+    // Seed from registry + existing loadouts
+    (plan.outboundLoadouts || []).forEach((L) => {
+      const row =
+        DockStorage.readOutboundTrailers().find(
+          (r) =>
+            String(r.trailerNumber || '').trim() ===
+            String(L.trailerNumber || '').trim()
+        ) || {
+          trailerNumber: L.trailerNumber,
+          doorNumber: L.doorNumber,
+          destination: L.destination,
+          cityFloorOnly: L.cityFloorOnly,
+        };
+      ensureState(row);
+    });
+
+    const stillUnplaced = [];
+    let stubsAdded = 0;
+    let rescued = 0;
+
+    pending.forEach((u) => {
+      const destination = u.destination;
+      const pieceMetas = u.pieces || [];
+      const pieces = [];
+      pieceMetas.forEach((pm) => {
+        const e = entriesById.get(pm.entryId);
+        if (e) pieces.push(e);
+      });
+      // Fallback: regroup from storage by PRO if ids missing
+      if (!pieces.length) {
+        const groups = DockStorage.groupsByPro();
+        const g = groups[u.pro] || [];
+        g.forEach((e) => pieces.push(e));
+      }
+      if (!pieces.length) {
+        stillUnplaced.push(
+          Object.assign({}, u, { reason: u.reason || 'no_capacity' })
+        );
+        return;
+      }
+      const ship = { pro: u.pro, destination, pieces };
+      const n = pieces.length;
+
+      let trailers = outboundTrailersForDestination(destination);
+      if (!trailers.length) {
+        ensureOutboundStubs([destination]);
+        trailers = outboundTrailersForDestination(destination);
+      }
+      trailers.forEach((t) => ensureState(t));
+
+      let placed = false;
+      const tryPlace = () => {
+        const keys = destTrailerOrder.get(destination) || trailers.map((t) => String(t.trailerNumber).trim());
+        for (let i = 0; i < keys.length; i++) {
+          const st = stateByTrailer.get(keys[i]);
+          if (!st) continue;
+          // Re-sync cursor
+          while (
+            st.cursor < st.slotOrder.length &&
+            st.usedLabels.has(st.slotOrder[st.cursor].slotLabel)
+          ) {
+            st.cursor += 1;
+          }
+          // Count truly free unique slots remaining in order
+          let free = 0;
+          for (let c = st.cursor; c < st.slotOrder.length; c++) {
+            if (!st.usedLabels.has(st.slotOrder[c].slotLabel)) free += 1;
+          }
+          if (free >= n) {
+            // Compact: walk cursor to next free each time inside placeEntireProOnTrailer
+            const ok = placeEntireProOnTrailer(ship, st, moves);
+            if (ok) return true;
+          }
+        }
+        return false;
+      };
+
+      placed = tryPlace();
+
+      // May add stubs until packed or give up after a few
+      let attempts = 0;
+      while (!placed && attempts < 3) {
+        attempts += 1;
+        const primary = trailers[0] || null;
+        const extra = createExtraOutboundStub(destination, primary);
+        if (!extra) break;
+        stubsAdded += 1;
+        trailers = outboundTrailersForDestination(destination);
+        ensureState(extra);
+        placed = tryPlace();
+      }
+
+      if (placed) {
+        rescued += 1;
+      } else {
+        stillUnplaced.push({
+          pro: u.pro,
+          destination,
+          pieceCount: n,
+          reason: 'no_capacity',
+          pieces: pieceMetas.length
+            ? pieceMetas
+            : pieces.map((e) => ({
+                entryId: e.id,
+                pieceFraction: e.pieceFraction,
+                fromDoor: String(e.doorNumber || '').trim(),
+                fromTrailer: String(e.trailerNumber || '').trim(),
+              })),
+        });
+      }
+    });
+
+    // Rebuild outboundLoadouts from states + prior loadouts merge
+    const loadoutByTrailer = new Map();
+    (plan.outboundLoadouts || []).forEach((L) => {
+      loadoutByTrailer.set(String(L.trailerNumber || '').trim(), {
+        trailerNumber: L.trailerNumber,
+        doorNumber: L.doorNumber,
+        destination: L.destination,
+        cityFloorOnly: Boolean(L.cityFloorOnly),
+        groups: (L.groups || []).map((g) => ({
+          pro: g.pro,
+          pieces: (g.pieces || []).slice(),
+        })),
+      });
+    });
+    stateByTrailer.forEach((st, key) => {
+      // Merge agent-added groups into loadout
+      const dest = String(st.outbound.destination || '').trim();
+      let L = loadoutByTrailer.get(key);
+      if (!L) {
+        L = {
+          trailerNumber: st.outbound.trailerNumber,
+          doorNumber: String(st.outbound.doorNumber || '').trim(),
+          destination: dest,
+          cityFloorOnly: st.cityFloorOnly,
+          groups: [],
+        };
+        loadoutByTrailer.set(key, L);
+      }
+      // Replace groups with state's full list if state has groups from agent place
+      // State's loadGroups only has NEW groups from this pass — append those
+      st.loadGroups.forEach((g) => {
+        const exists = L.groups.some(
+          (og) =>
+            og.pro === g.pro &&
+            (og.pieces || []).length === (g.pieces || []).length &&
+            (og.pieces[0] && g.pieces[0] && og.pieces[0].entryId === g.pieces[0].entryId)
+        );
+        if (!exists) L.groups.push(g);
+      });
+    });
+
+    const outboundLoadouts = [];
+    loadoutByTrailer.forEach((L) => {
+      const pieceCount = L.groups.reduce((n, g) => n + (g.pieces || []).length, 0);
+      if (!pieceCount) return;
+      let weightSum = 0;
+      let weightCount = 0;
+      L.groups.forEach((g) => {
+        (g.pieces || []).forEach((p) => {
+          if (p.weight != null && !Number.isNaN(Number(p.weight))) {
+            weightSum += Number(p.weight);
+            weightCount += 1;
+          }
+        });
+      });
+      outboundLoadouts.push({
+        trailerNumber: L.trailerNumber,
+        doorNumber: L.doorNumber,
+        destination: L.destination,
+        cityFloorOnly: L.cityFloorOnly,
+        proCount: L.groups.length,
+        pieceCount,
+        totalWeight: weightCount ? weightSum : null,
+        groups: L.groups,
+      });
+    });
+
+    const packedCount = moves.length;
+    const unplacedPieceCount = stillUnplaced.reduce(
+      (n, u) => n + (u.pieceCount || 0),
+      0
+    );
+    const totalDestPieces = packedCount + unplacedPieceCount;
+    const agentNote =
+      stillUnplaced.length === 0
+        ? `Agent demo packed remaining freight (${rescued} PRO(s))${stubsAdded ? `; added ${stubsAdded} stub(s)` : ''}. Dock clear.`
+        : `Agent demo rescued ${rescued} PRO(s); ${stillUnplaced.length} still unplaced (${unplacedPieceCount} piece(s)). Explicit skips kept.`;
+
+    const summary = Object.assign({}, plan.summary, {
+      moveCount: packedCount,
+      pieceCount: totalDestPieces,
+      packedCount,
+      unplacedCount: stillUnplaced.length,
+      unplacedPieceCount,
+      outboundCount: outboundLoadouts.length,
+      unplaced: stillUnplaced,
+      agentNote,
+      note:
+        stillUnplaced.length === 0
+          ? `Agent packed ${packedCount}/${totalDestPieces} — dock clear. Unique slots only.`
+          : `Agent packed ${packedCount}/${totalDestPieces} — ${stillUnplaced.length} PRO(s) still unplaced.`,
+    });
+
+    const next = {
+      createdAt: new Date().toISOString(),
+      planner: 'agent-demo',
+      label: 'agent packed',
+      moves,
+      outboundLoadouts,
+      summary,
+    };
+    DockStorage.writeLoadPlan(next);
+    return next;
+  }
+
   global.DockLoadPlan = {
     DEMO_DESTINATIONS,
     DEMO_INBOUND,
@@ -963,7 +1433,10 @@
     deriveGroundOrders,
     deriveCrewAssignments,
     ensureOutboundStubs,
+    outboundTrailersForDestination,
+    createExtraOutboundStub,
     seedDemoInbound,
     runLoadPlan,
+    runAgentPackDemo,
   };
 })(window);

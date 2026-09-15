@@ -162,7 +162,14 @@
     crewResetDemoBtn: document.getElementById('crewResetDemoBtn'),
     crewDemoProgress: document.getElementById('crewDemoProgress'),
     crewDemoDone: document.getElementById('crewDemoDone'),
+    crewGodHud: document.getElementById('crewGodHud'),
+    crewGodPulse: document.getElementById('crewGodPulse'),
+    crewGodOutPills: document.getElementById('crewGodOutPills'),
     crewMoveQueue: document.getElementById('crewMoveQueue'),
+    planAgentBanner: document.getElementById('planAgentBanner'),
+    planAgentBannerText: document.getElementById('planAgentBannerText'),
+    planAgentPackBtn: document.getElementById('planAgentPackBtn'),
+    planAgentHint: document.getElementById('planAgentHint'),
     editProOverlay: document.getElementById('editProOverlay'),
     editProNumber: document.getElementById('editProNumber'),
     editProDestination: document.getElementById('editProDestination'),
@@ -2343,6 +2350,30 @@
    * }} */
   let crewDemo = emptyCrewDemo();
 
+  /** Brief dual-flash of pull+OUT doors on Step (~300ms, CSS only). */
+  let crewFlashDoors = { from: '', to: '', timer: null };
+
+  function flashCrewStepDoors(fromDoor, toDoor) {
+    const from = String(fromDoor || '').trim();
+    const to = String(toDoor || '').trim();
+    if (crewFlashDoors.timer) {
+      clearTimeout(crewFlashDoors.timer);
+      crewFlashDoors.timer = null;
+    }
+    crewFlashDoors.from = from;
+    crewFlashDoors.to = to;
+    if (!from && !to) return;
+    crewFlashDoors.timer = setTimeout(() => {
+      crewFlashDoors.from = '';
+      crewFlashDoors.to = '';
+      crewFlashDoors.timer = null;
+      if (el.crewFloor) {
+        el.crewFloor.querySelectorAll('.is-flash').forEach((n) => n.classList.remove('is-flash'));
+      }
+    }, 300);
+  }
+
+
   function emptyCrewDemo() {
     return {
       seeded: false,
@@ -2594,10 +2625,13 @@
 
     busy.sort((a, b) => a.startedAt - b.startedAt);
     const finisher = busy[0];
+    const flashFrom = (finisher.move && finisher.move.fromDoor) || '';
+    const flashTo = (finisher.move && finisher.move.toDoor) || '';
     finisher.lastDoor = (finisher.move && finisher.move.fromDoor) || finisher.lastDoor;
     finisher.move = null;
     finisher.idle = true;
     crewDemo.doneCount += 1;
+    flashCrewStepDoors(flashFrom, flashTo);
 
     const next = takeNextNonConflicting(
       busyPullDoors(finisher.operator),
@@ -2962,6 +2996,14 @@
     if (el.crewOutTrailerCloseBtn) {
       el.crewOutTrailerCloseBtn.addEventListener('click', () => closeCrewOutTrailerPanel());
     }
+    if (el.crewGodOutPills) {
+      el.crewGodOutPills.addEventListener('click', (ev) => {
+        const pill = ev.target.closest('.crew-god-pill[data-door]');
+        if (!pill) return;
+        const door = pill.getAttribute('data-door') || '';
+        if (door) openCrewOutTrailerPanel(door);
+      });
+    }
   }
 
   /**
@@ -3171,6 +3213,124 @@
    * @param {object[]} [list] crew assignments
    * @returns {{ door: string, trailerNumber: string, destination: string, cityFloorOnly: boolean }}
    */
+
+  /** Short city code for HUD / OUT chips (3–4 letters when possible). */
+  function shortDestLabel(destination) {
+    const d = String(destination || '').trim();
+    if (!d) return '';
+    const known = {
+      denver: 'DEN',
+      'salt lake city': 'SLC',
+      'san antonio': 'SAT',
+      'missoula montana': 'MSO',
+      'rapid city south dakota': 'RAP',
+    };
+    const key = d.toLowerCase();
+    if (known[key]) return known[key];
+    const words = d.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+      return (words[0].slice(0, 2) + words[1].slice(0, 2)).toUpperCase();
+    }
+    return d.slice(0, 4).toUpperCase();
+  }
+
+  /**
+   * Inbound trailer # for a pull door (assignments, then freight, then plan).
+   * @param {string} door
+   * @param {object[]} [list]
+   * @returns {string}
+   */
+  function inboundTrailerForDoor(door, list) {
+    const d = String(door || '').trim();
+    if (!d) return '';
+    if (Array.isArray(list)) {
+      const hit = list.find((a) => String(a.fromDoor || '').trim() === d && a.fromTrailer);
+      if (hit) return String(hit.fromTrailer || '').trim();
+    }
+    if (typeof DockStorage !== 'undefined' && DockStorage.readAll) {
+      const e = DockStorage.readAll().find(
+        (row) => String(row.doorNumber || '').trim() === d && row.trailerNumber
+      );
+      if (e) return String(e.trailerNumber || '').trim();
+    }
+    const plan =
+      typeof DockStorage !== 'undefined' && DockStorage.readLoadPlan
+        ? DockStorage.readLoadPlan()
+        : null;
+    if (plan && Array.isArray(plan.moves)) {
+      const m = plan.moves.find(
+        (mv) => String((mv.from && mv.from.door) || '').trim() === d
+      );
+      if (m) return String((m.from && m.from.trailer) || '').trim();
+    }
+    return '';
+  }
+
+  /**
+   * OUT fill k/n for a door — same done-key logic as OUT trailer panel.
+   * @param {string} door
+   * @param {object[]} list
+   * @returns {{k:number, n:number, dest:string, shortDest:string, trailerNumber:string}}
+   */
+  function outFillForDoor(door, list) {
+    const info = resolveOutTrailerForDoor(door, list);
+    const pieces = piecesForOutboundTrailer(info.trailerNumber);
+    const n = pieces.length;
+    const k = pieces.filter((p) => p.done).length;
+    // When demo not seeded, show 0/n planned (nothing "loaded" yet)
+    const showK = crewDemo.seeded ? k : 0;
+    return {
+      k: showK,
+      n,
+      dest: info.destination || '',
+      shortDest: shortDestLabel(info.destination || ''),
+      trailerNumber: info.trailerNumber || '',
+    };
+  }
+
+  function renderCrewGodHud(list) {
+    if (!el.crewGodPulse && !el.crewGodOutPills) return;
+    const rows = list || [];
+    const live = rows.filter((a) => a && !a.idle).length;
+    const idle = rows.filter((a) => a && a.idle).length;
+    const moved = crewDemo.seeded ? crewDemo.doneCount : 0;
+    const total = crewDemo.seeded ? crewDemo.total : 0;
+    if (el.crewGodPulse) {
+      el.crewGodPulse.textContent = `● ${live} live · ${idle} idle · Moved ${moved}/${total}`;
+    }
+    if (!el.crewGodOutPills) return;
+    const outDoors = collectCrewOutDoors(rows);
+    if (!outDoors.length) {
+      el.crewGodOutPills.innerHTML =
+        '<span class="crew-god-pill is-empty">No OUT yet</span>';
+      return;
+    }
+    const frag = document.createDocumentFragment();
+    outDoors.forEach((d) => {
+      const fill = outFillForDoor(d, rows);
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'crew-god-pill';
+      pill.setAttribute('data-door', d);
+      pill.setAttribute('role', 'listitem');
+      const label = fill.shortDest || 'OUT';
+      pill.textContent = `D${d} ${label} ${fill.k}/${fill.n || 0}`;
+      pill.title = `OUT Door ${d}` + (fill.dest ? ` · ${fill.dest}` : '') +
+        ` · ${fill.k}/${fill.n} loaded`;
+      pill.setAttribute(
+        'aria-label',
+        `OUT Door ${d}, ${fill.dest || 'outbound'}, ${fill.k} of ${fill.n} loaded`
+      );
+      // Tiny fill bar via CSS custom property
+      const pct = fill.n > 0 ? Math.round((fill.k / fill.n) * 100) : 0;
+      pill.style.setProperty('--fill-pct', String(pct));
+      if (fill.n > 0 && fill.k >= fill.n) pill.classList.add('is-full');
+      frag.appendChild(pill);
+    });
+    el.crewGodOutPills.innerHTML = '';
+    el.crewGodOutPills.appendChild(frag);
+  }
+
   function resolveOutTrailerForDoor(door, list) {
     const d = String(door || '').trim();
     let trailerNumber = '';
@@ -3511,6 +3671,21 @@
       num.textContent = d;
       cell.appendChild(num);
 
+      const ibTrl = inboundTrailerForDoor(d, list);
+      if (ibTrl) {
+        const trl = document.createElement('span');
+        trl.className = 'crew-door-trl';
+        trl.textContent = `Trl ${ibTrl}`;
+        cell.appendChild(trl);
+      }
+
+      if (
+        crewFlashDoors.from &&
+        String(crewFlashDoors.from) === String(d)
+      ) {
+        cell.classList.add('is-flash');
+      }
+
       const ops = opsByPull.get(d) || [];
       if (ops.length) {
         const badgeRow = document.createElement('div');
@@ -3570,6 +3745,7 @@
         );
         chip.setAttribute('aria-pressed', 'false');
 
+        const fill = outFillForDoor(d, list);
         const label = document.createElement('span');
         label.className = 'crew-out-label';
         label.textContent = 'OUT';
@@ -3582,7 +3758,19 @@
           `<span class="crew-out-short" aria-hidden="true">D${escapeHtml(d)}</span>`;
         chip.appendChild(doorSpan);
 
-        if (hint) {
+        if (fill.shortDest) {
+          const destSpan = document.createElement('span');
+          destSpan.className = 'crew-out-dest';
+          destSpan.textContent = fill.shortDest;
+          chip.appendChild(destSpan);
+        }
+
+        const fillSpan = document.createElement('span');
+        fillSpan.className = 'crew-out-fill';
+        fillSpan.textContent = `${fill.k}/${fill.n || 0}`;
+        chip.appendChild(fillSpan);
+
+        if (hint && !fill.shortDest) {
           const trlSpan = document.createElement('span');
           trlSpan.className = 'crew-out-trl';
           trlSpan.textContent = hint;
@@ -3597,7 +3785,27 @@
             .map((a) => `Op ${a.operator}`)
             .join(' · ');
           chip.appendChild(opLine);
+          chip.classList.add('is-loading');
         }
+
+        if (
+          crewFlashDoors.to &&
+          String(crewFlashDoors.to) === String(d)
+        ) {
+          chip.classList.add('is-flash');
+        }
+
+        const ariaBits = [
+          `OUT Door ${d}`,
+          fill.dest || '',
+          `${fill.k} of ${fill.n} loaded`,
+          loaders.length ? loaders.map((a) => `Op ${a.operator}`).join(', ') : '',
+        ].filter(Boolean);
+        chip.setAttribute('aria-label', ariaBits.join('. ') + '. Show trailer contents.');
+        chip.setAttribute(
+          'title',
+          ariaBits.join(' · ') + '. Tap to see what’s inside.'
+        );
 
         chipGrid.appendChild(chip);
       });
@@ -3646,6 +3854,7 @@
     }
 
     renderCrewMap(list);
+    renderCrewGodHud(list);
 
     if (!list.length) {
       el.crewBoardList.innerHTML =
@@ -3870,6 +4079,103 @@
     if (el.clearPlanBtn) {
       el.clearPlanBtn.addEventListener('click', () => onClearPlan());
     }
+    if (el.planAgentPackBtn) {
+      el.planAgentPackBtn.addEventListener('click', () => onAgentPackDemo());
+    }
+  }
+
+  function updatePlanAgentUI(plan) {
+    const banner = el.planAgentBanner;
+    const btn = el.planAgentPackBtn;
+    const textEl = el.planAgentBannerText;
+    const hint = el.planAgentHint;
+    if (!banner || !btn) return;
+    const s = (plan && plan.summary) || {};
+    const unplaced = Array.isArray(s.unplaced) ? s.unplaced : [];
+    const n = unplaced.length || Number(s.unplacedCount) || 0;
+    const packed = s.packedCount != null ? s.packedCount : (plan && plan.moves ? plan.moves.length : 0);
+    const total =
+      s.pieceCount != null
+        ? s.pieceCount
+        : packed + (s.unplacedPieceCount || 0);
+
+    if (!plan || (!(plan.moves && plan.moves.length) && !n)) {
+      banner.hidden = true;
+      banner.setAttribute('hidden', '');
+      return;
+    }
+
+    banner.hidden = false;
+    banner.removeAttribute('hidden');
+
+    if (n > 0) {
+      btn.disabled = false;
+      btn.hidden = false;
+      btn.removeAttribute('hidden');
+      if (textEl) {
+        textEl.textContent =
+          `Demo planner packed ${packed}/${total} — ${n} PRO(s) need expert pass` +
+          (s.unplacedPieceCount ? ` (${s.unplacedPieceCount} pieces)` : '');
+      }
+      if (hint) {
+        hint.textContent =
+          'Runs a local second pass on unplaced PROs only. May add outbound stubs. Labels the plan as agent packed.';
+      }
+    } else {
+      btn.disabled = true;
+      if (textEl) {
+        textEl.textContent =
+          plan.planner === 'agent-demo'
+            ? (s.agentNote || 'Agent packed — dock clear.')
+            : 'Planner cleared the dock — agent not needed.';
+      }
+      if (hint) {
+        hint.textContent = 'Planner cleared the dock.';
+      }
+    }
+  }
+
+  function onAgentPackDemo() {
+    if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.runAgentPackDemo) {
+      toast("Agent demo didn't load. Refresh and try again.");
+      return;
+    }
+    const plan = DockStorage.readLoadPlan();
+    const s = (plan && plan.summary) || {};
+    const n = (Array.isArray(s.unplaced) && s.unplaced.length) || Number(s.unplacedCount) || 0;
+    if (!n) {
+      toast('Planner cleared the dock — agent not needed.');
+      updatePlanAgentUI(plan);
+      return;
+    }
+    let next;
+    try {
+      next = DockLoadPlan.runAgentPackDemo(plan);
+    } catch (err) {
+      console.error(err);
+      toast("Agent pass failed. Try Build plan again.");
+      return;
+    }
+    renderPlan();
+    renderOutboundList();
+    renderGround();
+    state.crewRotate = 0;
+    state.crewSelectedOp = null;
+    if (next && next.moves && next.moves.length) {
+      seedCrewDemo(next);
+    } else {
+      resetCrewDemoState();
+    }
+    renderCrew();
+    refreshLoadoutTrailerPicker();
+    updateLoadoutPlanBanner();
+    const ns = (next && next.summary) || {};
+    const left = (ns.unplaced && ns.unplaced.length) || 0;
+    toast(
+      left
+        ? `Agent demo: ${ns.packedCount || 0} packed · ${left} still unplaced`
+        : `Agent packed — ${ns.packedCount || (next.moves || []).length} moves · dock clear`
+    );
   }
 
   function onClearPlan() {
@@ -4044,7 +4350,12 @@
       if (state.view === 'loadout') renderLoadout(state.loadoutTrailer || '');
       return;
     }
-    toast(`Plan ready: ${s.moveCount} moves → ${s.outboundCount} outbound`);
+    const up = (s.unplaced && s.unplaced.length) || s.unplacedCount || 0;
+    toast(
+      up
+        ? `Plan: ${s.moveCount} packed · ${up} PRO(s) unplaced → ${s.outboundCount} outbound`
+        : `Plan ready: ${s.moveCount} moves → ${s.outboundCount} outbound`
+    );
     if (state.view === 'loadout') {
       const firstOut = firstOutboundFromPlan(plan);
       if (firstOut) {
@@ -4067,12 +4378,13 @@
 
   function renderPlanSummary(plan) {
     if (!el.planSummary) return;
-    if (!plan || !(plan.moves && plan.moves.length) && !(plan.outboundLoadouts && plan.outboundLoadouts.length)) {
+    if (!plan || !(plan.moves && plan.moves.length) && !(plan.outboundLoadouts && plan.outboundLoadouts.length) && !((plan.summary && plan.summary.unplaced && plan.summary.unplaced.length))) {
       const rawNote = plan && plan.summary && plan.summary.note;
       const note = rawNote
         ? `<div class="empty-state">${escapeHtml(sanitizePlanNote(rawNote))}</div>`
         : '<div class="empty-state">No plan yet. On Inbound, load demo inbound trailers (or log freight), then tap Build load plan (demo) above.</div>';
       el.planSummary.innerHTML = note;
+      updatePlanAgentUI(plan);
       return;
     }
     const s = plan.summary || {};
@@ -4080,17 +4392,45 @@
       ? DockStorage.formatTimeLocal(plan.createdAt)
       : '—';
     const noteSafe = sanitizePlanNote(s.note || '');
+    const unplaced = Array.isArray(s.unplaced) ? s.unplaced : [];
+    const packed = s.packedCount != null ? s.packedCount : (plan.moves || []).length;
+    const unplacedPcs = s.unplacedPieceCount != null
+      ? s.unplacedPieceCount
+      : unplaced.reduce((n, u) => n + (u.pieceCount || 0), 0);
+    let unplacedHtml = '';
+    if (unplaced.length) {
+      const lines = unplaced
+        .slice(0, 12)
+        .map(
+          (u) =>
+            `<li>PRO ${escapeHtml(u.pro)} → ${escapeHtml(u.destination || '—')} · ${escapeHtml(String(u.pieceCount || 0))} pc · ${escapeHtml(u.reason || 'no_capacity')}</li>`
+        )
+        .join('');
+      const more =
+        unplaced.length > 12
+          ? `<li>…and ${unplaced.length - 12} more</li>`
+          : '';
+      unplacedHtml =
+        `<div class="plan-unplaced"><div class="summary-label">Unplaced</div><ul class="plan-unplaced-list">${lines}${more}</ul></div>`;
+    }
+    const agentNote = s.agentNote
+      ? `<p class="hint plan-agent-note">${escapeHtml(sanitizePlanNote(s.agentNote))}</p>`
+      : '';
     el.planSummary.innerHTML = `
       <div class="plan-summary-grid">
         <div class="summary-row"><span class="summary-label">Planner</span><span class="summary-value">${escapeHtml(plan.label || plan.planner || 'demo')}</span></div>
         <div class="summary-row"><span class="summary-label">Saved</span><span class="summary-value">${escapeHtml(when)}</span></div>
-        <div class="summary-row"><span class="summary-label">Moves</span><span class="summary-value">${escapeHtml(String(s.moveCount != null ? s.moveCount : (plan.moves || []).length))}</span></div>
+        <div class="summary-row"><span class="summary-label">Packed</span><span class="summary-value">${escapeHtml(String(packed))} moves</span></div>
+        <div class="summary-row"><span class="summary-label">Unplaced</span><span class="summary-value">${escapeHtml(String(unplaced.length))} PRO(s) · ${escapeHtml(String(unplacedPcs))} pc</span></div>
         <div class="summary-row"><span class="summary-label">PROs</span><span class="summary-value">${escapeHtml(String(s.proCount != null ? s.proCount : '—'))}</span></div>
         <div class="summary-row"><span class="summary-label">Outbound</span><span class="summary-value">${escapeHtml(String(s.outboundCount != null ? s.outboundCount : (plan.outboundLoadouts || []).length))}</span></div>
         <div class="summary-row"><span class="summary-label">Skipped</span><span class="summary-value">${escapeHtml(String(s.skippedNoDest || 0))} no destination</span></div>
       </div>
+      ${unplacedHtml}
       <p class="hint plan-note">${escapeHtml(noteSafe)}</p>
+      ${agentNote}
     `;
+    updatePlanAgentUI(plan);
   }
 
   function renderPlanMoves(plan) {
@@ -4280,7 +4620,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=36').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=37').catch(() => {
       /* offline cache optional */
     });
   }

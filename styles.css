@@ -2974,3 +2974,239 @@ button {
     font-size: 0.58rem;
   }
 }
+
+
+/* ---------- v37: Boss god-view HUD + packing honesty chrome ---------- */
+
+.crew-howto-details {
+  margin: 0;
+}
+
+.crew-howto-details summary {
+  cursor: pointer;
+  font-size: 1.15rem;
+  font-weight: 850;
+  color: #e8eef8;
+  list-style: none;
+}
+
+.crew-howto-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.crew-howto-details[open] summary {
+  margin-bottom: 6px;
+}
+
+.crew-howto-card {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.crew-howto-card .hint {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.crew-god-hud {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid #3a4a60;
+  background: linear-gradient(180deg, #121a28, #0c121c);
+}
+
+.crew-god-pulse {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #c8ffe0;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crew-god-out-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.crew-god-pill {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 4.6rem;
+  min-height: 44px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 1px solid #5a6a40;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(80, 180, 100, 0.45) 0%,
+      rgba(80, 180, 100, 0.45) calc(var(--fill-pct, 0) * 1%),
+      #1a2434 calc(var(--fill-pct, 0) * 1%)
+    );
+  color: #e8f8d8;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.crew-god-pill.is-empty {
+  opacity: 0.65;
+  cursor: default;
+  border-style: dashed;
+}
+
+.crew-god-pill.is-full {
+  border-color: #7dffb0;
+  color: #b8ffe0;
+}
+
+.crew-door-trl {
+  font-size: 0.55rem;
+  font-weight: 750;
+  color: #9eb0c8;
+  line-height: 1;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crew-door-cell.has-pull .crew-door-trl,
+.crew-door-cell.is-live .crew-door-trl {
+  color: #c8ffe0;
+}
+
+.crew-out-dest {
+  margin-top: 1px;
+  font-size: 0.68rem;
+  font-weight: 850;
+  color: #ffd090;
+  letter-spacing: 0.04em;
+}
+
+.crew-out-fill {
+  font-size: 0.7rem;
+  font-weight: 900;
+  color: #ffe8c0;
+}
+
+.crew-out-target {
+  min-height: 44px;
+}
+
+.crew-out-target.is-loading {
+  border-color: #ffc070;
+}
+
+.crew-door-cell.is-flash,
+.crew-out-target.is-flash {
+  animation: crew-flash-pulse 0.3s ease-out;
+  box-shadow: 0 0 0 3px rgba(255, 220, 100, 0.75);
+  border-color: #ffe066;
+}
+
+@keyframes crew-flash-pulse {
+  0% { filter: brightness(1.35); }
+  100% { filter: brightness(1); }
+}
+
+.plan-agent-banner {
+  margin: 12px 0 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 2px solid #f0a030;
+  background: #2a2010;
+}
+
+.plan-agent-banner .btn {
+  width: 100%;
+  margin-top: 8px;
+  min-height: 48px;
+}
+
+.plan-agent-banner .btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.plan-unplaced {
+  margin: 10px 0 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #8a4030;
+  background: #281410;
+}
+
+.plan-unplaced-list {
+  margin: 6px 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.9rem;
+  color: #ffc8b0;
+}
+
+.plan-agent-note {
+  color: #b8ffe0;
+  font-weight: 700;
+}
+
+.crew-map-tap-hint {
+  margin: 4px 0 6px;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 390px) {
+  .crew-god-hud {
+    margin: 6px 0 4px;
+    padding: 6px 8px;
+    gap: 4px;
+  }
+
+  .crew-god-pulse {
+    font-size: 0.85rem;
+  }
+
+  .crew-god-pill {
+    min-width: 4.2rem;
+    min-height: 44px;
+    padding: 5px 4px;
+    font-size: 0.65rem;
+  }
+
+  .crew-door-trl {
+    font-size: 0.5rem;
+  }
+
+  .crew-out-target {
+    min-height: 44px;
+    padding: 4px 2px;
+  }
+
+  .crew-out-dest,
+  .crew-out-fill {
+    font-size: 0.62rem;
+  }
+
+  .crew-door-count-field,
+  #crewDoorCountHint {
+    /* keep but tighter so HUD+map fit */
+    margin-top: 4px;
+    margin-bottom: 4px;
+  }
+
+  #crewDoorCountHint {
+    font-size: 0.75rem;
+  }
+}

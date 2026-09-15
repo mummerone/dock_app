@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=36" />
+  <link rel="stylesheet" href="styles.css?v=37" />
 </head>
 <body>
   <div id="app">
@@ -338,8 +338,10 @@
 
         <div id="dockPanelCrew" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubCrew" hidden>
           <section class="card crew-howto-card" aria-labelledby="crew-howto-heading">
-            <h2 id="crew-howto-heading">Crew — live demo</h2>
-            <p class="hint">How to: build a load plan (<strong>Plan</strong>), then <strong>Start demo</strong>. Map shows forklifts on pull doors; <strong>tap an OUT chip</strong> to see that outbound trailer and everything planned into it. Queue under the map lists remaining moves by outbound trailer — each row shows the <strong>LOAD SLOT</strong> (where it goes in the OUT trailer). <strong>Step once</strong> finishes the earliest move and that forklift takes the next free pull+load doors. <strong>Play</strong> auto-steps (~800ms). Active forklifts use different pull doors and different load doors when the plan allows.</p>
+            <details class="crew-howto-details">
+              <summary id="crew-howto-heading">Crew — live demo</summary>
+              <p class="hint">Build a plan (<strong>Plan</strong>), then <strong>Start demo</strong>. HUD + wall show live/idle and OUT fill. Tap OUT for trailer contents · LOAD SLOT on detail/queue. Step/Play advance moves (~800ms).</p>
+            </details>
           </section>
 
           <section class="card" aria-labelledby="crew-board-heading">
@@ -365,7 +367,11 @@
             </label>
             <p class="hint" id="crewDoorCountHint">Set how many doors your dock has. Empty doors show muted; busy doors light up.</p>
 
-            <p class="hint crew-map-tap-hint">Tap an operator to see what they’re moving. Tap an <strong>OUT</strong> chip to open that outbound trailer.</p>
+            <div id="crewGodHud" class="crew-god-hud" aria-live="polite">
+              <div id="crewGodPulse" class="crew-god-pulse">● 0 live · 0 idle · Moved 0/0</div>
+              <div id="crewGodOutPills" class="crew-god-out-pills" role="list" aria-label="Outbound fill"></div>
+            </div>
+            <p class="hint crew-map-tap-hint">Tap an operator or <strong>OUT</strong> chip for detail.</p>
             <div class="crew-map-layout">
               <div id="crewDockMap" class="crew-dock-map" role="img" aria-label="Dock floor map">
                 <div id="crewFloor" class="crew-floor" aria-label="Dock floor">
@@ -402,6 +408,11 @@
             <p class="hint">Tip: generate freight first with <strong>Load demo inbound trailers</strong> on the Inbound section.</p>
             <button type="button" id="runLoadPlanBtn" class="btn speak-btn demo-primary-btn">Build load plan (demo)</button>
             <button type="button" id="clearPlanBtn" class="btn muted-btn demo-secondary-btn">Clear plan</button>
+            <div id="planAgentBanner" class="plan-agent-banner" hidden>
+              <p class="hint" id="planAgentBannerText"></p>
+              <button type="button" id="planAgentPackBtn" class="btn accept-btn demo-primary-btn">Agent packed this (demo)</button>
+              <p class="hint" id="planAgentHint">Runs a local second pass on unplaced PROs only. May add outbound stubs. Labels the plan as agent packed.</p>
+            </div>
             <p class="hint" id="planStatusHint" aria-live="polite"></p>
           </section>
 
@@ -480,9 +491,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=36"></script>
-  <script src="speech.js?v=36"></script>
-  <script src="loadPlan.js?v=36"></script>
-  <script src="app.js?v=36"></script>
+  <script src="storage.js?v=37"></script>
+  <script src="speech.js?v=37"></script>
+  <script src="loadPlan.js?v=37"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>
