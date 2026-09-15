@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=39" />
+  <link rel="stylesheet" href="styles.css?v=40" />
 </head>
 <body>
   <div id="app">
@@ -20,7 +20,7 @@
         <span class="brand-mark" aria-hidden="true">▮</span>
         <div>
           <h1>Dock App</h1>
-          <p class="tagline">Freight log · same PRO = same trailer</p>
+          <p class="tagline">Freight log · same PRO = same trailer · <span class="build-stamp" title="Build version">v40</span></p>
         </div>
       </div>
       <div id="speechStatus" class="speech-status" aria-live="polite">
@@ -344,6 +344,18 @@
         </div>
 
         <div id="dockPanelCrew" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubCrew" hidden>
+          <section class="card crew-mode-card" aria-labelledby="crew-mode-heading">
+            <div class="card-head crew-mode-head">
+              <h2 id="crew-mode-heading">Start mode</h2>
+              <span class="build-stamp" title="Build version">v40</span>
+            </div>
+            <div class="crew-mode-start" id="crewModeStart" role="group" aria-label="Start demo mode">
+              <button type="button" id="crewSoloStartBtn" class="btn accept-btn crew-mode-btn">Solo forklift</button>
+              <button type="button" id="crewMultiStartBtn" class="btn accept-btn crew-mode-btn">Crew (5)</button>
+            </div>
+            <p class="hint crew-solo-copy" id="crewSoloCopy">One forklift — first pull to last put, high-and-tight.</p>
+          </section>
+
           <section class="card crew-howto-card" aria-labelledby="crew-howto-heading">
             <details class="crew-howto-details">
               <summary id="crew-howto-heading">Crew — live demo</summary>
@@ -358,13 +370,7 @@
             </div>
             <p class="hint" id="crewBoardHint">From the current load plan. One operator per inbound door.</p>
 
-            <div class="crew-mode-start" id="crewModeStart" role="group" aria-label="Start demo mode">
-              <button type="button" id="crewSoloStartBtn" class="btn accept-btn crew-mode-btn">Solo forklift</button>
-              <button type="button" id="crewMultiStartBtn" class="btn accept-btn crew-mode-btn">Crew (5)</button>
-            </div>
-            <p class="hint crew-solo-copy" id="crewSoloCopy">One forklift — first pull to last put, high-and-tight.</p>
             <div class="crew-demo-controls" id="crewDemoControls" role="group" aria-label="Live demo controls">
-              <button type="button" id="crewStartDemoBtn" class="btn accept-btn demo-primary-btn" hidden>Start demo</button>
               <button type="button" id="crewStepBtn" class="btn speak-btn">Step once</button>
               <button type="button" id="crewPlayBtn" class="btn muted-btn">Play</button>
               <button type="button" id="crewStopBtn" class="btn muted-btn">Stop</button>
@@ -406,7 +412,7 @@
 
             <h3 class="crew-queue-heading">Remaining dock moves</h3>
             <div id="crewMoveQueue" class="crew-move-queue" role="list">
-              <div class="empty-state">No plan queue yet. Build a load plan, then Start demo.</div>
+              <div class="empty-state">No plan queue yet. Build a load plan, then Solo forklift or Crew (5).</div>
             </div>
 
             <h3 class="crew-active-heading">Active forklifts</h3>
@@ -506,9 +512,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=39"></script>
-  <script src="speech.js?v=39"></script>
-  <script src="loadPlan.js?v=39"></script>
-  <script src="app.js?v=39"></script>
+  <script src="storage.js?v=40"></script>
+  <script src="speech.js?v=40"></script>
+  <script src="loadPlan.js?v=40"></script>
+  <script src="app.js?v=40"></script>
 </body>
 </html>

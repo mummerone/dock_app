@@ -3274,21 +3274,53 @@ button {
 }
 
 
-/* ---------- v39: Solo forklift + Ground walkthrough demo ---------- */
+/* ---------- v40: Solo/Crew mode first + cache bump ---------- */
+
+.build-stamp {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #f5a623;
+  background: #2a2410;
+  border: 1px solid rgba(245, 166, 35, 0.55);
+  border-radius: 999px;
+  padding: 2px 8px;
+  vertical-align: middle;
+  line-height: 1.2;
+}
+
+.tagline .build-stamp {
+  margin-left: 2px;
+}
+
+.crew-mode-card {
+  margin-bottom: 12px;
+}
+
+.crew-mode-head {
+  align-items: center;
+  gap: 10px;
+}
+
+.crew-mode-head .build-stamp {
+  margin-left: auto;
+  flex-shrink: 0;
+}
 
 .crew-mode-start {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 12px 0 6px;
+  flex-direction: column;
+  gap: 12px;
+  margin: 8px 0 6px;
 }
 
 .crew-mode-btn {
-  flex: 1 1 calc(50% - 6px);
-  min-width: 9.5rem;
+  width: 100%;
+  flex: 0 0 auto;
   min-height: 56px;
-  font-size: 1.05rem;
-  font-weight: 850;
+  font-size: 1.15rem;
+  font-weight: 900;
   margin-top: 0;
 }
 
@@ -3466,8 +3498,9 @@ button {
 
 @media (max-width: 480px) {
   .crew-mode-btn {
-    flex: 1 1 100%;
+    width: 100%;
     min-height: 58px;
+    font-size: 1.2rem;
   }
 
   .crew-solo-pull,

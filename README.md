@@ -119,7 +119,7 @@ One **Dock** tab covers inbound doors, outbound trailers, ground deck-build orde
 
 ### Crew live demo
 Boss walkthrough on **Dock → Crew** (local simulation only — not saved):
-1. Load demo inbound + **Build load plan (demo)** first (or tap **Start demo** after a plan exists — Build plan also seeds the demo).
+1. Load demo inbound + **Build load plan (demo)** first, then tap **Solo forklift** or **Crew (5)** (Build plan also seeds when you start a mode).
 2. Map shows forklifts at pull doors; **arrows** draw pull → load door. Actual outbound doors (e.g. demo **21–25**, or whatever your stubs use) render as small **OUT / Door N** targets along the **bottom** of the floor so arrows have somewhere to go.
 3. Under the map: **Remaining dock moves** queue + progress “Moved X of Y”.
 4. **Step once** completes the earliest-started active pull; that forklift takes the next queue move whose **pull door and load/OUT door** are both free (skips conflicts — leave conflicting moves in queue).
@@ -173,6 +173,8 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v40 Solo/Crew mode buttons first (stacked full-width, glove ≥56px); remove legacy Start demo; empty copy says Solo/Crew; visible **v40** build stamp; hard SW cache bump `dock-app-v40`. Keeps v39 Solo + Ground demos.
+
 v39 Two demos from the same plan: **Solo forklift** (1 op, first pull→last put H&T, big current-job card) and **Crew (5)** multi-op; Ground walkthrough (**Start ground demo** / Step / Reset) with large current deck order. Keeps v38 fold/flash/ghost OUT / agent stub. Network-first SW (`dock-app-v39`).
 
 v38 Polish: Crew god HUD above door-count (door config in `<details>`); Step dual-flash ~700ms and brighter; hide ghost OUT pills/chips with planned 0 (e.g. D23 SAT 0/0); agent stub one clear line + clearly disabled button. Keeps v37 packing honesty / LOAD SLOT / OUT panel / queue scroll. Network-first SW (`dock-app-v39`).
@@ -211,7 +213,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v39`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v40`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

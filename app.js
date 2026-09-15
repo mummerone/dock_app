@@ -159,7 +159,6 @@
     crewOutTrailerPanel: document.getElementById('crewOutTrailerPanel'),
     crewOutTrailerBody: document.getElementById('crewOutTrailerBody'),
     crewOutTrailerCloseBtn: document.getElementById('crewOutTrailerCloseBtn'),
-    crewStartDemoBtn: document.getElementById('crewStartDemoBtn'),
     crewSoloStartBtn: document.getElementById('crewSoloStartBtn'),
     crewMultiStartBtn: document.getElementById('crewMultiStartBtn'),
     crewSoloJobCard: document.getElementById('crewSoloJobCard'),
@@ -3148,7 +3147,7 @@
     if (!el.crewMoveQueue) return;
     if (!crewDemo.seeded) {
       el.crewMoveQueue.innerHTML =
-        '<div class="empty-state">No plan queue yet. Build a load plan, then Start demo.</div>';
+        '<div class="empty-state">No plan queue yet. Build a load plan, then Solo forklift or Crew (5).</div>';
       return;
     }
     if (!crewDemo.queue.length) {
@@ -3271,9 +3270,6 @@
         renderCrew();
         toast('Assignments refreshed');
       });
-    }
-    if (el.crewStartDemoBtn) {
-      el.crewStartDemoBtn.addEventListener('click', () => onCrewStartDemo('crew'));
     }
     if (el.crewSoloStartBtn) {
       el.crewSoloStartBtn.addEventListener('click', () => onCrewStartDemo('solo'));
@@ -4983,7 +4979,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=39').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=40').catch(() => {
       /* offline cache optional */
     });
   }
