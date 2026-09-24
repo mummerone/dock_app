@@ -183,6 +183,7 @@
     crewPlayBtn: document.getElementById('crewPlayBtn'),
     crewStopBtn: document.getElementById('crewStopBtn'),
     crewResetDemoBtn: document.getElementById('crewResetDemoBtn'),
+    crewTourPauseToggle: document.getElementById('crewTourPauseToggle'),
     crewDemoProgress: document.getElementById('crewDemoProgress'),
     crewDemoDone: document.getElementById('crewDemoDone'),
     crewGodHud: document.getElementById('crewGodHud'),
@@ -2631,6 +2632,599 @@
     };
   }
 
+  // ---------- v44: Guided tour (pause at each new crew action) ----------
+
+  const CREW_TOUR_PAUSE_KEY = 'dockApp.crewTourPause.v1';
+
+  /** @type {{
+   *  enabled: boolean,
+   *  resumePlay: boolean,
+   *  queue: object[],
+   *  active: object|null,
+   *  actionIndex: number,
+   *  lastSeenFp: Map<number, string>,
+   *  root: HTMLElement|null,
+   *  bubble: HTMLElement|null,
+   *  arrow: HTMLElement|null,
+   *  highlight: HTMLElement|null,
+   *  textEl: HTMLElement|null,
+   *  counterEl: HTMLElement|null,
+   *  blocker: HTMLElement|null,
+   *  repositionBound: boolean,
+   * }} */
+  let crewTour = emptyCrewTour();
+
+  function emptyCrewTour() {
+    return {
+      enabled: readCrewTourEnabled(),
+      resumePlay: false,
+      queue: [],
+      active: null,
+      actionIndex: 0,
+      lastSeenFp: new Map(),
+      root: null,
+      bubble: null,
+      arrow: null,
+      highlight: null,
+      textEl: null,
+      counterEl: null,
+      blocker: null,
+      repositionBound: false,
+    };
+  }
+
+  function readCrewTourEnabled() {
+    try {
+      const raw = localStorage.getItem(CREW_TOUR_PAUSE_KEY);
+      if (raw === null || raw === undefined || raw === '') return true;
+      return raw === '1' || raw === 'true';
+    } catch (e) {
+      return true;
+    }
+  }
+
+  function writeCrewTourEnabled(on) {
+    try {
+      localStorage.setItem(CREW_TOUR_PAUSE_KEY, on ? '1' : '0');
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function setCrewTourEnabled(on, opts) {
+    const enabled = Boolean(on);
+    crewTour.enabled = enabled;
+    if (!(opts && opts.skipPersist)) writeCrewTourEnabled(enabled);
+    if (el.crewTourPauseToggle) el.crewTourPauseToggle.checked = enabled;
+    if (!enabled) {
+      dismissCrewTourPopup({ keepResume: false });
+      crewTour.queue = [];
+      crewTour.active = null;
+    }
+  }
+
+  function resetCrewTourRun() {
+    dismissCrewTourPopup({ keepResume: false });
+    crewTour.queue = [];
+    crewTour.active = null;
+    crewTour.resumePlay = false;
+    crewTour.actionIndex = 0;
+    crewTour.lastSeenFp = new Map();
+    crewTour.enabled = readCrewTourEnabled();
+    if (el.crewTourPauseToggle) el.crewTourPauseToggle.checked = crewTour.enabled;
+  }
+
+  function crewActionFingerprint(a) {
+    if (!a) return '';
+    if (a.idle || !a.move) {
+      return 'op' + a.operator + ':idle@' + String(a.lastDoor || '');
+    }
+    const uid = (a.move && a.move.uid) || '';
+    return 'op' + a.operator + ':move:' + uid;
+  }
+
+  /**
+   * Enqueue newly started actions (new move or newly idle) not yet toured.
+   * @returns {number} how many events were added
+   */
+  function queueCrewTourNewActions() {
+    if (!crewTour.enabled || !crewDemo.seeded) return 0;
+    /** @type {object[]} */
+    const fresh = [];
+    crewDemo.active.forEach((a) => {
+      const fp = crewActionFingerprint(a);
+      if (!fp) return;
+      if (crewTour.lastSeenFp.get(a.operator) === fp) return;
+      // Already queued for this fingerprint?
+      if (
+        crewTour.queue.some((q) => q.fp === fp) ||
+        (crewTour.active && crewTour.active.fp === fp)
+      ) {
+        return;
+      }
+      fresh.push({
+        op: a.operator,
+        fp: fp,
+        idle: !!(a.idle || !a.move),
+        move: a.move || null,
+        lastDoor: a.lastDoor || '',
+      });
+    });
+    fresh.sort((x, y) => x.op - y.op);
+    fresh.forEach((ev) => crewTour.queue.push(ev));
+    return fresh.length;
+  }
+
+  function ensureCrewTourDom() {
+    if (crewTour.root && document.body.contains(crewTour.root)) return;
+    const root = document.createElement('div');
+    root.id = 'crewTourRoot';
+    root.className = 'crew-tour-root';
+    root.hidden = true;
+    root.setAttribute('hidden', '');
+    root.innerHTML =
+      '<div class="crew-tour-blocker" id="crewTourBlocker" aria-hidden="true"></div>' +
+      '<div class="crew-tour-highlight" id="crewTourHighlight" aria-hidden="true"></div>' +
+      '<div class="crew-tour-bubble" id="crewTourBubble" role="dialog" aria-modal="true" aria-labelledby="crewTourText">' +
+      '<div class="crew-tour-arrow" id="crewTourArrow" aria-hidden="true"></div>' +
+      '<div class="crew-tour-counter" id="crewTourCounter">Action 1 of 1</div>' +
+      '<p class="crew-tour-text" id="crewTourText"></p>' +
+      '<div class="crew-tour-actions">' +
+      '<button type="button" id="crewTourContinueBtn" class="btn accept-btn crew-tour-continue">Continue</button>' +
+      '<button type="button" id="crewTourSkipBtn" class="btn muted-btn crew-tour-skip">Play without stops</button>' +
+      '</div></div>';
+    document.body.appendChild(root);
+    crewTour.root = root;
+    crewTour.blocker = root.querySelector('#crewTourBlocker');
+    crewTour.highlight = root.querySelector('#crewTourHighlight');
+    crewTour.bubble = root.querySelector('#crewTourBubble');
+    crewTour.arrow = root.querySelector('#crewTourArrow');
+    crewTour.textEl = root.querySelector('#crewTourText');
+    crewTour.counterEl = root.querySelector('#crewTourCounter');
+    const cont = root.querySelector('#crewTourContinueBtn');
+    const skip = root.querySelector('#crewTourSkipBtn');
+    if (cont) cont.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      onCrewTourContinue();
+    });
+    if (skip) skip.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      onCrewTourSkip();
+    });
+    // Blocker swallows outside taps — does NOT dismiss
+    if (crewTour.blocker) {
+      crewTour.blocker.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
+      crewTour.blocker.addEventListener('pointerdown', (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+      });
+    }
+    if (crewTour.bubble) {
+      crewTour.bubble.addEventListener('click', (ev) => ev.stopPropagation());
+    }
+    if (!crewTour.repositionBound) {
+      crewTour.repositionBound = true;
+      window.addEventListener('resize', () => {
+        if (crewTour.active) positionCrewTourBubble({ skipScroll: true });
+      });
+      window.addEventListener(
+        'scroll',
+        () => {
+          if (crewTour.active) positionCrewTourBubble({ skipScroll: true });
+        },
+        true
+      );
+    }
+  }
+
+  /**
+   * Plain slot wording: "the nose of OUT door 7, floor level"
+   * @param {string} slot
+   * @param {object|null} move
+   * @returns {string}
+   */
+  function describeLoadSlotPlain(slot, move) {
+    const raw = String(slot || '').trim();
+    let section = move && move.toSection != null ? Number(move.toSection) : NaN;
+    let level = move && move.toLevel ? String(move.toLevel) : '';
+    let lateral = move && move.toLateral ? String(move.toLateral) : '';
+    if (raw) {
+      const parts = raw.split('/');
+      if (!Number.isFinite(section) && parts[0]) section = Number(parts[0]);
+      if (!level && parts[1]) level = parts[1];
+      if (!lateral && parts[2]) lateral = parts[2];
+    }
+    let depth = '';
+    if (Number.isFinite(section)) {
+      if (section <= 3) depth = 'the nose';
+      else if (section >= 10) depth = 'the tail';
+      else depth = 'section ' + section;
+    }
+    let lvl = '';
+    if (level === 'A') lvl = 'floor level';
+    else if (level === 'B') lvl = 'first deck';
+    else if (level === 'C') lvl = 'second deck';
+    const side = lateral ? String(lateral).toLowerCase() : '';
+    const bits = [];
+    if (depth) bits.push(depth);
+    if (side) bits.push(side);
+    if (lvl) bits.push(lvl);
+    if (!bits.length && raw) return raw;
+    return bits.join(', ');
+  }
+
+  /**
+   * @param {object} move
+   * @returns {string}
+   */
+  function describePiecePlain(move) {
+    const m = move || {};
+    const frac = String(m.pieceFraction || '').trim();
+    let pieceBit = 'a piece';
+    const mm = /^(\d+)\s*\/\s*(\d+)/.exec(frac);
+    if (mm) pieceBit = 'piece ' + mm[1] + ' of ' + mm[2];
+    else if (frac) pieceBit = 'piece ' + frac;
+
+    const extras = [];
+    const w = Number(m.w);
+    const d = Number(m.d);
+    if (Number.isFinite(w) && Number.isFinite(d)) {
+      if ((w === 48 && d === 40) || (w === 40 && d === 48)) extras.push('1 pallet');
+      else if (w > 0 && d > 0) extras.push(w + '×' + d + ' in');
+    }
+    if (m.destination) extras.push(String(m.destination));
+    const wt = Number(m.weight);
+    if (Number.isFinite(wt) && wt > 0) extras.push(Math.round(wt) + ' lb');
+
+    if (extras.length) return pieceBit + ' (' + extras.join(', ') + ')';
+    return pieceBit;
+  }
+
+  /**
+   * Short "why" when the plan/layout suggests one.
+   * @param {object|null} move
+   * @param {number} op
+   * @returns {string}
+   */
+  function describeTourWhy(move, op) {
+    if (!move) return '';
+    const why = [];
+    const level = move.toLevel || (String(move.toSlot || '').split('/')[1] || '');
+    const section = move.toSection != null
+      ? Number(move.toSection)
+      : Number(String(move.toSlot || '').split('/')[0]);
+    const wt = Number(move.weight);
+    if (level === 'A' && Number.isFinite(wt) && wt >= 1200) {
+      why.push('Heavy piece goes on the floor' + (section <= 3 ? ' at the nose' : '') + '.');
+    } else if (level === 'A' && Number.isFinite(section) && section <= 3) {
+      why.push('Floor spot at the nose keeps the trailer packed tight.');
+    } else if (level === 'B' || level === 'C') {
+      why.push('Deck slot keeps heavier floor freight underneath.');
+    }
+
+    const myOut = String(move.toDoor || '').trim();
+    if (myOut && crewDemo && Array.isArray(crewDemo.active)) {
+      const others = crewDemo.active.filter(
+        (a) =>
+          a.operator !== op &&
+          a.move &&
+          !a.idle &&
+          String(a.move.toDoor || '').trim() &&
+          String(a.move.toDoor || '').trim() !== myOut
+      );
+      if (others.length) {
+        const otherOp = others[0].operator;
+        why.push(
+          'Different OUT door from Forklift ' +
+            otherOp +
+            ', so they never block each other.'
+        );
+      }
+    }
+    return why.slice(0, 1).join(' ');
+  }
+
+  /**
+   * @param {object} ev
+   * @returns {string}
+   */
+  function describeCrewTourAction(ev) {
+    const op = ev.op;
+    if (ev.idle) {
+      const near = ev.lastDoor ? ' near inbound door ' + ev.lastDoor : '';
+      return (
+        'Forklift ' +
+        op +
+        ' is waiting idle' +
+        near +
+        '. It will take the next free pull when a door opens.'
+      );
+    }
+    const m = ev.move || {};
+    const piece = describePiecePlain(m);
+    const fromDoor = m.fromDoor || '—';
+    const toDoor = m.toDoor || '—';
+    const slotPlain = describeLoadSlotPlain(m.toSlot, m);
+    const loadWhere = slotPlain
+      ? slotPlain + (toDoor && toDoor !== '—' ? ' of OUT door ' + toDoor : '')
+      : toDoor && toDoor !== '—'
+        ? 'OUT door ' + toDoor
+        : 'the outbound trailer';
+    let text =
+      'Forklift ' +
+      op +
+      ' is picking up ' +
+      piece +
+      ' at inbound door ' +
+      fromDoor +
+      '. It will load it at ' +
+      loadWhere +
+      '.';
+    const why = describeTourWhy(m, op);
+    if (why) text += ' ' + why;
+    return text;
+  }
+
+  /**
+   * @param {number} op
+   * @param {object|null} ev
+   * @returns {HTMLElement|null}
+   */
+  function findCrewTourTarget(op, ev) {
+    if (!el.crewFloor) return null;
+    const marker = el.crewFloor.querySelector(
+      '.crew-op-marker[data-op="' + String(op) + '"]'
+    );
+    if (marker) return marker;
+    const door =
+      (ev && ev.move && ev.move.fromDoor) ||
+      (ev && ev.lastDoor) ||
+      '';
+    if (door) {
+      const cell = el.crewFloor.querySelector(
+        '.crew-door-cell[data-door="' + String(door) + '"]'
+      );
+      if (cell) return cell;
+    }
+    return el.crewFloor;
+  }
+
+  function clearCrewTourHighlightClass() {
+    if (!el.crewFloor) return;
+    el.crewFloor
+      .querySelectorAll('.is-tour-target')
+      .forEach((n) => n.classList.remove('is-tour-target'));
+  }
+
+  function dismissCrewTourPopup(opts) {
+    clearCrewTourHighlightClass();
+    if (crewTour.root) {
+      crewTour.root.hidden = true;
+      crewTour.root.setAttribute('hidden', '');
+      crewTour.root.classList.remove('is-open');
+    }
+    if (crewTour.highlight) {
+      crewTour.highlight.style.display = 'none';
+    }
+    crewTour.active = null;
+    if (!(opts && opts.keepResume)) crewTour.resumePlay = false;
+  }
+
+  function positionCrewTourBubble(opts) {
+    if (!crewTour.active || !crewTour.bubble || !crewTour.arrow) return;
+    const target = findCrewTourTarget(crewTour.active.op, crewTour.active);
+    if (!target) return;
+
+    // Only auto-scroll when first showing (not on every resize/scroll — that
+    // fought flip-above near the bottom of the phone screen).
+    if (!(opts && opts.skipScroll)) {
+      try {
+        target.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'nearest' });
+      } catch (e1) {
+        try {
+          target.scrollIntoView(true);
+        } catch (e2) {
+          /* ignore */
+        }
+      }
+    }
+
+    const pad = 10;
+    const gap = 12;
+    const arrowSize = 10;
+    const vw = window.innerWidth || 390;
+    const vh = window.innerHeight || 844;
+    const tr = target.getBoundingClientRect();
+    const bubble = crewTour.bubble;
+    const arrow = crewTour.arrow;
+
+    // Measure bubble
+    bubble.style.left = '0px';
+    bubble.style.top = '0px';
+    bubble.style.maxWidth = Math.min(340, vw - pad * 2) + 'px';
+    const br = bubble.getBoundingClientRect();
+    const bw = br.width || Math.min(340, vw - pad * 2);
+    const bh = br.height || 160;
+
+    const spaceBelow = vh - tr.bottom - pad;
+    const spaceAbove = tr.top - pad;
+    // Prefer above when the target sits in the lower third (phone-first)
+    const targetMid = tr.top + tr.height / 2;
+    const preferAbove = targetMid > vh * 0.55 && spaceAbove >= Math.min(bh, 100) + gap;
+    const preferBelow = !preferAbove && (spaceBelow >= bh + gap || spaceBelow >= spaceAbove);
+
+    let top;
+    let place = 'below';
+    if (preferAbove) {
+      top = tr.top - gap - bh;
+      place = 'above';
+    } else if (preferBelow && spaceBelow >= Math.min(bh, 120) + gap) {
+      top = tr.bottom + gap;
+      place = 'below';
+    } else if (spaceAbove >= Math.min(bh, 120) + gap) {
+      top = tr.top - gap - bh;
+      place = 'above';
+    } else if (spaceBelow >= spaceAbove) {
+      top = Math.min(tr.bottom + gap, vh - bh - pad);
+      place = 'below';
+    } else {
+      top = Math.max(pad, tr.top - gap - bh);
+      place = 'above';
+    }
+
+    let left = tr.left + tr.width / 2 - bw / 2;
+    left = Math.max(pad, Math.min(left, vw - bw - pad));
+
+    // Clamp top into viewport (account for sticky-ish chrome)
+    const topMin = pad;
+    const topMax = vh - bh - pad;
+    top = Math.max(topMin, Math.min(top, topMax));
+
+    bubble.style.left = Math.round(left) + 'px';
+    bubble.style.top = Math.round(top) + 'px';
+    bubble.setAttribute('data-place', place);
+
+    // Arrow: point at target center; keep attached to bubble edge
+    const targetCx = tr.left + tr.width / 2;
+    let arrowLeft = targetCx - left - arrowSize;
+    arrowLeft = Math.max(16, Math.min(arrowLeft, bw - 16 - arrowSize * 2));
+    arrow.style.left = Math.round(arrowLeft) + 'px';
+    if (place === 'below') {
+      arrow.style.top = '-' + arrowSize + 'px';
+      arrow.style.bottom = 'auto';
+      arrow.className = 'crew-tour-arrow is-above';
+    } else {
+      arrow.style.top = 'auto';
+      arrow.style.bottom = '-' + arrowSize + 'px';
+      arrow.className = 'crew-tour-arrow is-below';
+    }
+
+    // Highlight ring around target
+    if (crewTour.highlight) {
+      const hr = target.getBoundingClientRect();
+      const ringPad = 6;
+      crewTour.highlight.style.display = 'block';
+      crewTour.highlight.style.left = Math.round(hr.left - ringPad) + 'px';
+      crewTour.highlight.style.top = Math.round(hr.top - ringPad) + 'px';
+      crewTour.highlight.style.width = Math.round(hr.width + ringPad * 2) + 'px';
+      crewTour.highlight.style.height = Math.round(hr.height + ringPad * 2) + 'px';
+    }
+
+    clearCrewTourHighlightClass();
+    target.classList.add('is-tour-target');
+  }
+
+  function showCrewTourEvent(ev) {
+    ensureCrewTourDom();
+    crewTour.active = ev;
+    crewTour.lastSeenFp.set(ev.op, ev.fp);
+    crewTour.actionIndex += 1;
+    const total = Math.max(crewDemo.total || 1, crewTour.actionIndex);
+    if (crewTour.counterEl) {
+      crewTour.counterEl.textContent =
+        'Action ' + crewTour.actionIndex + ' of ' + total;
+    }
+    if (crewTour.textEl) {
+      crewTour.textEl.textContent = describeCrewTourAction(ev);
+    }
+    crewTour.root.hidden = false;
+    crewTour.root.removeAttribute('hidden');
+    crewTour.root.classList.add('is-open');
+    // Double rAF so layout (markers) exists after renderCrew
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => positionCrewTourBubble());
+    });
+    setTimeout(() => positionCrewTourBubble(), 80);
+    setTimeout(() => positionCrewTourBubble(), 200);
+  }
+
+  /**
+   * Pause play and show the next queued tour popup (if any).
+   * @returns {boolean} true if a popup is showing / will show
+   */
+  function pauseForCrewTourIfNeeded() {
+    if (!crewTour.enabled) return false;
+    queueCrewTourNewActions();
+    if (!crewTour.queue.length && !crewTour.active) return false;
+    // Stop the play timer — forklifts freeze
+    if (crewDemo.playTimer) {
+      clearInterval(crewDemo.playTimer);
+      crewDemo.playTimer = null;
+    }
+    // Keep playing flag false while paused on a stop; resumePlay remembers intent
+    if (crewDemo.playing) {
+      crewTour.resumePlay = true;
+      crewDemo.playing = false;
+    }
+    if (!crewTour.active && crewTour.queue.length) {
+      const next = crewTour.queue.shift();
+      showCrewTourEvent(next);
+    }
+    updateCrewDemoChrome();
+    return true;
+  }
+
+  function onCrewTourContinue() {
+    dismissCrewTourPopup({ keepResume: true });
+    // Same-tick queue first (several forklifts started together)
+    if (crewTour.queue.length) {
+      const next = crewTour.queue.shift();
+      showCrewTourEvent(next);
+      updateCrewDemoChrome();
+      return;
+    }
+    // Advance one move/action, then pause again with the next popup
+    if (crewDemo.seeded && !crewDemoAllDone()) {
+      const moved = stepCrewDemo();
+      renderCrew();
+      if (crewTour.enabled) {
+        queueCrewTourNewActions();
+        if (crewTour.queue.length) {
+          const next = crewTour.queue.shift();
+          showCrewTourEvent(next);
+          updateCrewDemoChrome();
+          return;
+        }
+      }
+      if (!moved || crewDemoAllDone()) {
+        crewTour.resumePlay = false;
+        stopCrewDemoPlay();
+        updateCrewDemoChrome();
+        return;
+      }
+      // Stepped but no fingerprint change (rare) — keep chrome honest
+      updateCrewDemoChrome();
+      return;
+    }
+    crewTour.resumePlay = false;
+    updateCrewDemoChrome();
+  }
+
+  function onCrewTourSkip() {
+    // Turn off auto-pause and let playback run normally
+    setCrewTourEnabled(false);
+    crewTour.queue = [];
+    dismissCrewTourPopup({ keepResume: false });
+    toast('Playing without stops');
+    if (crewDemo.seeded && !crewDemoAllDone()) {
+      startCrewDemoPlay({ fromTourContinue: true });
+    } else {
+      updateCrewDemoChrome();
+    }
+  }
+
+  function syncCrewTourToggleUi() {
+    if (el.crewTourPauseToggle) {
+      el.crewTourPauseToggle.checked = crewTour.enabled;
+    }
+  }
+
+
   /**
    * @param {'solo'|'crew'|string} [mode]
    * @returns {number}
@@ -2650,6 +3244,7 @@
   function resetCrewDemoState() {
     stopCrewDemoPlay();
     crewDemo = emptyCrewDemo();
+    resetCrewTourRun();
   }
 
   /**
@@ -2676,10 +3271,17 @@
           toDoor: String(toDoor || '').trim(),
           toTrailer: String(toTrailer || '').trim(),
           toSlot: String((m.to && m.to.slot) || '').trim(),
+          toSection: m.to && m.to.section != null ? m.to.section : null,
+          toLevel: (m.to && m.to.level) || '',
+          toLateral: (m.to && m.to.lateral) || '',
           destination: String(destination || '').trim(),
           pro: m.pro || '',
           pieceFraction: m.pieceFraction || '',
           entryId: m.entryId || '',
+          weight: m.weight,
+          h: m.h,
+          w: m.w,
+          d: m.d,
         };
       })
       .filter((m) => m.fromDoor);
@@ -2799,6 +3401,7 @@
       });
     }
 
+    resetCrewTourRun();
     crewDemo = {
       seeded: true,
       mode: mode === 'solo' ? 'solo' : 'crew',
@@ -2813,6 +3416,8 @@
       nextStartSeq: active.length,
     };
     state.crewSelectedOp = mode === 'solo' ? 1 : null;
+    // Initial assignments are new actions — queue for guided tour
+    if (crewTour.enabled) queueCrewTourNewActions();
     return true;
   }
 
@@ -2920,7 +3525,8 @@
     return true;
   }
 
-  function startCrewDemoPlay() {
+  function startCrewDemoPlay(opts) {
+    const fromTour = Boolean(opts && opts.fromTourContinue);
     if (!crewDemo.seeded) {
       const mode = crewDemoPreferredMode === 'solo' ? 'solo' : 'crew';
       const ok = seedCrewDemo(null, { mode, targetOps: crewTargetOpsForMode(mode) });
@@ -2928,16 +3534,42 @@
         toast('Build a load plan first (Dock → Plan)');
         return;
       }
+      renderCrew();
     }
     if (crewDemoAllDone()) {
       toast('Dock already loaded — Reset demo to run again');
       return;
     }
     stopCrewDemoPlay();
+
+    // Guided tour ON: pause on current/new actions instead of free-running
+    // (unless Play without stops just turned tour off, or Continue resumed).
+    if (crewTour.enabled && !fromTour) {
+      queueCrewTourNewActions();
+      if (crewTour.queue.length || crewTour.active) {
+        crewTour.resumePlay = true;
+        pauseForCrewTourIfNeeded();
+        updateCrewDemoChrome();
+        return;
+      }
+    }
+
     crewDemo.playing = true;
     crewDemo.playTimer = setInterval(() => {
+      if (crewTour.enabled && (crewTour.active || crewTour.queue.length)) {
+        // Frozen on a callout — do not advance
+        return;
+      }
       const moved = stepCrewDemo();
       renderCrew();
+      if (crewTour.enabled) {
+        queueCrewTourNewActions();
+        if (crewTour.queue.length) {
+          crewTour.resumePlay = true;
+          pauseForCrewTourIfNeeded();
+          return;
+        }
+      }
       if (!moved || crewDemoAllDone()) stopCrewDemoPlay();
       updateCrewDemoChrome();
     }, CREW_DEMO_PLAY_MS);
@@ -2965,6 +3597,11 @@
   }
 
   function onCrewStepOnce() {
+    // While a tour callout is up, Step acts like Continue
+    if (crewTour.enabled && crewTour.active) {
+      onCrewTourContinue();
+      return;
+    }
     if (!crewDemo.seeded) {
       const mode = crewDemoPreferredMode === 'solo' ? 'solo' : 'crew';
       const ok = seedCrewDemo(null, { mode, targetOps: crewTargetOpsForMode(mode) });
@@ -2973,6 +3610,10 @@
         return;
       }
       renderCrew();
+      if (crewTour.enabled && pauseForCrewTourIfNeeded()) {
+        toast('Demo ready — guided tour on');
+        return;
+      }
       toast('Demo ready — tap Step once again to advance');
       return;
     }
@@ -2983,6 +3624,9 @@
     }
     const moved = stepCrewDemo();
     renderCrew();
+    if (crewTour.enabled && pauseForCrewTourIfNeeded()) {
+      return;
+    }
     if (!moved && !crewDemoAllDone()) {
       toast('Waiting — next free pull+load door still busy');
     }
@@ -3122,7 +3766,11 @@
         const modeLabel = solo ? 'Solo' : 'Crew';
         el.crewDemoProgress.textContent =
           `${modeLabel} · Moved ${crewDemo.doneCount} of ${crewDemo.total}` +
-          (crewDemo.playing ? ' · Playing…' : '');
+          (crewDemo.playing
+            ? ' · Playing…'
+            : crewTour.enabled && crewTour.active
+              ? ' · Paused on action'
+              : '');
       }
     }
     if (el.crewDemoDone) {
@@ -3130,9 +3778,15 @@
       el.crewDemoDone.hidden = !done;
     }
     if (el.crewPlayBtn) {
-      el.crewPlayBtn.textContent = crewDemo.playing ? 'Playing…' : 'Play';
+      const tourPaused = Boolean(crewTour.enabled && crewTour.active);
+      el.crewPlayBtn.textContent = crewDemo.playing
+        ? 'Playing…'
+        : tourPaused
+          ? 'Play'
+          : 'Play';
       el.crewPlayBtn.disabled = crewDemo.playing;
     }
+    syncCrewTourToggleUi();
     renderCrewSoloJobCard();
   }
 
@@ -3344,11 +3998,23 @@
     const door = busiestOutDoorWithPlannedFreight(list);
     if (door) forceOpenCrewOutTrailerPanel(door);
     toast('Boss demo — watch forklifts on different doors + trailer fill');
-    // Land on the payoff (banner + HUD + fill) after layout settles
+    // Land on payoff, then (if guided tour is up) re-aim at the forklift callout
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => scrollBossPayoffIntoView());
+      requestAnimationFrame(() => {
+        if (!(crewTour.enabled && (crewTour.active || crewTour.queue.length))) {
+          scrollBossPayoffIntoView();
+        }
+        if (crewTour.active) positionCrewTourBubble();
+        else if (crewTour.enabled) pauseForCrewTourIfNeeded();
+      });
     });
-    setTimeout(() => scrollBossPayoffIntoView(), 120);
+    setTimeout(() => {
+      if (crewTour.active) positionCrewTourBubble();
+      else if (!(crewTour.enabled && crewTour.queue.length)) scrollBossPayoffIntoView();
+    }, 120);
+    setTimeout(() => {
+      if (crewTour.active) positionCrewTourBubble();
+    }, 280);
     return true;
   }
 
@@ -3427,6 +4093,10 @@
     if (el.crewStopBtn) {
       el.crewStopBtn.addEventListener('click', () => {
         stopCrewDemoPlay();
+        crewTour.resumePlay = false;
+        dismissCrewTourPopup({ keepResume: false });
+        // Keep queue cleared so Stop really freezes; fingerprints stay so Continue later is clean after Step/Play
+        crewTour.queue = [];
         updateCrewDemoChrome();
         toast('Demo paused');
       });
@@ -3434,6 +4104,27 @@
     if (el.crewResetDemoBtn) {
       el.crewResetDemoBtn.addEventListener('click', () => onCrewResetDemo());
     }
+    if (el.crewTourPauseToggle) {
+      el.crewTourPauseToggle.checked = readCrewTourEnabled();
+      crewTour.enabled = el.crewTourPauseToggle.checked;
+      el.crewTourPauseToggle.addEventListener('change', () => {
+        setCrewTourEnabled(el.crewTourPauseToggle.checked);
+        if (el.crewTourPauseToggle.checked) {
+          toast('Pause at each action — on');
+          if (crewDemo.seeded && crewDemo.playing) {
+            queueCrewTourNewActions();
+            pauseForCrewTourIfNeeded();
+          }
+        } else {
+          toast('Pause at each action — off');
+          if (crewTour.resumePlay || (crewDemo.seeded && !crewDemoAllDone() && !crewDemo.playing)) {
+            /* leave stopped; user can tap Play */
+          }
+        }
+        updateCrewDemoChrome();
+      });
+    }
+    ensureCrewTourDom();
     if (el.crewDoorCountInput) {
       const syncCount = () => {
         const n = setDockDoorCount(el.crewDoorCountInput.value);
@@ -4956,6 +5647,9 @@
         '<div class="empty-state">No assignments yet. Load demo inbound trailers or build a load plan.</div>';
       updateCrewSelectionUI();
       renderCrewOutTrailerPanel();
+      if (crewTour.active) {
+        requestAnimationFrame(() => positionCrewTourBubble({ skipScroll: true }));
+      }
       return;
     }
 
@@ -4990,6 +5684,12 @@
     el.crewBoardList.appendChild(frag);
     updateCrewSelectionUI();
     renderCrewOutTrailerPanel();
+    // Map markers were rebuilt — keep tour highlight/arrow on the live chip
+    if (crewTour.active) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => positionCrewTourBubble({ skipScroll: true }));
+      });
+    }
   }
 
   function bindEditPro() {
@@ -5780,7 +6480,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=43').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=44').catch(() => {
       /* offline cache optional */
     });
   }

@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=43" />
+  <link rel="stylesheet" href="styles.css?v=44" />
 </head>
 <body>
   <div id="app">
@@ -20,7 +20,7 @@
         <span class="brand-mark" aria-hidden="true">▮</span>
         <div>
           <h1>Dock App</h1>
-          <p class="tagline">Freight log · same PRO = same trailer · <span class="build-stamp" title="Build version">v43</span></p>
+          <p class="tagline">Freight log · same PRO = same trailer · <span class="build-stamp" title="Build version">v44</span></p>
         </div>
       </div>
       <div id="speechStatus" class="speech-status" aria-live="polite">
@@ -350,7 +350,7 @@
           <section class="card crew-mode-card" aria-labelledby="crew-mode-heading">
             <div class="card-head crew-mode-head">
               <h2 id="crew-mode-heading">Start mode</h2>
-              <span class="build-stamp" title="Build version">v43</span>
+              <span class="build-stamp" title="Build version">v44</span>
             </div>
             <div class="crew-mode-start" id="crewModeStart" role="group" aria-label="Start demo mode">
               <button type="button" id="crewBossDemoBtn" class="btn accept-btn crew-mode-btn crew-boss-demo-btn">Show boss demo</button>
@@ -366,7 +366,7 @@
           <section class="card crew-howto-card" aria-labelledby="crew-howto-heading">
             <details class="crew-howto-details">
               <summary id="crew-howto-heading">Crew — live demo</summary>
-              <p class="hint"><strong>Show boss demo</strong> is the main button — Play + busiest OUT fill + spread banner. Solo / Crew (5) are secondary. Tap OUT for trailer picture + list · LOAD SLOT on detail/queue. Demo controls fold away during boss mode.</p>
+              <p class="hint"><strong>Show boss demo</strong> is the main button — Play + busiest OUT fill + spread banner. Solo / Crew (5) are secondary. Tap OUT for trailer picture + list · LOAD SLOT on detail/queue. Demo controls fold away during boss mode. Guided tour pauses on each new forklift action (Continue / Play without stops).</p>
             </details>
           </section>
 
@@ -384,6 +384,10 @@
                 <button type="button" id="crewPlayBtn" class="btn muted-btn">Play</button>
                 <button type="button" id="crewStopBtn" class="btn muted-btn">Stop</button>
                 <button type="button" id="crewResetDemoBtn" class="btn muted-btn">Reset demo</button>
+                <label class="crew-tour-toggle" for="crewTourPauseToggle">
+                  <input type="checkbox" id="crewTourPauseToggle" checked />
+                  <span>Pause at each action</span>
+                </label>
               </div>
             </details>
             <p class="hint" id="crewDemoProgress" aria-live="polite">Moved 0 of 0</p>
@@ -438,7 +442,7 @@
           <section class="card operator-panel-card" aria-labelledby="operator-heading">
             <div class="card-head operator-head">
               <h2 id="operator-heading">My jobs</h2>
-              <span class="build-stamp" title="Build version">v43</span>
+              <span class="build-stamp" title="Build version">v44</span>
             </div>
             <p class="hint operator-blurb">One move at a time — directions only. No map.</p>
             <div class="operator-controls" id="operatorControls" role="group" aria-label="Operator demo">
@@ -548,9 +552,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=43"></script>
-  <script src="speech.js?v=43"></script>
-  <script src="loadPlan.js?v=43"></script>
-  <script src="app.js?v=43"></script>
+  <script src="storage.js?v=44"></script>
+  <script src="speech.js?v=44"></script>
+  <script src="loadPlan.js?v=44"></script>
+  <script src="app.js?v=44"></script>
 </body>
 </html>
