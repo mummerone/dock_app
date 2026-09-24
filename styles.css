@@ -2902,6 +2902,156 @@ button {
   margin-bottom: 10px;
 }
 
+/* v42 — side-view trailer fill (OUT panel), nose→tail */
+.trailer-fill-diagram {
+  margin: 0 0 12px;
+  padding: 10px 8px 8px;
+  border-radius: 12px;
+  border: 1px solid #3a4a60;
+  background: #0a1220;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.trailer-fill-ends {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 22px 4px 28px;
+  min-width: 280px;
+}
+
+.trailer-fill-nose,
+.trailer-fill-tail {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ffc070;
+}
+
+.trailer-fill-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 280px;
+}
+
+.trailer-fill-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.trailer-fill-level {
+  flex: 0 0 18px;
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: #9eb0c8;
+  text-align: center;
+}
+
+.trailer-fill-level-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.trailer-fill-cells {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(14px, 1fr));
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.trailer-fill-cell {
+  display: block;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid #2a3c58;
+  background: #152238;
+  box-sizing: border-box;
+}
+
+.trailer-fill-cell.is-empty {
+  background: #121a28;
+  border-color: #243048;
+  opacity: 0.55;
+}
+
+.trailer-fill-cell.is-planned {
+  background: rgba(255, 160, 48, 0.28);
+  border-color: #f0a030;
+  opacity: 1;
+}
+
+.trailer-fill-cell.is-loaded {
+  background: #2f9e5f;
+  border-color: #7dffb0;
+  opacity: 1;
+}
+
+.trailer-fill-caption {
+  margin: 8px 4px 2px;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #e8eef8;
+  line-height: 1.25;
+}
+
+.trailer-fill-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 4px 4px 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #9eb0c8;
+}
+
+.trailer-fill-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.trailer-fill-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid #2a3c58;
+  background: #121a28;
+}
+
+.trailer-fill-swatch.is-planned {
+  background: rgba(255, 160, 48, 0.28);
+  border-color: #f0a030;
+}
+
+.trailer-fill-swatch.is-loaded {
+  background: #2f9e5f;
+  border-color: #7dffb0;
+}
+
+@media (max-width: 400px) {
+  .trailer-fill-cell {
+    height: 12px;
+  }
+  .trailer-fill-cells {
+    grid-template-columns: repeat(12, minmax(12px, 1fr));
+    gap: 1.5px;
+  }
+  .trailer-fill-caption {
+    font-size: 0.82rem;
+  }
+}
+
 .crew-out-piece-list {
   display: flex;
   flex-direction: column;
@@ -3328,6 +3478,83 @@ button {
   box-shadow: 0 0 0 3px rgba(255, 180, 60, 0.55);
   border-color: #f5a623;
 }
+
+/* v42 — who’s-where spread banner + boss demo button */
+.crew-spread-banner {
+  margin: 8px 0 6px;
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 2px solid #3a4a60;
+  background: #121a28;
+  font-size: 1.02rem;
+  font-weight: 900;
+  line-height: 1.3;
+  color: #e8eef8;
+  text-align: center;
+}
+
+.crew-spread-banner.is-hint {
+  border-style: dashed;
+  border-color: #3a4a60;
+  color: #9eb0c8;
+  font-weight: 750;
+  font-size: 0.92rem;
+}
+
+.crew-spread-banner.is-solo {
+  border-color: #f0a030;
+  background: #2a2410;
+  color: #ffe8c0;
+}
+
+.crew-spread-banner.is-ok {
+  border-color: #7dffb0;
+  background: linear-gradient(180deg, #143028, #0c1a14);
+  color: #c8ffe0;
+  box-shadow: 0 0 0 1px rgba(125, 255, 176, 0.25);
+}
+
+.crew-spread-banner.is-warn {
+  border-color: #ff6b4a;
+  background: linear-gradient(180deg, #3a1810, #1a0c08);
+  color: #ffc8b0;
+  box-shadow: 0 0 0 1px rgba(255, 107, 74, 0.35);
+}
+
+.crew-boss-demo-btn {
+  background: linear-gradient(180deg, #f5a623, #d4880a) !important;
+  color: #1a1200 !important;
+  border-color: #ffc070 !important;
+  box-shadow: 0 0 0 2px rgba(245, 166, 35, 0.35);
+}
+
+.crew-boss-demo-btn.is-active-mode {
+  box-shadow: 0 0 0 3px rgba(125, 255, 176, 0.55);
+}
+
+.crew-boss-copy {
+  margin: -2px 0 8px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #ffc070;
+}
+
+/* Louder live ops / OUT badges (clarity chrome only) */
+.crew-out-target.is-loading,
+.crew-out-target.is-flash {
+  box-shadow: 0 0 0 3px rgba(255, 160, 48, 0.55);
+}
+
+.crew-door-cell.is-live,
+.crew-door-cell.has-pull {
+  border-width: 2px;
+}
+
+.crew-god-pill {
+  min-height: 46px;
+  border-width: 2px;
+}
+
 
 .crew-solo-copy {
   margin: 0 0 8px;

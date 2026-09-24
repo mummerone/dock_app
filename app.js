@@ -171,8 +171,11 @@
     crewOutTrailerCloseBtn: document.getElementById('crewOutTrailerCloseBtn'),
     crewSoloStartBtn: document.getElementById('crewSoloStartBtn'),
     crewMultiStartBtn: document.getElementById('crewMultiStartBtn'),
+    crewBossDemoBtn: document.getElementById('crewBossDemoBtn'),
     crewSoloJobCard: document.getElementById('crewSoloJobCard'),
     crewSoloCopy: document.getElementById('crewSoloCopy'),
+    crewBossCopy: document.getElementById('crewBossCopy'),
+    crewSpreadBanner: document.getElementById('crewSpreadBanner'),
     crewStepBtn: document.getElementById('crewStepBtn'),
     crewPlayBtn: document.getElementById('crewPlayBtn'),
     crewStopBtn: document.getElementById('crewStopBtn'),
@@ -3084,6 +3087,10 @@
         multi || (!crewDemo.seeded && crewDemoPreferredMode !== 'solo')
       );
     }
+    if (el.crewBossDemoBtn) {
+      const multiLive = crewDemo.seeded && crewDemo.mode !== 'solo' && crewDemo.playing;
+      el.crewBossDemoBtn.classList.toggle('is-active-mode', multiLive);
+    }
     if (el.crewDemoProgress) {
       if (!crewDemo.seeded) {
         el.crewDemoProgress.textContent =
@@ -3276,6 +3283,73 @@
     el.crewMoveQueue.appendChild(frag);
   }
 
+
+  /**
+   * Seed Crew (5), start Play, auto-open first OUT trailer fill picture.
+   * @param {object|null} plan
+   * @returns {boolean}
+   */
+  function runBossDemoWithPlan(plan) {
+    const ok = seedCrewDemo(plan, {
+      mode: 'crew',
+      targetOps: CREW_DEMO_TARGET_OPS,
+    });
+    if (!ok) {
+      toast('Build a load plan first (Dock → Plan)');
+      renderCrew();
+      return false;
+    }
+    renderCrew();
+    startCrewDemoPlay();
+    renderCrew();
+    const list = assignmentsFromCrewDemo();
+    const door = firstOutDoorWithPlannedFreight(list);
+    if (door) forceOpenCrewOutTrailerPanel(door);
+    toast('Boss demo — watch forklifts on different doors + trailer fill');
+    return true;
+  }
+
+  /** One-tap boss glance: ensure plan → Crew(5) → Play → open fill diagram. */
+  function onBossDemo() {
+    const plan = DockStorage.readLoadPlan();
+    const existingMoves = planMovesNormalized(plan);
+    if (existingMoves.length) {
+      runBossDemoWithPlan(plan);
+      return;
+    }
+    const freight = DockStorage.readAll().length;
+    if (freight > 0) {
+      if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.runLoadPlan) {
+        toast("Planner didn't load. Refresh the page and try again.");
+        return;
+      }
+      const built = DockLoadPlan.runLoadPlan();
+      renderPlan();
+      renderOutboundList();
+      renderGround();
+      refreshLoadoutTrailerPicker();
+      updateLoadoutPlanBanner();
+      if (!built || !built.moves || !built.moves.length) {
+        toast('Nothing to plan yet — load freight first');
+        renderCrew();
+        return;
+      }
+      runBossDemoWithPlan(built);
+      return;
+    }
+    toast('Opening confirm…');
+    if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.seedDemoInbound) {
+      toast("Planner didn't load. Refresh the page and try again.");
+      return;
+    }
+    openConfirmSheet({
+      title: 'Show boss demo',
+      message:
+        'Load demo inbound freight and build a load plan, then run Crew (5) Play with trailer fill open? This replaces logged freight + last plan on this device.',
+      action: 'seedDemoAndBoss',
+    });
+  }
+
   function bindCrew() {
     if (el.crewRefreshBtn) {
       el.crewRefreshBtn.addEventListener('click', () => {
@@ -3288,6 +3362,9 @@
         renderCrew();
         toast('Assignments refreshed');
       });
+    }
+    if (el.crewBossDemoBtn) {
+      el.crewBossDemoBtn.addEventListener('click', () => onBossDemo());
     }
     if (el.crewSoloStartBtn) {
       el.crewSoloStartBtn.addEventListener('click', () => onCrewStartDemo('solo'));
@@ -4166,6 +4243,219 @@
     return '';
   }
 
+  /**
+   * Parse slot label like "1/A/Left" safely. Bad labels → null (ignored).
+   * @param {string} slot
+   * @returns {{section:number, level:string}|null}
+   */
+  function parseSlotSectionLevel(slot) {
+    const s = String(slot || '').trim();
+    if (!s) return null;
+    const m = s.match(/^(\d{1,2})\s*\/\s*([A-Ca-c])(?:\s*\/|$)/);
+    if (!m) return null;
+    const section = Number(m[1]);
+    if (!Number.isFinite(section) || section < 1 || section > 12) return null;
+    return { section, level: m[2].toUpperCase() };
+  }
+
+  /**
+   * Side-view trailer fill picture for OUT panel (nose=1 left → tail=12 right).
+   * Each cell = section × level; filled if any Left/Middle/Right is occupied.
+   * @param {{slot:string, done:boolean}[]} pieces
+   * @param {boolean} cityFloorOnly
+   * @returns {string} HTML
+   */
+  function buildTrailerFillDiagramHtml(pieces, cityFloorOnly) {
+    const levels = cityFloorOnly ? ['A'] : ['C', 'B', 'A'];
+    /** @type {Map<string, {planned:boolean, loaded:boolean}>} */
+    const cellMap = new Map();
+    (pieces || []).forEach((p) => {
+      const parsed = parseSlotSectionLevel(p && p.slot);
+      if (!parsed) return;
+      if (cityFloorOnly && parsed.level !== 'A') return;
+      if (!cityFloorOnly && levels.indexOf(parsed.level) < 0) return;
+      const key = parsed.section + '/' + parsed.level;
+      let cell = cellMap.get(key);
+      if (!cell) {
+        cell = { planned: false, loaded: false };
+        cellMap.set(key, cell);
+      }
+      if (p.done) cell.loaded = true;
+      else cell.planned = true;
+    });
+
+    const totalSlots = 12 * levels.length;
+    let usedSlots = 0;
+    for (let sec = 1; sec <= 12; sec++) {
+      levels.forEach((lvl) => {
+        const cell = cellMap.get(sec + '/' + lvl);
+        if (cell && (cell.loaded || cell.planned)) usedSlots += 1;
+      });
+    }
+
+    const deckWord = cityFloorOnly ? 'floor' : 'floor/deck';
+    const caption =
+      'Packed tight nose→tail · ' +
+      usedSlots +
+      ' of ' +
+      totalSlots +
+      ' ' +
+      deckWord +
+      ' slots used';
+
+    let rowsHtml = '';
+    levels.forEach((lvl) => {
+      let cells = '';
+      for (let sec = 1; sec <= 12; sec++) {
+        const cell = cellMap.get(sec + '/' + lvl);
+        let cls = 'trailer-fill-cell is-empty';
+        let title = 'Sec ' + sec + ' · ' + lvl + ' · empty';
+        if (cell && cell.loaded) {
+          cls = 'trailer-fill-cell is-loaded';
+          title = 'Sec ' + sec + ' · ' + lvl + ' · loaded';
+        } else if (cell && cell.planned) {
+          cls = 'trailer-fill-cell is-planned';
+          title = 'Sec ' + sec + ' · ' + lvl + ' · planned';
+        }
+        cells +=
+          '<span class="' +
+          cls +
+          '" title="' +
+          escapeHtml(title) +
+          '" aria-label="' +
+          escapeHtml(title) +
+          '"></span>';
+      }
+      const lvlLabel = lvl === 'A' ? 'A floor' : lvl === 'B' ? 'B deck' : 'C deck';
+      rowsHtml +=
+        '<div class="trailer-fill-row" data-level="' +
+        lvl +
+        '">' +
+        '<span class="trailer-fill-level" aria-hidden="true">' +
+        escapeHtml(lvl) +
+        '</span>' +
+        '<div class="trailer-fill-cells" role="presentation">' +
+        cells +
+        '</div>' +
+        '<span class="trailer-fill-level-sr">' +
+        escapeHtml(lvlLabel) +
+        '</span>' +
+        '</div>';
+    });
+
+    return (
+      '<div class="trailer-fill-diagram" role="img" aria-label="' +
+      escapeHtml(caption) +
+      '">' +
+      '<div class="trailer-fill-ends" aria-hidden="true">' +
+      '<span class="trailer-fill-nose">NOSE</span>' +
+      '<span class="trailer-fill-tail">TAIL</span>' +
+      '</div>' +
+      '<div class="trailer-fill-grid">' +
+      rowsHtml +
+      '</div>' +
+      '<div class="trailer-fill-caption">' +
+      escapeHtml(caption) +
+      '</div>' +
+      '<div class="trailer-fill-legend" aria-hidden="true">' +
+      '<span><i class="trailer-fill-swatch is-empty"></i> empty</span>' +
+      '<span><i class="trailer-fill-swatch is-planned"></i> planned</span>' +
+      '<span><i class="trailer-fill-swatch is-loaded"></i> loaded</span>' +
+      '</div>' +
+      '</div>'
+    );
+  }
+
+  /**
+   * Loud who’s-where banner near god HUD — busy ops + distinct OUT doors.
+   * @param {object[]} list
+   */
+  function renderCrewSpreadBanner(list) {
+    const banner = el.crewSpreadBanner;
+    if (!banner) return;
+
+    if (!crewDemo.seeded) {
+      banner.hidden = false;
+      banner.className = 'crew-spread-banner is-hint';
+      banner.textContent =
+        'Tap Show boss demo (or Crew 5) to see forklifts on different OUT doors.';
+      return;
+    }
+
+    if (crewDemo.mode === 'solo') {
+      banner.hidden = false;
+      banner.className = 'crew-spread-banner is-solo';
+      banner.textContent = '1 forklift · one door at a time';
+      return;
+    }
+
+    const rows = list || [];
+    const busy = rows.filter((a) => a && !a.idle);
+    /** @type {Map<string, number>} */
+    const doorCounts = new Map();
+    busy.forEach((a) => {
+      const d = String(a.toDoor || '').trim();
+      if (!d) return;
+      doorCounts.set(d, (doorCounts.get(d) || 0) + 1);
+    });
+
+    const stacked = [];
+    doorCounts.forEach((n, d) => {
+      if (n > 1) stacked.push({ door: d, n });
+    });
+    stacked.sort((a, b) => Number(a.door) - Number(b.door));
+
+    const busyN = busy.length;
+    const distinct = doorCounts.size;
+    banner.hidden = false;
+
+    if (stacked.length) {
+      banner.className = 'crew-spread-banner is-warn';
+      banner.textContent = stacked
+        .map((s) => s.n + ' forklifts on Door ' + s.door + ' — stacked')
+        .join(' · ');
+      return;
+    }
+
+    if (busyN > 0) {
+      banner.className = 'crew-spread-banner is-ok';
+      banner.textContent =
+        busyN +
+        ' forklifts · ' +
+        distinct +
+        ' different OUT doors · nobody stacked';
+      return;
+    }
+
+    banner.className = 'crew-spread-banner is-hint';
+    banner.textContent = 'Crew ready — Play or Step to move freight';
+  }
+
+  /** Force-open OUT trailer panel (no toggle) so boss demo always shows fill. */
+  function forceOpenCrewOutTrailerPanel(door) {
+    const d = String(door || '').trim();
+    if (!d) return;
+    state.crewOutDoor = d;
+    renderCrewOutTrailerPanel();
+    updateCrewSelectionUI();
+  }
+
+  /**
+   * First OUT door that has planned pieces (for auto-open fill picture).
+   * @param {object[]} list
+   * @returns {string}
+   */
+  function firstOutDoorWithPlannedFreight(list) {
+    const doors = collectCrewOutDoorsWithFreight(list);
+    for (let i = 0; i < doors.length; i++) {
+      const d = doors[i];
+      const info = resolveOutTrailerForDoor(d, list);
+      const pieces = piecesForOutboundTrailer(info.trailerNumber);
+      if (pieces.length) return d;
+    }
+    return doors.length ? String(doors[0]) : '';
+  }
+
   function closeCrewOutTrailerPanel() {
     state.crewOutDoor = null;
     renderCrewOutTrailerPanel();
@@ -4241,12 +4531,18 @@
           ? `<div class="crew-out-trailer-progress">${pieces.length} piece${pieces.length === 1 ? '' : 's'} planned</div>`
           : '';
 
+    const diagramHtml =
+      info.trailerNumber && pieces.length
+        ? buildTrailerFillDiagramHtml(pieces, info.cityFloorOnly)
+        : '';
+
     body.innerHTML = `
       <div class="crew-out-trailer-head">
         <div class="crew-out-trailer-title">OUT Trailer ${escapeHtml(titleTrl)}</div>
         <div class="crew-out-trailer-meta">Door ${escapeHtml(door)} · ${escapeHtml(dest)}</div>
         ${progressBit}
       </div>
+      ${diagramHtml}
       <div class="crew-out-piece-list" role="list">${listHtml}</div>
     `;
     panel.hidden = false;
@@ -4552,6 +4848,7 @@
 
     renderCrewMap(list);
     renderCrewGodHud(list);
+    renderCrewSpreadBanner(list);
 
     if (!list.length) {
       el.crewBoardList.innerHTML =
@@ -4775,6 +5072,26 @@
         toast('Demo loaded but no moves — check Plan');
       }
       renderOperator();
+      return;
+    }
+    if (pending.action === 'seedDemoAndBoss') {
+      runSeedDemoInbound();
+      const plan =
+        typeof DockLoadPlan !== 'undefined' && DockLoadPlan.runLoadPlan
+          ? DockLoadPlan.runLoadPlan()
+          : null;
+      renderPlan();
+      renderOutboundList();
+      renderGround();
+      refreshLoadoutTrailerPicker();
+      updateLoadoutPlanBanner();
+      if (!plan || !plan.moves || !plan.moves.length) {
+        resetCrewDemoState();
+        toast('Demo loaded but no moves — check Plan');
+        renderCrew();
+        return;
+      }
+      runBossDemoWithPlan(plan);
       return;
     }
     if (pending.action === 'clearPlan') {
@@ -5362,7 +5679,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=41').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=42').catch(() => {
       /* offline cache optional */
     });
   }

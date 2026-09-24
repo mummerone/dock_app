@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=41" />
+  <link rel="stylesheet" href="styles.css?v=42" />
 </head>
 <body>
   <div id="app">
@@ -20,7 +20,7 @@
         <span class="brand-mark" aria-hidden="true">▮</span>
         <div>
           <h1>Dock App</h1>
-          <p class="tagline">Freight log · same PRO = same trailer · <span class="build-stamp" title="Build version">v41</span></p>
+          <p class="tagline">Freight log · same PRO = same trailer · <span class="build-stamp" title="Build version">v42</span></p>
         </div>
       </div>
       <div id="speechStatus" class="speech-status" aria-live="polite">
@@ -350,19 +350,21 @@
           <section class="card crew-mode-card" aria-labelledby="crew-mode-heading">
             <div class="card-head crew-mode-head">
               <h2 id="crew-mode-heading">Start mode</h2>
-              <span class="build-stamp" title="Build version">v41</span>
+              <span class="build-stamp" title="Build version">v42</span>
             </div>
             <div class="crew-mode-start" id="crewModeStart" role="group" aria-label="Start demo mode">
+              <button type="button" id="crewBossDemoBtn" class="btn accept-btn crew-mode-btn crew-boss-demo-btn">Show boss demo</button>
               <button type="button" id="crewSoloStartBtn" class="btn accept-btn crew-mode-btn">Solo forklift</button>
               <button type="button" id="crewMultiStartBtn" class="btn accept-btn crew-mode-btn">Crew (5)</button>
             </div>
             <p class="hint crew-solo-copy" id="crewSoloCopy">One forklift — first pull to last put, high-and-tight.</p>
+            <p class="hint crew-boss-copy" id="crewBossCopy">Boss glance — Crew (5) Play + trailer fill picture in one tap.</p>
           </section>
 
           <section class="card crew-howto-card" aria-labelledby="crew-howto-heading">
             <details class="crew-howto-details">
               <summary id="crew-howto-heading">Crew — live demo</summary>
-              <p class="hint">Build a plan (<strong>Plan</strong>), then start <strong>Solo forklift</strong> (one op, first pull to last put) or <strong>Crew (5)</strong> (multi-op boss view). HUD + wall show live/idle and OUT fill. Tap OUT for trailer contents · LOAD SLOT on detail/queue. Step/Play advance moves (~800ms).</p>
+              <p class="hint">One-tap <strong>Show boss demo</strong> seeds Crew (5) + Play + opens trailer fill. Or start <strong>Solo forklift</strong> / <strong>Crew (5)</strong> after a plan. HUD + wall show live/idle and OUT fill. Tap OUT for trailer picture + contents · LOAD SLOT on detail/queue. Step/Play advance moves (~800ms).</p>
             </details>
           </section>
 
@@ -382,6 +384,8 @@
             <p class="hint" id="crewDemoProgress" aria-live="polite">Moved 0 of 0</p>
             <div id="crewSoloJobCard" class="crew-solo-job-card" hidden aria-live="polite"></div>
             <div id="crewDemoDone" class="crew-demo-done" hidden role="status">Dock loaded — Ready</div>
+
+            <div id="crewSpreadBanner" class="crew-spread-banner is-hint" aria-live="polite">Tap Show boss demo to see forklifts on different OUT doors.</div>
 
             <div id="crewGodHud" class="crew-god-hud" aria-live="polite">
               <div id="crewGodPulse" class="crew-god-pulse">● 0 live · 0 idle · Moved 0/0</div>
@@ -429,7 +433,7 @@
           <section class="card operator-panel-card" aria-labelledby="operator-heading">
             <div class="card-head operator-head">
               <h2 id="operator-heading">My jobs</h2>
-              <span class="build-stamp" title="Build version">v41</span>
+              <span class="build-stamp" title="Build version">v42</span>
             </div>
             <p class="hint operator-blurb">One move at a time — directions only. No map.</p>
             <div class="operator-controls" id="operatorControls" role="group" aria-label="Operator demo">
@@ -539,9 +543,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=41"></script>
-  <script src="speech.js?v=41"></script>
-  <script src="loadPlan.js?v=41"></script>
-  <script src="app.js?v=41"></script>
+  <script src="storage.js?v=42"></script>
+  <script src="speech.js?v=42"></script>
+  <script src="loadPlan.js?v=42"></script>
+  <script src="app.js?v=42"></script>
 </body>
 </html>
