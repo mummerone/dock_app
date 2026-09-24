@@ -2875,10 +2875,15 @@ button {
 }
 
 .crew-out-trailer-body {
-  max-height: min(55vh, 480px);
+  max-height: min(60vh, 520px);
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+}
+
+.crew-out-trailer-body .trailer-fill-diagram {
+  /* diagram never scrolls sideways inside the panel */
+  overflow-x: hidden;
 }
 
 .crew-out-trailer-title {
@@ -2902,30 +2907,34 @@ button {
   margin-bottom: 10px;
 }
 
-/* v42 — side-view trailer fill (OUT panel), nose→tail */
+/* v43 — side-view trailer fill: full nose→tail, no sideways scroll */
 .trailer-fill-diagram {
   margin: 0 0 12px;
-  padding: 10px 8px 8px;
+  padding: 8px 6px 8px;
   border-radius: 12px;
   border: 1px solid #3a4a60;
   background: #0a1220;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .trailer-fill-ends {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  margin: 0 22px 4px 28px;
-  min-width: 280px;
+  margin: 0 0 4px 18px;
+  min-width: 0;
+  width: calc(100% - 18px);
+  box-sizing: border-box;
 }
 
 .trailer-fill-nose,
 .trailer-fill-tail {
-  font-size: 0.68rem;
+  font-size: 0.62rem;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   color: #ffc070;
 }
 
@@ -2933,18 +2942,22 @@ button {
   display: flex;
   flex-direction: column;
   gap: 3px;
-  min-width: 280px;
+  width: 100%;
+  min-width: 0;
 }
 
 .trailer-fill-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
+  width: 100%;
+  min-width: 0;
 }
 
 .trailer-fill-level {
-  flex: 0 0 18px;
-  font-size: 0.65rem;
+  flex: 0 0 14px;
+  width: 14px;
+  font-size: 0.6rem;
   font-weight: 900;
   color: #9eb0c8;
   text-align: center;
@@ -2963,16 +2976,19 @@ button {
 
 .trailer-fill-cells {
   display: grid;
-  grid-template-columns: repeat(12, minmax(14px, 1fr));
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 2px;
   flex: 1 1 auto;
   min-width: 0;
+  width: 100%;
 }
 
 .trailer-fill-cell {
   display: block;
-  height: 14px;
-  border-radius: 3px;
+  height: 18px;
+  min-width: 0;
+  width: 100%;
+  border-radius: 2px;
   border: 1px solid #2a3c58;
   background: #152238;
   box-sizing: border-box;
@@ -2997,19 +3013,27 @@ button {
 }
 
 .trailer-fill-caption {
-  margin: 8px 4px 2px;
+  margin: 8px 2px 0;
   font-size: 0.88rem;
   font-weight: 800;
   color: #e8eef8;
   line-height: 1.25;
 }
 
+.trailer-fill-caption-sub {
+  margin: 2px 2px 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #9eb0c8;
+  line-height: 1.25;
+}
+
 .trailer-fill-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin: 4px 4px 0;
-  font-size: 0.72rem;
+  gap: 8px;
+  margin: 6px 2px 0;
+  font-size: 0.68rem;
   font-weight: 700;
   color: #9eb0c8;
 }
@@ -3017,13 +3041,13 @@ button {
 .trailer-fill-legend span {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 
 .trailer-fill-swatch {
   display: inline-block;
-  width: 12px;
-  height: 10px;
+  width: 11px;
+  height: 9px;
   border-radius: 2px;
   border: 1px solid #2a3c58;
   background: #121a28;
@@ -3041,11 +3065,7 @@ button {
 
 @media (max-width: 400px) {
   .trailer-fill-cell {
-    height: 12px;
-  }
-  .trailer-fill-cells {
-    grid-template-columns: repeat(12, minmax(12px, 1fr));
-    gap: 1.5px;
+    height: 16px;
   }
   .trailer-fill-caption {
     font-size: 0.82rem;
@@ -3214,15 +3234,16 @@ button {
 }
 
 .crew-god-out-pills {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
 }
 
 .crew-god-pill {
   position: relative;
-  flex: 1 1 auto;
-  min-width: 4.6rem;
+  flex: unset;
+  min-width: 0;
+  width: 100%;
   min-height: 44px;
   padding: 6px 8px;
   border-radius: 9px;
@@ -3461,7 +3482,7 @@ button {
 .crew-mode-start {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   margin: 8px 0 6px;
 }
 
@@ -3474,9 +3495,87 @@ button {
   margin-top: 0;
 }
 
-.crew-mode-btn.is-active-mode {
+.crew-mode-btn.is-active-mode,
+.crew-mode-btn-secondary.is-active-mode {
   box-shadow: 0 0 0 3px rgba(255, 180, 60, 0.55);
   border-color: #f5a623;
+}
+
+.crew-mode-secondary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.crew-mode-btn-secondary {
+  width: 100%;
+  min-height: 48px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin-top: 0;
+}
+
+.crew-boss-demo-btn {
+  min-height: 64px !important;
+  font-size: 1.25rem !important;
+}
+
+.crew-demo-controls-details {
+  margin: 10px 0 6px;
+  border-radius: 12px;
+  border: 1px solid #2a3c58;
+  background: #101826;
+  padding: 0 10px 8px;
+}
+
+.crew-demo-controls-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 4px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #9eb0c8;
+}
+
+.crew-demo-controls-summary::-webkit-details-marker {
+  display: none;
+}
+
+.crew-demo-controls-summary::before {
+  content: '▸ ';
+  color: #f5a623;
+}
+
+.crew-demo-controls-details[open] .crew-demo-controls-summary::before {
+  content: '▾ ';
+}
+
+.crew-demo-controls-details .crew-demo-controls {
+  margin-top: 0;
+}
+
+#crewSpreadBanner,
+#crewGodHud,
+#crewOutTrailerPanel {
+  scroll-margin-top: 72px;
+}
+
+/* Boss mode: keep payoff high — quieter empty-door chrome */
+#dockPanelCrew.is-boss-mode .crew-door-count-details:not([open]) {
+  opacity: 0.7;
+}
+
+#dockPanelCrew.is-boss-mode .crew-map-tap-hint {
+  font-size: 0.85rem;
+}
+
+#dockPanelCrew.is-boss-mode .crew-inbound-wall {
+  /* denser active-only wall */
+  gap: 6px;
+}
+
+#dockPanelCrew.is-boss-mode .crew-out-trailer-panel {
+  margin-top: 8px;
 }
 
 /* v42 — who’s-where spread banner + boss demo button */

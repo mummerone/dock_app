@@ -176,6 +176,9 @@
     crewSoloCopy: document.getElementById('crewSoloCopy'),
     crewBossCopy: document.getElementById('crewBossCopy'),
     crewSpreadBanner: document.getElementById('crewSpreadBanner'),
+    crewDemoControlsDetails: document.getElementById('crewDemoControlsDetails'),
+    crewDoorCountDetails: document.getElementById('crewDoorCountDetails'),
+    crewMapTapHint: document.getElementById('crewMapTapHint'),
     crewStepBtn: document.getElementById('crewStepBtn'),
     crewPlayBtn: document.getElementById('crewPlayBtn'),
     crewStopBtn: document.getElementById('crewStopBtn'),
@@ -2616,6 +2619,7 @@
     return {
       seeded: false,
       mode: 'crew',
+      bossMode: false,
       targetOps: CREW_DEMO_TARGET_OPS,
       queue: [],
       active: [],
@@ -2798,6 +2802,7 @@
     crewDemo = {
       seeded: true,
       mode: mode === 'solo' ? 'solo' : 'crew',
+      bossMode: Boolean(opts && opts.bossMode) && mode !== 'solo',
       targetOps,
       queue: diversifyQueueByLoad(remaining),
       active,
@@ -3071,26 +3076,44 @@
 
   function updateCrewDemoChrome() {
     const solo = crewDemo.seeded && crewDemo.mode === 'solo';
+    const boss = crewDemo.seeded && crewDemo.bossMode;
     if (el.crewSoloCopy) {
       el.crewSoloCopy.hidden = false;
       el.crewSoloCopy.textContent = solo
         ? 'One forklift — first pull to last put, high-and-tight.'
-        : 'Solo forklift = 1 op end-to-end · Crew (5) = multi-op boss view. Same plan.';
+        : 'Solo = one forklift end-to-end · Crew (5) = multi-op (no auto Play).';
+    }
+    if (el.crewBossCopy) {
+      el.crewBossCopy.hidden = false;
+      el.crewBossCopy.textContent = boss
+        ? 'Boss mode on — packed trailers + forklifts on different OUT doors.'
+        : 'One tap: packed trailers + forklifts on different OUT doors.';
     }
     if (el.crewSoloStartBtn) {
       el.crewSoloStartBtn.classList.toggle('is-active-mode', solo || (!crewDemo.seeded && crewDemoPreferredMode === 'solo'));
     }
     if (el.crewMultiStartBtn) {
-      const multi = crewDemo.seeded && crewDemo.mode !== 'solo';
+      const multi = crewDemo.seeded && crewDemo.mode !== 'solo' && !crewDemo.bossMode;
       el.crewMultiStartBtn.classList.toggle(
         'is-active-mode',
         multi || (!crewDemo.seeded && crewDemoPreferredMode !== 'solo')
       );
     }
     if (el.crewBossDemoBtn) {
-      const multiLive = crewDemo.seeded && crewDemo.mode !== 'solo' && crewDemo.playing;
-      el.crewBossDemoBtn.classList.toggle('is-active-mode', multiLive);
+      el.crewBossDemoBtn.classList.toggle('is-active-mode', boss);
     }
+    // Boss: fold Step/Play/Stop/Reset; keep door-count closed
+    if (el.crewDemoControlsDetails) {
+      if (boss) el.crewDemoControlsDetails.open = false;
+      else if (!crewDemo.seeded) el.crewDemoControlsDetails.open = false;
+      else el.crewDemoControlsDetails.open = true;
+    }
+    if (el.crewDoorCountDetails && boss) {
+      el.crewDoorCountDetails.open = false;
+    }
+    document.body.classList.toggle('crew-boss-mode', Boolean(boss));
+    const crewPanel = document.getElementById('dockPanelCrew');
+    if (crewPanel) crewPanel.classList.toggle('is-boss-mode', Boolean(boss));
     if (el.crewDemoProgress) {
       if (!crewDemo.seeded) {
         el.crewDemoProgress.textContent =
@@ -3289,10 +3312,25 @@
    * @param {object|null} plan
    * @returns {boolean}
    */
+  function scrollBossPayoffIntoView() {
+    const target = el.crewSpreadBanner || el.crewGodHud || el.crewOutTrailerPanel;
+    if (!target || typeof target.scrollIntoView !== 'function') return;
+    try {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (e) {
+      try {
+        target.scrollIntoView(true);
+      } catch (e2) {
+        /* ignore */
+      }
+    }
+  }
+
   function runBossDemoWithPlan(plan) {
     const ok = seedCrewDemo(plan, {
       mode: 'crew',
       targetOps: CREW_DEMO_TARGET_OPS,
+      bossMode: true,
     });
     if (!ok) {
       toast('Build a load plan first (Dock → Plan)');
@@ -3303,9 +3341,14 @@
     startCrewDemoPlay();
     renderCrew();
     const list = assignmentsFromCrewDemo();
-    const door = firstOutDoorWithPlannedFreight(list);
+    const door = busiestOutDoorWithPlannedFreight(list);
     if (door) forceOpenCrewOutTrailerPanel(door);
     toast('Boss demo — watch forklifts on different doors + trailer fill');
+    // Land on the payoff (banner + HUD + fill) after layout settles
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => scrollBossPayoffIntoView());
+    });
+    setTimeout(() => scrollBossPayoffIntoView(), 120);
     return true;
   }
 
@@ -3653,9 +3696,11 @@
 
   function renderOperator() {
     updateOperatorEmptyHint();
-    let remainCount = 0;
-    if (operatorDemo.seeded && !operatorAllDone()) {
-      remainCount = operatorDemo.total - operatorDemo.index;
+    // Hide Start once a job is active (still seeded and not finished)
+    if (el.operatorStartBtn) {
+      const hideStart =
+        operatorDemo.seeded && !operatorAllDone();
+      el.operatorStartBtn.hidden = hideStart;
     }
 
     if (el.operatorProgress) {
@@ -3665,8 +3710,9 @@
         el.operatorProgress.textContent = `Move ${operatorDemo.total} of ${operatorDemo.total} · Remaining 0`;
       } else {
         const n = operatorDemo.index + 1;
+        const afterThis = Math.max(0, operatorDemo.total - n);
         el.operatorProgress.textContent =
-          `Move ${n} of ${operatorDemo.total} · Remaining ${remainCount}`;
+          `Move ${n} of ${operatorDemo.total} · ${afterThis} after this`;
       }
     }
 
@@ -4267,9 +4313,12 @@
    */
   function buildTrailerFillDiagramHtml(pieces, cityFloorOnly) {
     const levels = cityFloorOnly ? ['A'] : ['C', 'B', 'A'];
+    const list = pieces || [];
+    const totalPieces = list.length;
+    const loadedPieces = list.filter((p) => p && p.done).length;
     /** @type {Map<string, {planned:boolean, loaded:boolean}>} */
     const cellMap = new Map();
-    (pieces || []).forEach((p) => {
+    list.forEach((p) => {
       const parsed = parseSlotSectionLevel(p && p.slot);
       if (!parsed) return;
       if (cityFloorOnly && parsed.level !== 'A') return;
@@ -4280,28 +4329,36 @@
         cell = { planned: false, loaded: false };
         cellMap.set(key, cell);
       }
+      // Loaded wins when any piece in this space is done
       if (p.done) cell.loaded = true;
       else cell.planned = true;
     });
 
-    const totalSlots = 12 * levels.length;
-    let usedSlots = 0;
+    const totalSpaces = 12 * levels.length;
+    let usedSpaces = 0;
     for (let sec = 1; sec <= 12; sec++) {
       levels.forEach((lvl) => {
         const cell = cellMap.get(sec + '/' + lvl);
-        if (cell && (cell.loaded || cell.planned)) usedSlots += 1;
+        if (cell && (cell.loaded || cell.planned)) usedSpaces += 1;
       });
     }
 
-    const deckWord = cityFloorOnly ? 'floor' : 'floor/deck';
-    const caption =
-      'Packed tight nose→tail · ' +
-      usedSlots +
-      ' of ' +
-      totalSlots +
-      ' ' +
-      deckWord +
-      ' slots used';
+    // Same unit as panel header: pieces
+    const captionMain = totalPieces
+      ? crewDemo.seeded
+        ? 'Packed tight nose→tail · ' +
+          loadedPieces +
+          ' of ' +
+          totalPieces +
+          ' pieces loaded'
+        : 'Packed tight nose→tail · ' +
+          totalPieces +
+          ' piece' +
+          (totalPieces === 1 ? '' : 's') +
+          ' planned'
+      : 'Packed tight nose→tail';
+    const captionSub =
+      'Uses ' + usedSpaces + ' of ' + totalSpaces + ' trailer spaces (nose-first)';
 
     let rowsHtml = '';
     levels.forEach((lvl) => {
@@ -4345,7 +4402,7 @@
 
     return (
       '<div class="trailer-fill-diagram" role="img" aria-label="' +
-      escapeHtml(caption) +
+      escapeHtml(captionMain + '. ' + captionSub) +
       '">' +
       '<div class="trailer-fill-ends" aria-hidden="true">' +
       '<span class="trailer-fill-nose">NOSE</span>' +
@@ -4355,7 +4412,10 @@
       rowsHtml +
       '</div>' +
       '<div class="trailer-fill-caption">' +
-      escapeHtml(caption) +
+      escapeHtml(captionMain) +
+      '</div>' +
+      '<div class="trailer-fill-caption-sub">' +
+      escapeHtml(captionSub) +
       '</div>' +
       '<div class="trailer-fill-legend" aria-hidden="true">' +
       '<span><i class="trailer-fill-swatch is-empty"></i> empty</span>' +
@@ -4378,19 +4438,24 @@
       banner.hidden = false;
       banner.className = 'crew-spread-banner is-hint';
       banner.textContent =
-        'Tap Show boss demo (or Crew 5) to see forklifts on different OUT doors.';
+        'Tap Show boss demo — packed trailers + forklifts on different doors.';
       return;
     }
 
     if (crewDemo.mode === 'solo') {
       banner.hidden = false;
       banner.className = 'crew-spread-banner is-solo';
-      banner.textContent = '1 forklift · one door at a time';
+      banner.textContent = '1 of 1 forklift working · one door at a time';
       return;
     }
 
     const rows = list || [];
+    const crewSize = Math.max(
+      1,
+      Number(crewDemo.targetOps) || rows.length || CREW_DEMO_TARGET_OPS
+    );
     const busy = rows.filter((a) => a && !a.idle);
+    const idleN = Math.max(0, crewSize - busy.length);
     /** @type {Map<string, number>} */
     const doorCounts = new Map();
     busy.forEach((a) => {
@@ -4408,12 +4473,17 @@
     const busyN = busy.length;
     const distinct = doorCounts.size;
     banner.hidden = false;
+    const waitBit =
+      idleN > 0
+        ? ' · ' + idleN + ' waiting'
+        : '';
 
     if (stacked.length) {
       banner.className = 'crew-spread-banner is-warn';
-      banner.textContent = stacked
-        .map((s) => s.n + ' forklifts on Door ' + s.door + ' — stacked')
-        .join(' · ');
+      banner.textContent =
+        stacked
+          .map((s) => s.n + ' forklifts on Door ' + s.door + ' — stacked')
+          .join(' · ') + waitBit;
       return;
     }
 
@@ -4421,14 +4491,18 @@
       banner.className = 'crew-spread-banner is-ok';
       banner.textContent =
         busyN +
-        ' forklifts · ' +
+        ' of ' +
+        crewSize +
+        ' forklifts working · ' +
         distinct +
-        ' different OUT doors · nobody stacked';
+        ' different OUT doors · nobody stacked' +
+        waitBit;
       return;
     }
 
     banner.className = 'crew-spread-banner is-hint';
-    banner.textContent = 'Crew ready — Play or Step to move freight';
+    banner.textContent =
+      '0 of ' + crewSize + ' forklifts working · all waiting';
   }
 
   /** Force-open OUT trailer panel (no toggle) so boss demo always shows fill. */
@@ -4441,19 +4515,29 @@
   }
 
   /**
-   * First OUT door that has planned pieces (for auto-open fill picture).
+   * Busiest OUT door (most planned pieces) — boss demo auto-opens this fill.
    * @param {object[]} list
    * @returns {string}
    */
-  function firstOutDoorWithPlannedFreight(list) {
+  function busiestOutDoorWithPlannedFreight(list) {
     const doors = collectCrewOutDoorsWithFreight(list);
-    for (let i = 0; i < doors.length; i++) {
-      const d = doors[i];
+    let best = '';
+    let bestN = -1;
+    doors.forEach((d) => {
       const info = resolveOutTrailerForDoor(d, list);
       const pieces = piecesForOutboundTrailer(info.trailerNumber);
-      if (pieces.length) return d;
-    }
-    return doors.length ? String(doors[0]) : '';
+      const n = pieces.length;
+      if (n > bestN) {
+        bestN = n;
+        best = String(d);
+      }
+    });
+    return best || (doors.length ? String(doors[0]) : '');
+  }
+
+  /** @deprecated alias — prefer busiest */
+  function firstOutDoorWithPlannedFreight(list) {
+    return busiestOutDoorWithPlannedFreight(list);
   }
 
   function closeCrewOutTrailerPanel() {
@@ -4526,7 +4610,7 @@
 
     const progressBit =
       pieces.length && crewDemo.seeded
-        ? `<div class="crew-out-trailer-progress">${doneN} of ${pieces.length} loaded</div>`
+        ? `<div class="crew-out-trailer-progress">${doneN} of ${pieces.length} pieces loaded</div>`
         : pieces.length
           ? `<div class="crew-out-trailer-progress">${pieces.length} piece${pieces.length === 1 ? '' : 's'} planned</div>`
           : '';
@@ -4580,7 +4664,24 @@
     const activityPull = collectCrewPullDoors(list);
     const activitySet = new Set(activityPull);
     const doorCount = getDockDoorCount(list);
-    const pullDoors = visibleCrewPullDoors(doorCount, activityPull);
+    let pullDoors;
+    if (crewDemo.seeded && crewDemo.bossMode) {
+      // Boss glance: only doors with a forklift (busy or waiting) — no empty grid
+      const liveDoors = new Set();
+      (list || []).forEach((a) => {
+        const d = String((a && a.fromDoor) || '').trim();
+        if (d && d !== '—') liveDoors.add(d);
+      });
+      pullDoors = sortDoorIds(Array.from(liveDoors));
+      if (!pullDoors.length) {
+        pullDoors = visibleCrewPullDoors(doorCount, activityPull).filter((d) =>
+          activitySet.has(d)
+        );
+      }
+      if (!pullDoors.length) pullDoors = visibleCrewPullDoors(doorCount, activityPull);
+    } else {
+      pullDoors = visibleCrewPullDoors(doorCount, activityPull);
+    }
     const outDoors = collectCrewOutDoorsWithFreight(list);
 
     const livePullDoors = new Set(
@@ -5679,7 +5780,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=42').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=43').catch(() => {
       /* offline cache optional */
     });
   }

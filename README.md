@@ -174,6 +174,8 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v43 **Boss glance polish** — trailer fill fits 390px (no sideways scroll); piece counts match header+caption; boss demo scrolls to payoff + folds Demo controls; auto-opens busiest OUT; honest `N of 5 forklifts working · waiting`; hero Show boss demo; active-only wall in boss mode; HUD OUT chips 3-col. Stamp + SW `dock-app-v43`.
+
 v42 **Boss glance** — OUT trailer side-view fill picture (nose→tail · A/B/C); Crew spread banner (forklifts on different OUT doors); one-tap **Show boss demo** (Crew 5 + Play + open fill). Keeps Crew wall / OUT panel / Solo / Operator. Stamp + SW `dock-app-v42`.
 
 v41 **Operator (My jobs)** — Dock subtab with one-move-at-a-time directions (PICK → Got it on forks → LOAD → Loaded). No map / no remaining-moves list. Reuses plan moves; optional Use demo plan. Keeps Crew Solo / Crew(5) / Ground. Stamp + SW `dock-app-v41`.
@@ -218,7 +220,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v42`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v43`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
