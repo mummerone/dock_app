@@ -2636,7 +2636,7 @@
   }
 
   // ---------- v45: Guided tour polish (edge dock · both ends lit · short copy) ----------
-  // ---------- v47: Top-down trailer view (by deck · Floor/Deck 2/Deck 3 jump) ----------
+  // ---------- v48: Top-down trailer view (by deck · Floor/Deck 2/Deck 3 jump) ----------
 
   const CREW_TOUR_PAUSE_KEY = 'dockApp.crewTourPause.v1';
 
@@ -2928,10 +2928,25 @@
       ? Number(move.toSection)
       : Number(String(move.toSlot || '').split('/')[0]);
     const wt = Number(move.weight);
-    if (level === 'A' && Number.isFinite(wt) && wt >= 1200) {
-      why.push('Heavy piece goes on the floor' + (section <= 3 ? ' at the nose' : '') + '.');
+    const isNoseZone = Number.isFinite(section) && section === 1;
+    const isTailZone = Number.isFinite(section) && section === 12;
+    const isEndZone = isNoseZone || isTailZone;
+    // v48: axle/end-zone copy wins — never claim "heavy at the nose"
+    if (isEndZone) {
+      const where = isNoseZone ? 'nose' : 'tail';
+      if (Number.isFinite(wt) && wt > 0 && wt <= 900) {
+        why.push(
+          'Light piece at the ' + where + ' keeps the axle under the limit.'
+        );
+      } else {
+        why.push(
+          'Keep the ' + where + ' light — first/last 4 ft stay under the axle cap.'
+        );
+      }
+    } else if (level === 'A' && Number.isFinite(wt) && wt >= 1200) {
+      why.push('Heavy piece goes on the floor in the middle for axle balance.');
     } else if (level === 'A' && Number.isFinite(section) && section <= 3) {
-      why.push('Floor at the nose packs the trailer tight.');
+      why.push('Floor near the nose packs the trailer tight without overloading the end zone.');
     } else if (level === 'B' || level === 'C') {
       why.push('Deck keeps heavier floor freight underneath.');
     }
@@ -4144,34 +4159,11 @@
     return true;
   }
 
-  /** One-tap boss glance: ensure plan → Crew(5) → Play → open fill diagram. */
+  /** One-tap boss glance: ALWAYS fresh seed + plan → Crew(5) → Play → fill.
+   * v48: never reuse a stale plan — that was the Vision Critic overload
+   * (old uncapped placement) while the UI claimed v47 axle/nose caps.
+   */
   function onBossDemo() {
-    const plan = DockStorage.readLoadPlan();
-    const existingMoves = planMovesNormalized(plan);
-    if (existingMoves.length) {
-      runBossDemoWithPlan(plan);
-      return;
-    }
-    const freight = DockStorage.readAll().length;
-    if (freight > 0) {
-      if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.runLoadPlan) {
-        toast("Planner didn't load. Refresh the page and try again.");
-        return;
-      }
-      const built = DockLoadPlan.runLoadPlan();
-      renderPlan();
-      renderOutboundList();
-      renderGround();
-      refreshLoadoutTrailerPicker();
-      updateLoadoutPlanBanner();
-      if (!built || !built.moves || !built.moves.length) {
-        toast('Nothing to plan yet — load freight first');
-        renderCrew();
-        return;
-      }
-      runBossDemoWithPlan(built);
-      return;
-    }
     toast('Opening confirm…');
     if (typeof DockLoadPlan === 'undefined' || !DockLoadPlan.seedDemoInbound) {
       toast("Planner didn't load. Refresh the page and try again.");
@@ -4180,7 +4172,7 @@
     openConfirmSheet({
       title: 'Show boss demo',
       message:
-        'Load demo inbound freight and build a load plan, then run Crew (5) Play with trailer fill open? This replaces logged freight + last plan on this device.',
+        'Load a FRESH demo (new inbound freight + new load plan with nose/tail/axle caps), then run Crew (5) Play with trailer fill open? This replaces logged freight + last plan on this device.',
       action: 'seedDemoAndBoss',
     });
   }
@@ -4240,11 +4232,17 @@
           if (crewDemo.seeded && crewDemo.playing) {
             queueCrewTourNewActions();
             pauseForCrewTourIfNeeded();
+          } else if (crewDemo.seeded && !crewDemoAllDone()) {
+            // Re-enable guided pauses on the next action without forcing play
+            queueCrewTourNewActions();
           }
         } else {
-          toast('Pause at each action — off');
-          if (crewTour.resumePlay || (crewDemo.seeded && !crewDemoAllDone() && !crewDemo.playing)) {
-            /* leave stopped; user can tap Play */
+          // Unchecked ↔ Play without stops (same path)
+          toast('Pause at each action — off · playing through');
+          crewTour.queue = [];
+          dismissCrewTourPopup({ keepResume: false });
+          if (crewDemo.seeded && !crewDemoAllDone()) {
+            startCrewDemoPlay({ fromTourContinue: true });
           }
         }
         updateCrewDemoChrome();
@@ -4289,9 +4287,9 @@
     if (el.crewOutTrailerCloseBtn) {
       el.crewOutTrailerCloseBtn.addEventListener('click', () => closeCrewOutTrailerPanel());
     }
-    // v47: Side view | Top-down tabs, deck jumps, piece tap (event delegation)
-    if (el.crewOutTrailerBody && !el.crewOutTrailerBody.dataset.v47Bound) {
-      el.crewOutTrailerBody.dataset.v47Bound = '1';
+    // v48: Side view | Top-down tabs, deck jumps, piece tap (event delegation)
+    if (el.crewOutTrailerBody && !el.crewOutTrailerBody.dataset.v48Bound) {
+      el.crewOutTrailerBody.dataset.v48Bound = '1';
       el.crewOutTrailerBody.addEventListener('click', (ev) => {
         const t = ev.target;
         if (!t || !t.closest) return;
@@ -5249,7 +5247,7 @@
    */
 
   /**
-   * v47 PUP axle / nose+tail zone weight limits (display mirrors planner caps).
+   * v48 PUP axle / nose+tail zone weight limits (display mirrors planner caps).
    * Sections 1–12 nose→tail. Nose zone ≈ first bay (sec 1, ~4 ft). Tail ≈ last bay (sec 12).
    * Axle share: secs 1–6 → front axle, 7–12 → rear axle.
    */
@@ -5548,7 +5546,7 @@
    */
 
   /**
-   * v47 Top-down (bird's-eye) trailer floor plan for one deck at a time.
+   * v48 Top-down (bird's-eye) trailer floor plan for one deck at a time.
    * Nose at top → Tail at bottom. Width columns: Left | Mid-L | Mid-R | Right.
    * Existing SLOT …/Middle pieces span both middle halves (display-only).
    * @param {{slot:string, done:boolean, pro?:string, pieceFraction?:string}[]} pieces
@@ -7195,7 +7193,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=47').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=48').catch(() => {
       /* offline cache optional */
     });
   }

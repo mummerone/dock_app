@@ -40,7 +40,7 @@
   const LATERALS = ['Left', 'Middle', 'Right'];
 
   /**
-   * v47 PUP axle / end-zone weight caps (planner enforces; UI mirrors).
+   * v48 PUP axle / end-zone weight caps (planner enforces; UI mirrors).
    * 12 sections nose→tail. On a 48–53 ft van each bay ≈ 4–4.4 ft, so:
    *   nose zone (first ~4 ft) = section 1
    *   tail zone (last ~4 ft)  = section 12
@@ -49,6 +49,8 @@
   const PUP_AXLE_CAP_LB = 20000;
   const PUP_ZONE_MAX_LB = 3200; // hard cap nose + tail
   const PUP_ZONE_SOFT_LB = 3000; // prefer staying under
+  /** v48: absolute light-only ceiling for sec1/sec12 — heavies skip ends → middle */
+  const PUP_END_LIGHT_MAX_LB = 900; // allows seed jitter on ≤800 catalog sizes
   const PUP_NOSE_SECTIONS = [1];
   const PUP_TAIL_SECTIONS = [12];
   const PUP_FRONT_SECTIONS = [1, 2, 3, 4, 5, 6];
@@ -128,7 +130,7 @@
   }
 
   /**
-   * Weight-aware slot order for outbound packing (v47).
+   * Weight-aware slot order for outbound packing (v48).
    * Fill nose then tail first (light freight), then middle (heavy).
    * Within each section still high-and-tight: A then B/C (or floor-only A).
    * @param {boolean} cityFloorOnly
@@ -279,7 +281,7 @@
 
   /**
    * Init per-trailer pack state (unique slots only — never reuse last slot).
-   * v47: weight-aware slot order + live section weights for axle/zone caps.
+   * v48: weight-aware slot order + live section weights for axle/zone caps.
    * @param {object} outbound
    * @returns {object}
    */
@@ -361,7 +363,7 @@
 
   /**
    * Place an entire PRO onto one trailer using unique slots only.
-   * v47: refuse nose/tail/axle over-cap slots; light→ends, heavy→middle.
+   * v48: refuse nose/tail/axle over-cap slots; light-only→ends, heavy→middle.
    * Caller must ensure freeSlotCount(state) >= ship.pieces.length (slot count);
    * weight caps may still force a rollback if nothing legal fits.
    * @returns {{pro:string, pieces:object[]}|null}
@@ -525,9 +527,9 @@
       for (let p = 0; p < proCount; p++) {
         const dest = pick(DEMO_DESTINATIONS);
         const pieceCount = randInt(2, 8);
-        // v47: mix light + heavy sizes so nose/tail can take light pieces
-        const lightPool = SIZE_POOL.filter((s) => s.weight <= 700);
-        const heavyPool = SIZE_POOL.filter((s) => s.weight >= 800);
+        // v48: mix light + heavy so nose/tail always have ≤800 lb pieces available
+        const lightPool = SIZE_POOL.filter((s) => s.weight <= 800);
+        const heavyPool = SIZE_POOL.filter((s) => s.weight >= 900);
         const size =
           p % 3 === 0
             ? pick(lightPool.length ? lightPool : SIZE_POOL)
@@ -537,9 +539,9 @@
         const pro = String(proSeq++);
         const pieces = [];
         for (let i = 1; i <= pieceCount; i++) {
-          // Within a bill, sprinkle one light piece when the bill is heavy
+          // Within a bill: guarantee light pieces for end zones (redistribute, don't drop)
           let sz = size;
-          if (size.weight >= 1100 && i === pieceCount && lightPool.length) {
+          if (lightPool.length && (i === 1 || (size.weight > PUP_END_LIGHT_MAX_LB && i === pieceCount))) {
             sz = pick(lightPool);
           }
           pieces.push({
@@ -688,9 +690,11 @@
   }
 
   /**
-   * v47: pick a piece for a slot under nose/tail/axle remaining caps.
-   * Nose + tail → lightest that fits (prefer keeping zone under soft 3,000).
-   * Middle floor A → heaviest that fits; B/C → shortest then lightest.
+   * v48: pick a piece for a slot under nose/tail/axle remaining caps.
+   * Nose + tail → LIGHT freight only (≤ PUP_END_LIGHT_MAX_LB); heavies skip ends
+   * and land in the middle on a later slot (redistribute, do not drop).
+   * Prefer keeping end zones under soft 3,000. Middle floor A → heaviest that fits;
+   * B/C → shortest then lightest.
    * Mutates `pool`. Returns null if nothing fits this slot.
    * @param {object[]} pool
    * @param {{section:number, level:string}} slot
@@ -709,7 +713,11 @@
     /** @type {number[]} */
     const fit = [];
     for (let i = 0; i < pool.length; i++) {
-      if (pieceWeight(pool[i]) <= rem) fit.push(i);
+      const w = pieceWeight(pool[i]);
+      if (w > rem) continue;
+      // v48 hard rule: no heavy pieces in first/last 4 ft (sec1 / sec12)
+      if (isEnd && w > PUP_END_LIGHT_MAX_LB) continue;
+      fit.push(i);
     }
     if (!fit.length) return null;
 
@@ -1409,14 +1417,21 @@
       if (!key) return null;
       if (stateByTrailer.has(key)) return stateByTrailer.get(key);
       const st = initTrailerPackState(outbound);
-      // Mark slots already used in this plan's loadout / moves
+      // Mark slots already used + rebuild sectionWeight so axle/nose caps still apply
       (plan.outboundLoadouts || []).forEach((L) => {
         if (String(L.trailerNumber || '').trim() !== key) return;
         (L.groups || []).forEach((g) => {
           (g.pieces || []).forEach((p) => {
             if (p.slot) {
               st.usedLabels.add(p.slot);
-              // Advance cursor past used indices when possible
+              const sec =
+                p.section != null
+                  ? Number(p.section)
+                  : Number(String(p.slot).split('/')[0]) || 0;
+              const w = Number(p.weight);
+              if (sec >= 1 && sec <= 12 && Number.isFinite(w) && w > 0) {
+                st.sectionWeight[sec] = (st.sectionWeight[sec] || 0) + w;
+              }
             }
           });
         });
