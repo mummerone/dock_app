@@ -48,6 +48,9 @@
     crewRotate: 0, // Refresh assignments offset
     crewSelectedOp: null, // selected operator on dock map
     crewOutDoor: null, // selected OUT door for trailer contents panel
+    crewOutViewMode: 'side', // 'side' | 'top' — OUT trailer diagram
+    crewOutTopDeck: 'A', // 'A'|'B'|'C' — selected deck in top-down view
+    crewOutSelectedPieceKey: null, // highlighted piece in top-down / list
     loadoutTrailer: '',
     pieceLocked: false, // mid-sequence: piece field forced to k/n
     destinationLocked: false, // PRO already has a destination — reuse until edited
@@ -2633,6 +2636,7 @@
   }
 
   // ---------- v45: Guided tour polish (edge dock · both ends lit · short copy) ----------
+  // ---------- v46: Top-down trailer view (by deck · Floor/Deck 2/Deck 3 jump) ----------
 
   const CREW_TOUR_PAUSE_KEY = 'dockApp.crewTourPause.v1';
 
@@ -4285,6 +4289,46 @@
     if (el.crewOutTrailerCloseBtn) {
       el.crewOutTrailerCloseBtn.addEventListener('click', () => closeCrewOutTrailerPanel());
     }
+    // v46: Side view | Top-down tabs, deck jumps, piece tap (event delegation)
+    if (el.crewOutTrailerBody && !el.crewOutTrailerBody.dataset.v46Bound) {
+      el.crewOutTrailerBody.dataset.v46Bound = '1';
+      el.crewOutTrailerBody.addEventListener('click', (ev) => {
+        const t = ev.target;
+        if (!t || !t.closest) return;
+        const viewBtn = t.closest('[data-trailer-view]');
+        if (viewBtn) {
+          const mode = viewBtn.getAttribute('data-trailer-view') === 'top' ? 'top' : 'side';
+          state.crewOutViewMode = mode;
+          state.crewOutSelectedPieceKey = null;
+          renderCrewOutTrailerPanel();
+          return;
+        }
+        const deckBtn = t.closest('[data-deck-level]');
+        if (deckBtn) {
+          const L = String(deckBtn.getAttribute('data-deck-level') || 'A').toUpperCase();
+          state.crewOutViewMode = 'top';
+          state.crewOutTopDeck = L;
+          state.crewOutSelectedPieceKey = null;
+          renderCrewOutTrailerPanel();
+          return;
+        }
+        const pieceBtn = t.closest('.trailer-top-cell[data-piece-key]');
+        if (pieceBtn) {
+          const key = pieceBtn.getAttribute('data-piece-key') || '';
+          state.crewOutSelectedPieceKey =
+            state.crewOutSelectedPieceKey === key ? null : key;
+          renderCrewOutTrailerPanel();
+          return;
+        }
+        const listPiece = t.closest('.crew-out-piece[data-piece-key]');
+        if (listPiece) {
+          const key = listPiece.getAttribute('data-piece-key') || '';
+          state.crewOutSelectedPieceKey =
+            state.crewOutSelectedPieceKey === key ? null : key;
+          renderCrewOutTrailerPanel();
+        }
+      });
+    }
     if (el.crewGodOutPills) {
       el.crewGodOutPills.addEventListener('click', (ev) => {
         const pill = ev.target.closest('.crew-god-pill[data-door]');
@@ -5048,7 +5092,8 @@
     const load = (plan.outboundLoadouts || []).find(
       (L) => String(L.trailerNumber || '').trim() === t
     );
-    if (load && Array.isArray(load.groups) && load.groups.length) {
+    // Prefer outboundLoadouts groups as source of truth (even when empty)
+    if (load && Array.isArray(load.groups)) {
       const out = [];
       load.groups.forEach((g) => {
         (g.pieces || []).forEach((p) => {
@@ -5059,6 +5104,7 @@
             pro,
             pieceFraction,
             slot,
+            weight: p.weight != null ? Number(p.weight) : null,
             fromDoor: p.fromDoor || '',
             fromTrailer: p.fromTrailer || '',
             fromSlot: p.fromSlot || '',
@@ -5081,6 +5127,7 @@
           pro,
           pieceFraction,
           slot,
+          weight: m.weight != null ? Number(m.weight) : null,
           fromDoor: (m.from && m.from.door) || '',
           fromTrailer: (m.from && m.from.trailer) || '',
           fromSlot: (m.from && m.from.slot) || '',
@@ -5108,13 +5155,89 @@
    * @returns {{section:number, level:string}|null}
    */
   function parseSlotSectionLevel(slot) {
+    const full = parseSlotFull(slot);
+    if (!full) return null;
+    return { section: full.section, level: full.level };
+  }
+
+  /**
+   * Full slot parse: section / level / lateral (Left|Middle|Right).
+   * @param {string} slot
+   * @returns {{section:number, level:string, lateral:string}|null}
+   */
+  function parseSlotFull(slot) {
     const s = String(slot || '').trim();
     if (!s) return null;
-    const m = s.match(/^(\d{1,2})\s*\/\s*([A-Ca-c])(?:\s*\/|$)/);
+    const m = s.match(/^(\d{1,2})\s*\/\s*([A-Ca-c])(?:\s*\/\s*(Left|Middle|Right))?/i);
     if (!m) return null;
     const section = Number(m[1]);
     if (!Number.isFinite(section) || section < 1 || section > 12) return null;
-    return { section, level: m[2].toUpperCase() };
+    const lateralRaw = m[3] ? String(m[3]) : '';
+    const lateral =
+      /^left$/i.test(lateralRaw)
+        ? 'Left'
+        : /^middle$/i.test(lateralRaw)
+          ? 'Middle'
+          : /^right$/i.test(lateralRaw)
+            ? 'Right'
+            : '';
+    return { section, level: m[2].toUpperCase(), lateral };
+  }
+
+  /** Plain deck name for UI (no jargon). @param {string} level */
+  function deckLevelPlainName(level) {
+    const L = String(level || '').toUpperCase();
+    if (L === 'A') return 'Floor';
+    if (L === 'B') return 'Deck 2';
+    if (L === 'C') return 'Deck 3';
+    return L || '—';
+  }
+
+  /**
+   * Height line under a deck heading. Uses known ~45 in clear above floor freight.
+   * @param {string} level
+   */
+  function deckHeightPlainLine(level) {
+    const L = String(level || '').toUpperCase();
+    if (L === 'A') return 'On the trailer floor';
+    if (L === 'B') return 'About 45 in above the floor';
+    if (L === 'C') return 'Above Deck 2';
+    return '';
+  }
+
+  /**
+   * Levels that have freight on this trailer (lowest first: Floor → Deck 2 → Deck 3).
+   * City floor-only → Floor only. Empty trailer → Floor (empty plan).
+   * @param {{slot:string}[]} pieces
+   * @param {boolean} cityFloorOnly
+   * @returns {string[]}
+   */
+  function availableDeckLevelsForPieces(pieces, cityFloorOnly) {
+    if (cityFloorOnly) return ['A'];
+    const have = new Set();
+    (pieces || []).forEach((p) => {
+      const parsed = parseSlotSectionLevel(p && p.slot);
+      if (parsed) have.add(parsed.level);
+    });
+    const order = ['A', 'B', 'C'];
+    const found = order.filter((L) => have.has(L));
+    return found.length ? found : ['A'];
+  }
+
+  /** Stable key for a planned piece row. */
+  function crewOutPieceKey(p) {
+    if (!p) return '';
+    return `${p.pro || ''}|${p.pieceFraction || ''}|${p.slot || ''}`;
+  }
+
+  /** Short cell label for top-down (piece fraction preferred). */
+  function topDownPieceShortLabel(p) {
+    if (!p) return '';
+    const frac = String(p.pieceFraction || '').trim();
+    if (frac) return frac;
+    const pro = String(p.pro || '').trim();
+    if (pro.length > 4) return pro.slice(-4);
+    return pro || '·';
   }
 
   /**
@@ -5124,6 +5247,157 @@
    * @param {boolean} cityFloorOnly
    * @returns {string} HTML
    */
+
+  /**
+   * v46 PUP axle / nose-zone weight limits (display + warn; does not change packing).
+   * Sections 1–12 nose→tail. Nose zone ≈ first bay (sec 1, ~4 ft on a 48–53 ft van).
+   * Axle share: secs 1–6 → front axle, 7–12 → rear axle.
+   */
+  const PUP_AXLE_CAP_LB = 20000;
+  const PUP_NOSE_WARN_LB = 2800;
+  const PUP_NOSE_MAX_LB = 3200;
+  const PUP_NOSE_SECTIONS = [1]; // first bay ≈ 4 ft
+  const PUP_FRONT_SECTIONS = [1, 2, 3, 4, 5, 6];
+  const PUP_REAR_SECTIONS = [7, 8, 9, 10, 11, 12];
+
+  /**
+   * @param {{slot?:string, weight?:number|null}[]} pieces
+   * @returns {{
+   *   frontAxle:number, rearAxle:number, nose:number, total:number,
+   *   frontOver:boolean, rearOver:boolean, noseWarn:boolean, noseOver:boolean,
+   *   messages:string[], known:boolean
+   * }}
+   */
+  function computePupAxleWeights(pieces) {
+    let front = 0;
+    let rear = 0;
+    let nose = 0;
+    let total = 0;
+    let known = false;
+    (pieces || []).forEach((p) => {
+      const w = Number(p && p.weight);
+      if (!Number.isFinite(w) || w < 0) return;
+      known = true;
+      total += w;
+      const parsed = parseSlotSectionLevel(p.slot);
+      const sec = parsed ? parsed.section : 0;
+      if (PUP_NOSE_SECTIONS.indexOf(sec) >= 0) nose += w;
+      if (PUP_FRONT_SECTIONS.indexOf(sec) >= 0) front += w;
+      else if (PUP_REAR_SECTIONS.indexOf(sec) >= 0) rear += w;
+      else {
+        // Unknown slot: split half/half so total still shows
+        front += w / 2;
+        rear += w / 2;
+      }
+    });
+    const frontOver = front > PUP_AXLE_CAP_LB;
+    const rearOver = rear > PUP_AXLE_CAP_LB;
+    const noseWarn = nose >= PUP_NOSE_WARN_LB && nose <= PUP_NOSE_MAX_LB;
+    const noseOver = nose > PUP_NOSE_MAX_LB;
+    /** @type {string[]} */
+    const messages = [];
+    if (noseOver) {
+      messages.push(
+        'Nose zone over weight (' +
+          Math.round(nose).toLocaleString() +
+          ' lb) — move freight back'
+      );
+    } else if (noseWarn) {
+      messages.push(
+        'Nose zone getting heavy (' +
+          Math.round(nose).toLocaleString() +
+          ' lb) — keep under ' +
+          PUP_NOSE_MAX_LB.toLocaleString() +
+          ' lb'
+      );
+    }
+    if (frontOver) {
+      messages.push(
+        'Front axle over 20,000 lb (' + Math.round(front).toLocaleString() + ' lb)'
+      );
+    }
+    if (rearOver) {
+      messages.push(
+        'Rear axle over 20,000 lb (' + Math.round(rear).toLocaleString() + ' lb)'
+      );
+    }
+    return {
+      frontAxle: front,
+      rearAxle: rear,
+      nose,
+      total,
+      frontOver,
+      rearOver,
+      noseWarn,
+      noseOver,
+      messages,
+      known,
+    };
+  }
+
+  /** Live axle / nose weight strip for OUT trailer diagrams. */
+  function buildTrailerWeightBannerHtml(pieces) {
+    const w = computePupAxleWeights(pieces);
+    if (!w.known) {
+      return (
+        '<div class="trailer-weight-banner is-unknown" role="status">' +
+        'Weights not on this plan yet — axle check skipped' +
+        '</div>'
+      );
+    }
+    const fmt = (n) => Math.round(n).toLocaleString() + ' lb';
+    let cls = 'trailer-weight-banner';
+    if (w.frontOver || w.rearOver || w.noseOver) cls += ' is-over';
+    else if (w.noseWarn) cls += ' is-warn';
+    else cls += ' is-ok';
+
+    const frontCls = w.frontOver ? ' is-hot' : '';
+    const rearCls = w.rearOver ? ' is-hot' : '';
+    const noseCls = w.noseOver ? ' is-hot' : w.noseWarn ? ' is-warm' : '';
+
+    let msgs = '';
+    if (w.messages.length) {
+      msgs =
+        '<ul class="trailer-weight-msgs">' +
+        w.messages
+          .map((m) => '<li>' + escapeHtml(m) + '</li>')
+          .join('') +
+        '</ul>';
+    }
+
+    return (
+      '<div class="' +
+      cls +
+      '" role="status">' +
+      '<div class="trailer-weight-title">PUP axle check</div>' +
+      '<div class="trailer-weight-grid">' +
+      '<div class="trailer-weight-cell' +
+      frontCls +
+      '"><span class="trailer-weight-label">Front axle</span>' +
+      '<span class="trailer-weight-val">' +
+      escapeHtml(fmt(w.frontAxle)) +
+      '</span>' +
+      '<span class="trailer-weight-cap">max 20,000</span></div>' +
+      '<div class="trailer-weight-cell' +
+      rearCls +
+      '"><span class="trailer-weight-label">Rear axle</span>' +
+      '<span class="trailer-weight-val">' +
+      escapeHtml(fmt(w.rearAxle)) +
+      '</span>' +
+      '<span class="trailer-weight-cap">max 20,000</span></div>' +
+      '<div class="trailer-weight-cell' +
+      noseCls +
+      '"><span class="trailer-weight-label">Nose zone</span>' +
+      '<span class="trailer-weight-val">' +
+      escapeHtml(fmt(w.nose)) +
+      '</span>' +
+      '<span class="trailer-weight-cap">max 3,200</span></div>' +
+      '</div>' +
+      msgs +
+      '</div>'
+    );
+  }
+
   function buildTrailerFillDiagramHtml(pieces, cityFloorOnly) {
     const levels = cityFloorOnly ? ['A'] : ['C', 'B', 'A'];
     const list = pieces || [];
@@ -5243,6 +5517,244 @@
    * Loud who’s-where banner near god HUD — busy ops + distinct OUT doors.
    * @param {object[]} list
    */
+
+  /**
+   * v46 Top-down (bird's-eye) trailer floor plan for one deck at a time.
+   * Nose at top → Tail at bottom. Width columns: Left | Mid-L | Mid-R | Right.
+   * Existing SLOT …/Middle pieces span both middle halves (display-only).
+   * @param {{slot:string, done:boolean, pro?:string, pieceFraction?:string}[]} pieces
+   * @param {boolean} cityFloorOnly
+   * @param {string} selectedLevel 'A'|'B'|'C'
+   * @returns {string} HTML
+   */
+  function buildTrailerTopDownDiagramHtml(pieces, cityFloorOnly, selectedLevel) {
+    const list = pieces || [];
+    const levels = availableDeckLevelsForPieces(list, cityFloorOnly);
+    let level = String(selectedLevel || state.crewOutTopDeck || 'A').toUpperCase();
+    if (levels.indexOf(level) < 0) level = levels[0] || 'A';
+    state.crewOutTopDeck = level;
+
+    const onDeck = list.filter((p) => {
+      const parsed = parseSlotFull(p && p.slot);
+      if (!parsed) return false;
+      return parsed.level === level;
+    });
+
+    // Map section → { Left?, Middle?, Right? } piece refs
+    /** @type {Map<number, {Left?:object, Middle?:object, Right?:object}>} */
+    const bySec = new Map();
+    for (let sec = 1; sec <= 12; sec++) bySec.set(sec, {});
+    onDeck.forEach((p) => {
+      const parsed = parseSlotFull(p.slot);
+      if (!parsed || !parsed.lateral) return;
+      const row = bySec.get(parsed.section);
+      if (!row) return;
+      // First wins; unique slots expected
+      if (!row[parsed.lateral]) row[parsed.lateral] = p;
+    });
+
+    const selectedKey = state.crewOutSelectedPieceKey
+      ? String(state.crewOutSelectedPieceKey)
+      : '';
+
+    // Deck jump buttons — only decks that exist on this trailer
+    let jumps =
+      '<div class="trailer-deck-jumps" role="tablist" aria-label="Pick a deck">';
+    levels.forEach((L) => {
+      const active = L === level;
+      jumps +=
+        '<button type="button" class="trailer-deck-jump' +
+        (active ? ' is-active' : '') +
+        '" role="tab" aria-selected="' +
+        (active ? 'true' : 'false') +
+        '" data-deck-level="' +
+        L +
+        '">' +
+        escapeHtml(deckLevelPlainName(L)) +
+        '</button>';
+    });
+    jumps += '</div>';
+
+    const heightLine = deckHeightPlainLine(level);
+    const head =
+      '<div class="trailer-top-deck-head">' +
+      '<div class="trailer-top-deck-name">' +
+      escapeHtml(deckLevelPlainName(level)) +
+      '</div>' +
+      (heightLine
+        ? '<div class="trailer-top-deck-height">' + escapeHtml(heightLine) + '</div>'
+        : '') +
+      '</div>';
+
+    // Column headers
+    const colHead =
+      '<div class="trailer-top-colheads" aria-hidden="true">' +
+      '<span class="trailer-top-sec-label"></span>' +
+      '<span>Left</span><span>Mid-L</span><span>Mid-R</span><span>Right</span>' +
+      '</div>';
+
+    function cellHtml(p, extraClass, spanMid) {
+      if (!p) {
+        return (
+          '<span class="trailer-top-cell is-empty' +
+          (extraClass ? ' ' + extraClass : '') +
+          '" aria-hidden="true"></span>'
+        );
+      }
+      const key = crewOutPieceKey(p);
+      const isSel = selectedKey && key === selectedKey;
+      let cls = 'trailer-top-cell is-piece';
+      cls += p.done ? ' is-loaded' : ' is-planned';
+      if (isSel) cls += ' is-selected';
+      if (spanMid) cls += ' is-mid-span';
+      if (extraClass) cls += ' ' + extraClass;
+      const label = topDownPieceShortLabel(p);
+      const titleBits = [
+        p.pro ? 'PRO ' + p.pro : '',
+        p.pieceFraction ? 'piece ' + p.pieceFraction : '',
+        p.slot || '',
+        p.done ? 'loaded' : 'planned',
+      ].filter(Boolean);
+      return (
+        '<button type="button" class="' +
+        cls +
+        '" data-piece-key="' +
+        escapeHtml(key) +
+        '" title="' +
+        escapeHtml(titleBits.join(' · ')) +
+        '" aria-label="' +
+        escapeHtml(titleBits.join(' · ')) +
+        '">' +
+        '<span class="trailer-top-cell-label">' +
+        escapeHtml(label) +
+        '</span></button>'
+      );
+    }
+
+    const axleSnap = computePupAxleWeights(list);
+    let rows = '';
+    rows +=
+      '<div class="trailer-top-nose-tag" aria-hidden="true">NOSE</div>';
+    for (let sec = 1; sec <= 12; sec++) {
+      const row = bySec.get(sec) || {};
+      const left = row.Left || null;
+      const mid = row.Middle || null;
+      const right = row.Right || null;
+      const isNose = PUP_NOSE_SECTIONS.indexOf(sec) >= 0;
+      let rowCls = 'trailer-top-row';
+      if (isNose) rowCls += ' is-nose-zone';
+      if (isNose && axleSnap.noseOver) rowCls += ' is-nose-over';
+      else if (isNose && axleSnap.noseWarn) rowCls += ' is-nose-warn';
+      rows +=
+        '<div class="' +
+        rowCls +
+        '" data-section="' +
+        sec +
+        '">' +
+        '<span class="trailer-top-sec" aria-hidden="true">' +
+        sec +
+        '</span>' +
+        '<div class="trailer-top-cells">';
+      rows += cellHtml(left, 'is-lat-left', false);
+      if (mid) {
+        // One Middle piece spans Mid-L + Mid-R (half-width columns kept for layout)
+        rows += cellHtml(mid, 'is-lat-middle', true);
+      } else {
+        rows += cellHtml(null, 'is-lat-midl', false);
+        rows += cellHtml(null, 'is-lat-midr', false);
+      }
+      rows += cellHtml(right, 'is-lat-right', false);
+      rows += '</div></div>';
+    }
+    rows +=
+      '<div class="trailer-top-tail-tag" aria-hidden="true">TAIL</div>';
+
+    const emptyMsg =
+      !list.length
+        ? '<div class="trailer-top-empty-msg">Nothing loaded yet</div>'
+        : !onDeck.length
+          ? '<div class="trailer-top-empty-msg">Nothing on ' +
+            escapeHtml(deckLevelPlainName(level)) +
+            ' yet</div>'
+          : '';
+
+    const captionMain =
+      onDeck.length === 0
+        ? deckLevelPlainName(level) + ' · empty'
+        : crewDemo.seeded
+          ? deckLevelPlainName(level) +
+            ' · ' +
+            onDeck.filter((p) => p.done).length +
+            ' of ' +
+            onDeck.length +
+            ' pieces loaded'
+          : deckLevelPlainName(level) +
+            ' · ' +
+            onDeck.length +
+            ' piece' +
+            (onDeck.length === 1 ? '' : 's');
+
+    const detail =
+      selectedKey
+        ? (() => {
+            const p = list.find((x) => crewOutPieceKey(x) === selectedKey);
+            if (!p) return '';
+            const bits = [
+              p.pro ? 'PRO ' + p.pro : '',
+              p.pieceFraction ? 'piece ' + p.pieceFraction : '',
+              p.slot ? 'SLOT ' + p.slot : '',
+              p.done ? 'Loaded' : 'Planned',
+            ].filter(Boolean);
+            return (
+              '<div class="trailer-top-piece-detail" role="status">' +
+              escapeHtml(bits.join(' · ')) +
+              '</div>'
+            );
+          })()
+        : '';
+
+    return (
+      '<div class="trailer-topdown-diagram" role="group" aria-label="Top-down trailer view">' +
+      jumps +
+      head +
+      emptyMsg +
+      '<div class="trailer-top-plan">' +
+      colHead +
+      rows +
+      '</div>' +
+      detail +
+      '<div class="trailer-fill-caption">' +
+      escapeHtml(captionMain) +
+      '</div>' +
+      '<div class="trailer-fill-legend" aria-hidden="true">' +
+      '<span><i class="trailer-fill-swatch is-empty"></i> empty</span>' +
+      '<span><i class="trailer-fill-swatch is-planned"></i> planned</span>' +
+      '<span><i class="trailer-fill-swatch is-loaded"></i> loaded</span>' +
+      '</div>' +
+      '<div class="trailer-top-mid-hint" aria-hidden="true">Middle splits into Mid-L and Mid-R</div>' +
+      '</div>'
+    );
+  }
+
+  /** Side view | Top-down tab strip for OUT trailer panel. */
+  function buildTrailerViewTabsHtml(mode) {
+    const m = mode === 'top' ? 'top' : 'side';
+    return (
+      '<div class="trailer-view-tabs" role="tablist" aria-label="Trailer picture">' +
+      '<button type="button" class="trailer-view-tab' +
+      (m === 'side' ? ' is-active' : '') +
+      '" role="tab" aria-selected="' +
+      (m === 'side' ? 'true' : 'false') +
+      '" data-trailer-view="side">Side view</button>' +
+      '<button type="button" class="trailer-view-tab' +
+      (m === 'top' ? ' is-active' : '') +
+      '" role="tab" aria-selected="' +
+      (m === 'top' ? 'true' : 'false') +
+      '" data-trailer-view="top">Top-down</button>' +
+      '</div>'
+    );
+  }
+
   function renderCrewSpreadBanner(list) {
     const banner = el.crewSpreadBanner;
     if (!banner) return;
@@ -5323,6 +5835,10 @@
     const d = String(door || '').trim();
     if (!d) return;
     state.crewOutDoor = d;
+    // Boss demo keeps Side view as the default glance
+    state.crewOutViewMode = 'side';
+    state.crewOutTopDeck = 'A';
+    state.crewOutSelectedPieceKey = null;
     renderCrewOutTrailerPanel();
     updateCrewSelectionUI();
   }
@@ -5362,7 +5878,14 @@
   function openCrewOutTrailerPanel(door) {
     const d = String(door || '').trim();
     if (!d) return;
-    state.crewOutDoor = state.crewOutDoor === d ? null : d;
+    const closing = state.crewOutDoor === d;
+    state.crewOutDoor = closing ? null : d;
+    if (!closing) {
+      state.crewOutSelectedPieceKey = null;
+      // Default Side view for boss demo continuity; deck resets to Floor
+      if (!state.crewOutViewMode) state.crewOutViewMode = 'side';
+      state.crewOutTopDeck = 'A';
+    }
     renderCrewOutTrailerPanel();
     updateCrewSelectionUI();
   }
@@ -5386,6 +5909,17 @@
     const dest = info.destination || '—';
     const doneN = pieces.filter((p) => p.done).length;
 
+    // Keep selected deck valid for this trailer
+    const avail = availableDeckLevelsForPieces(pieces, info.cityFloorOnly);
+    if (avail.indexOf(String(state.crewOutTopDeck || 'A').toUpperCase()) < 0) {
+      state.crewOutTopDeck = avail[0] || 'A';
+    }
+
+    const viewMode = state.crewOutViewMode === 'top' ? 'top' : 'side';
+    const selectedKey = state.crewOutSelectedPieceKey
+      ? String(state.crewOutSelectedPieceKey)
+      : '';
+
     let listHtml = '';
     if (!info.trailerNumber) {
       listHtml =
@@ -5396,6 +5930,7 @@
     } else {
       listHtml = pieces
         .map((p) => {
+          const key = crewOutPieceKey(p);
           const top = [
             p.pro ? `PRO ${p.pro}` : 'PRO —',
             p.pieceFraction ? `piece ${p.pieceFraction}` : '',
@@ -5409,8 +5944,9 @@
           ]
             .filter(Boolean)
             .join(' · ');
+          const selCls = selectedKey && key === selectedKey ? ' is-selected' : '';
           return (
-            `<div class="crew-out-piece${p.done ? ' is-done' : ''}" role="listitem">` +
+            `<div class="crew-out-piece${p.done ? ' is-done' : ''}${selCls}" role="listitem" data-piece-key="${escapeHtml(key)}">` +
             `<div class="crew-out-piece-top">${escapeHtml(top)}</div>` +
             `<div class="crew-out-piece-slot"><span class="crew-load-slot-label">SLOT</span> <span class="crew-load-slot-value">${escapeHtml(p.slot || '—')}</span></div>` +
             `<div class="crew-out-piece-from">from ${escapeHtml(fromBits || '—')}</div>` +
@@ -5428,10 +5964,25 @@
           ? `<div class="crew-out-trailer-progress">${pieces.length} piece${pieces.length === 1 ? '' : 's'} planned</div>`
           : '';
 
-    const diagramHtml =
-      info.trailerNumber && pieces.length
-        ? buildTrailerFillDiagramHtml(pieces, info.cityFloorOnly)
-        : '';
+    let diagramHtml = '';
+    if (info.trailerNumber) {
+      const tabs = buildTrailerViewTabsHtml(viewMode);
+      const weightBanner = buildTrailerWeightBannerHtml(pieces);
+      if (viewMode === 'top') {
+        diagramHtml =
+          tabs +
+          weightBanner +
+          buildTrailerTopDownDiagramHtml(pieces, info.cityFloorOnly, state.crewOutTopDeck);
+      } else if (pieces.length) {
+        diagramHtml =
+          tabs + weightBanner + buildTrailerFillDiagramHtml(pieces, info.cityFloorOnly);
+      } else {
+        diagramHtml =
+          tabs +
+          weightBanner +
+          '<div class="trailer-top-empty-msg">Nothing loaded yet — switch to Top-down for the empty floor plan.</div>';
+      }
+    }
 
     body.innerHTML = `
       <div class="crew-out-trailer-head">
@@ -5444,13 +5995,22 @@
     `;
     panel.hidden = false;
     panel.removeAttribute('hidden');
+
+    // Scroll selected piece into view when highlighted from top-down tap
+    if (selectedKey) {
+      const hit = Array.from(
+        body.querySelectorAll('.crew-out-piece[data-piece-key]')
+      ).find((n) => n.getAttribute('data-piece-key') === selectedKey);
+      if (hit && typeof hit.scrollIntoView === 'function') {
+        try {
+          hit.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    }
   }
 
-  /**
-   * Build a tappable operator badge for the inbound door wall.
-   * @param {object} a assignment
-   * @returns {HTMLButtonElement}
-   */
   function createCrewOpMarker(a) {
     const btn = document.createElement('button');
     btn.type = 'button';
@@ -6602,7 +7162,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=45').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=46').catch(() => {
       /* offline cache optional */
     });
   }

@@ -174,6 +174,8 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v46 **Top-down trailer + PUP axle check** — OUT panel Side view | Top-down; deck jumps Floor/Deck 2/Deck 3 (lowest first, height line); width columns Left · Mid-L · Mid-R · Right (Middle spans both halves); live Front/Rear axle (20k) + nose zone (warn 2.8k / max 3.2k) with plain over-weight messages. `loadPlan.js` untouched. Stamp + SW `dock-app-v46`.
+
 v45 **Guided tour polish** — callout docks at the viewport edge (prefer bottom on phone) so the door grid / OUT strip stay visible; both ends of the move light up (forklift + OUT chip); short bold lead line + status header (`Moved N of T · 4 of 5 working`); Pause toggle checked when guided mode is on (Show boss demo turns it on); Continue / Play without stops unchanged (still every-action pauses). Optional: Operator Start my jobs orange; softer Solo/Crew hint. Stamp + SW `dock-app-v45`.
 
 v44 **Guided crew tour** — Play / Step / Show boss demo pause on every new forklift action; callout bubble points at the forklift with plain-English copy, Action N of T, **Continue** (next action) and **Play without stops**; toggle in Demo controls (localStorage). Keeps v43 wall / LOAD SLOT / OUT panel / Packed counts / Operator / Solo / Crew / Ground / spread banner / busiest OUT auto-open. Stamp + SW `dock-app-v44`.
@@ -224,7 +226,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v45`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v46`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |
