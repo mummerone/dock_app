@@ -2636,7 +2636,7 @@
   }
 
   // ---------- v45: Guided tour polish (edge dock · both ends lit · short copy) ----------
-  // ---------- v46: Top-down trailer view (by deck · Floor/Deck 2/Deck 3 jump) ----------
+  // ---------- v47: Top-down trailer view (by deck · Floor/Deck 2/Deck 3 jump) ----------
 
   const CREW_TOUR_PAUSE_KEY = 'dockApp.crewTourPause.v1';
 
@@ -4289,9 +4289,9 @@
     if (el.crewOutTrailerCloseBtn) {
       el.crewOutTrailerCloseBtn.addEventListener('click', () => closeCrewOutTrailerPanel());
     }
-    // v46: Side view | Top-down tabs, deck jumps, piece tap (event delegation)
-    if (el.crewOutTrailerBody && !el.crewOutTrailerBody.dataset.v46Bound) {
-      el.crewOutTrailerBody.dataset.v46Bound = '1';
+    // v47: Side view | Top-down tabs, deck jumps, piece tap (event delegation)
+    if (el.crewOutTrailerBody && !el.crewOutTrailerBody.dataset.v47Bound) {
+      el.crewOutTrailerBody.dataset.v47Bound = '1';
       el.crewOutTrailerBody.addEventListener('click', (ev) => {
         const t = ev.target;
         if (!t || !t.closest) return;
@@ -5249,14 +5249,17 @@
    */
 
   /**
-   * v46 PUP axle / nose-zone weight limits (display + warn; does not change packing).
-   * Sections 1–12 nose→tail. Nose zone ≈ first bay (sec 1, ~4 ft on a 48–53 ft van).
+   * v47 PUP axle / nose+tail zone weight limits (display mirrors planner caps).
+   * Sections 1–12 nose→tail. Nose zone ≈ first bay (sec 1, ~4 ft). Tail ≈ last bay (sec 12).
    * Axle share: secs 1–6 → front axle, 7–12 → rear axle.
    */
   const PUP_AXLE_CAP_LB = 20000;
-  const PUP_NOSE_WARN_LB = 2800;
-  const PUP_NOSE_MAX_LB = 3200;
+  const PUP_ZONE_WARN_LB = 2800;
+  const PUP_ZONE_MAX_LB = 3200;
+  const PUP_NOSE_WARN_LB = PUP_ZONE_WARN_LB; // alias
+  const PUP_NOSE_MAX_LB = PUP_ZONE_MAX_LB;
   const PUP_NOSE_SECTIONS = [1]; // first bay ≈ 4 ft
+  const PUP_TAIL_SECTIONS = [12]; // last bay ≈ 4 ft
   const PUP_FRONT_SECTIONS = [1, 2, 3, 4, 5, 6];
   const PUP_REAR_SECTIONS = [7, 8, 9, 10, 11, 12];
 
@@ -5272,6 +5275,7 @@
     let front = 0;
     let rear = 0;
     let nose = 0;
+    let tail = 0;
     let total = 0;
     let known = false;
     (pieces || []).forEach((p) => {
@@ -5282,6 +5286,7 @@
       const parsed = parseSlotSectionLevel(p.slot);
       const sec = parsed ? parsed.section : 0;
       if (PUP_NOSE_SECTIONS.indexOf(sec) >= 0) nose += w;
+      if (PUP_TAIL_SECTIONS.indexOf(sec) >= 0) tail += w;
       if (PUP_FRONT_SECTIONS.indexOf(sec) >= 0) front += w;
       else if (PUP_REAR_SECTIONS.indexOf(sec) >= 0) rear += w;
       else {
@@ -5292,22 +5297,35 @@
     });
     const frontOver = front > PUP_AXLE_CAP_LB;
     const rearOver = rear > PUP_AXLE_CAP_LB;
-    const noseWarn = nose >= PUP_NOSE_WARN_LB && nose <= PUP_NOSE_MAX_LB;
-    const noseOver = nose > PUP_NOSE_MAX_LB;
+    const noseWarn = nose >= PUP_ZONE_WARN_LB && nose <= PUP_ZONE_MAX_LB;
+    const noseOver = nose > PUP_ZONE_MAX_LB;
+    const tailWarn = tail >= PUP_ZONE_WARN_LB && tail <= PUP_ZONE_MAX_LB;
+    const tailOver = tail > PUP_ZONE_MAX_LB;
     /** @type {string[]} */
     const messages = [];
     if (noseOver) {
       messages.push(
-        'Nose zone over weight (' +
-          Math.round(nose).toLocaleString() +
-          ' lb) — move freight back'
+        'Nose too heavy — use lighter freight here'
       );
     } else if (noseWarn) {
       messages.push(
         'Nose zone getting heavy (' +
           Math.round(nose).toLocaleString() +
           ' lb) — keep under ' +
-          PUP_NOSE_MAX_LB.toLocaleString() +
+          PUP_ZONE_MAX_LB.toLocaleString() +
+          ' lb'
+      );
+    }
+    if (tailOver) {
+      messages.push(
+        'Tail too heavy — use lighter freight here'
+      );
+    } else if (tailWarn) {
+      messages.push(
+        'Tail zone getting heavy (' +
+          Math.round(tail).toLocaleString() +
+          ' lb) — keep under ' +
+          PUP_ZONE_MAX_LB.toLocaleString() +
           ' lb'
       );
     }
@@ -5325,11 +5343,14 @@
       frontAxle: front,
       rearAxle: rear,
       nose,
+      tail,
       total,
       frontOver,
       rearOver,
       noseWarn,
       noseOver,
+      tailWarn,
+      tailOver,
       messages,
       known,
     };
@@ -5347,13 +5368,14 @@
     }
     const fmt = (n) => Math.round(n).toLocaleString() + ' lb';
     let cls = 'trailer-weight-banner';
-    if (w.frontOver || w.rearOver || w.noseOver) cls += ' is-over';
-    else if (w.noseWarn) cls += ' is-warn';
+    if (w.frontOver || w.rearOver || w.noseOver || w.tailOver) cls += ' is-over';
+    else if (w.noseWarn || w.tailWarn) cls += ' is-warn';
     else cls += ' is-ok';
 
     const frontCls = w.frontOver ? ' is-hot' : '';
     const rearCls = w.rearOver ? ' is-hot' : '';
     const noseCls = w.noseOver ? ' is-hot' : w.noseWarn ? ' is-warm' : '';
+    const tailCls = w.tailOver ? ' is-hot' : w.tailWarn ? ' is-warm' : '';
 
     let msgs = '';
     if (w.messages.length) {
@@ -5390,6 +5412,13 @@
       '"><span class="trailer-weight-label">Nose zone</span>' +
       '<span class="trailer-weight-val">' +
       escapeHtml(fmt(w.nose)) +
+      '</span>' +
+      '<span class="trailer-weight-cap">max 3,200</span></div>' +
+      '<div class="trailer-weight-cell' +
+      tailCls +
+      '"><span class="trailer-weight-label">Tail zone</span>' +
+      '<span class="trailer-weight-val">' +
+      escapeHtml(fmt(w.tail)) +
       '</span>' +
       '<span class="trailer-weight-cap">max 3,200</span></div>' +
       '</div>' +
@@ -5519,7 +5548,7 @@
    */
 
   /**
-   * v46 Top-down (bird's-eye) trailer floor plan for one deck at a time.
+   * v47 Top-down (bird's-eye) trailer floor plan for one deck at a time.
    * Nose at top → Tail at bottom. Width columns: Left | Mid-L | Mid-R | Right.
    * Existing SLOT …/Middle pieces span both middle halves (display-only).
    * @param {{slot:string, done:boolean, pro?:string, pieceFraction?:string}[]} pieces
@@ -5641,10 +5670,14 @@
       const mid = row.Middle || null;
       const right = row.Right || null;
       const isNose = PUP_NOSE_SECTIONS.indexOf(sec) >= 0;
+      const isTail = PUP_TAIL_SECTIONS.indexOf(sec) >= 0;
       let rowCls = 'trailer-top-row';
       if (isNose) rowCls += ' is-nose-zone';
+      if (isTail) rowCls += ' is-tail-zone';
       if (isNose && axleSnap.noseOver) rowCls += ' is-nose-over';
       else if (isNose && axleSnap.noseWarn) rowCls += ' is-nose-warn';
+      if (isTail && axleSnap.tailOver) rowCls += ' is-tail-over';
+      else if (isTail && axleSnap.tailWarn) rowCls += ' is-tail-warn';
       rows +=
         '<div class="' +
         rowCls +
@@ -7162,7 +7195,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=46').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=47').catch(() => {
       /* offline cache optional */
     });
   }

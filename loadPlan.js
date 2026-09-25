@@ -39,6 +39,22 @@
   const LEVELS_SECTION_TETRIS = ['A', 'B', 'C'];
   const LATERALS = ['Left', 'Middle', 'Right'];
 
+  /**
+   * v47 PUP axle / end-zone weight caps (planner enforces; UI mirrors).
+   * 12 sections nose→tail. On a 48–53 ft van each bay ≈ 4–4.4 ft, so:
+   *   nose zone (first ~4 ft) = section 1
+   *   tail zone (last ~4 ft)  = section 12
+   * Front axle share = secs 1–6; rear axle = secs 7–12.
+   */
+  const PUP_AXLE_CAP_LB = 20000;
+  const PUP_ZONE_MAX_LB = 3200; // hard cap nose + tail
+  const PUP_ZONE_SOFT_LB = 3000; // prefer staying under
+  const PUP_NOSE_SECTIONS = [1];
+  const PUP_TAIL_SECTIONS = [12];
+  const PUP_FRONT_SECTIONS = [1, 2, 3, 4, 5, 6];
+  const PUP_REAR_SECTIONS = [7, 8, 9, 10, 11, 12];
+  const PUP_MIDDLE_SECTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+
   const SIZE_POOL = [
     { label: 'GMA pallet', h: 48, w: 48, d: 40, weight: 900 },
     { label: 'GMA tall', h: 60, w: 48, d: 40, weight: 1100 },
@@ -109,6 +125,47 @@
       }
     }
     return slots;
+  }
+
+  /**
+   * Weight-aware slot order for outbound packing (v47).
+   * Fill nose then tail first (light freight), then middle (heavy).
+   * Within each section still high-and-tight: A then B/C (or floor-only A).
+   * @param {boolean} cityFloorOnly
+   */
+  function buildWeightAwareSlotOrder(cityFloorOnly) {
+    const base = cityFloorOnly
+      ? buildFloorOnlySlotOrder()
+      : buildHighTightSlotOrder();
+    const middle = [];
+    const nose = [];
+    const tail = [];
+    base.forEach((s) => {
+      if (PUP_NOSE_SECTIONS.indexOf(s.section) >= 0) nose.push(s);
+      else if (PUP_TAIL_SECTIONS.indexOf(s.section) >= 0) tail.push(s);
+      else middle.push(s);
+    });
+    return nose.concat(tail).concat(middle);
+  }
+
+  /** Tetris compare for restoring nose→tail load order on moves. */
+  function tetrisSlotRank(section, level, lateral) {
+    const sec = Number(section) || 0;
+    const lv = String(level || 'A').toUpperCase();
+    const li = LATERALS.indexOf(lateral);
+    const levelRank = lv === 'A' ? 0 : lv === 'B' ? 1 : lv === 'C' ? 2 : 9;
+    return sec * 100 + levelRank * 10 + (li >= 0 ? li : 9);
+  }
+
+  function sortMovesTetrisOrder(moves) {
+    moves.sort((a, b) => {
+      const ta = (a && a.to) || {};
+      const tb = (b && b.to) || {};
+      const ra = tetrisSlotRank(ta.section, ta.level, ta.lateral);
+      const rb = tetrisSlotRank(tb.section, tb.level, tb.lateral);
+      if (ra !== rb) return ra - rb;
+      return String(a.pro || '').localeCompare(String(b.pro || ''));
+    });
   }
 
   /** Clear height wording for ground deck-build orders (inches above floor freight). */
@@ -222,14 +279,16 @@
 
   /**
    * Init per-trailer pack state (unique slots only — never reuse last slot).
+   * v47: weight-aware slot order + live section weights for axle/zone caps.
    * @param {object} outbound
-   * @returns {{outbound:object, cityFloorOnly:boolean, slotOrder:object[], cursor:number, usedLabels:Set<string>, loadGroups:object[]}}
+   * @returns {object}
    */
   function initTrailerPackState(outbound) {
     const cityFloorOnly = Boolean(outbound && outbound.cityFloorOnly);
-    const slotOrder = cityFloorOnly
-      ? buildFloorOnlySlotOrder()
-      : buildHighTightSlotOrder();
+    const slotOrder = buildWeightAwareSlotOrder(cityFloorOnly);
+    /** @type {Record<number, number>} */
+    const sectionWeight = {};
+    for (let s = 1; s <= 12; s++) sectionWeight[s] = 0;
     return {
       outbound,
       cityFloorOnly,
@@ -237,6 +296,7 @@
       cursor: 0,
       usedLabels: new Set(),
       loadGroups: [],
+      sectionWeight,
     };
   }
 
@@ -249,20 +309,61 @@
     return free;
   }
 
-  function nextFreeSlot(state) {
-    while (
-      state.cursor < state.slotOrder.length &&
-      state.usedLabels.has(state.slotOrder[state.cursor].slotLabel)
-    ) {
-      state.cursor += 1;
+  function sumSections(state, sections) {
+    let n = 0;
+    for (let i = 0; i < sections.length; i++) {
+      n += state.sectionWeight[sections[i]] || 0;
     }
-    if (state.cursor >= state.slotOrder.length) return null;
-    return state.slotOrder[state.cursor];
+    return n;
+  }
+
+  /**
+   * Max additional lb allowed in this section given nose/tail zone + axle caps.
+   * @param {object} state
+   * @param {number} section
+   * @returns {number}
+   */
+  function remainingCapForSection(state, section) {
+    const sec = Number(section) || 0;
+    let rem = Infinity;
+    if (PUP_NOSE_SECTIONS.indexOf(sec) >= 0) {
+      rem = Math.min(rem, PUP_ZONE_MAX_LB - sumSections(state, PUP_NOSE_SECTIONS));
+    }
+    if (PUP_TAIL_SECTIONS.indexOf(sec) >= 0) {
+      rem = Math.min(rem, PUP_ZONE_MAX_LB - sumSections(state, PUP_TAIL_SECTIONS));
+    }
+    if (PUP_FRONT_SECTIONS.indexOf(sec) >= 0) {
+      rem = Math.min(rem, PUP_AXLE_CAP_LB - sumSections(state, PUP_FRONT_SECTIONS));
+    }
+    if (PUP_REAR_SECTIONS.indexOf(sec) >= 0) {
+      rem = Math.min(rem, PUP_AXLE_CAP_LB - sumSections(state, PUP_REAR_SECTIONS));
+    }
+    if (!Number.isFinite(rem)) rem = PUP_AXLE_CAP_LB;
+    return Math.max(0, rem);
+  }
+
+  /**
+   * Next free slot, optionally skipping labels (weight refusal this attempt).
+   * Scans from start so gaps left in nose/tail stay usable by later PROs.
+   * @param {object} state
+   * @param {Set<string>|null} [skipLabels]
+   */
+  function nextFreeSlot(state, skipLabels) {
+    for (let c = 0; c < state.slotOrder.length; c++) {
+      const lab = state.slotOrder[c].slotLabel;
+      if (state.usedLabels.has(lab)) continue;
+      if (skipLabels && skipLabels.has(lab)) continue;
+      state.cursor = c;
+      return state.slotOrder[c];
+    }
+    return null;
   }
 
   /**
    * Place an entire PRO onto one trailer using unique slots only.
-   * Caller must ensure freeSlotCount(state) >= ship.pieces.length.
+   * v47: refuse nose/tail/axle over-cap slots; light→ends, heavy→middle.
+   * Caller must ensure freeSlotCount(state) >= ship.pieces.length (slot count);
+   * weight caps may still force a rollback if nothing legal fits.
    * @returns {{pro:string, pieces:object[]}|null}
    */
   function placeEntireProOnTrailer(ship, state, moves) {
@@ -271,27 +372,44 @@
     const pool = ship.pieces.slice();
     const plannedPieces = [];
     const n = pool.length;
-    // Capacity must be checked by caller; still skip any already-used labels.
     const startMoveLen = moves.length;
     const startCursor = state.cursor;
+    /** @type {Record<number, number>} */
+    const startWeights = {};
+    for (let s = 1; s <= 12; s++) startWeights[s] = state.sectionWeight[s] || 0;
     /** @type {string[]} */
     const addedLabels = [];
+    /** @type {Set<string>} */
+    const skipLabels = new Set();
     const rollback = () => {
       moves.length = startMoveLen;
       addedLabels.forEach((lab) => state.usedLabels.delete(lab));
       state.cursor = startCursor;
+      for (let s = 1; s <= 12; s++) state.sectionWeight[s] = startWeights[s];
     };
-    for (let i = 0; i < n; i++) {
-      const slot = nextFreeSlot(state);
+    let guard = 0;
+    while (plannedPieces.length < n) {
+      guard += 1;
+      if (guard > state.slotOrder.length + n + 5) {
+        rollback();
+        return null;
+      }
+      const slot = nextFreeSlot(state, skipLabels);
       if (!slot) {
         rollback();
         return null;
       }
-      state.cursor += 1;
+      const e = takePieceForSlot(pool, slot, state);
+      if (!e) {
+        // Nothing in this PRO fits this slot under caps — skip slot for this attempt
+        skipLabels.add(slot.slotLabel);
+        continue;
+      }
       state.usedLabels.add(slot.slotLabel);
       addedLabels.push(slot.slotLabel);
-      const e = takePieceForLevel(pool, slot.level) || pool.shift();
-      if (!e) break;
+      const wAdd = pieceWeight(e);
+      state.sectionWeight[slot.section] =
+        (state.sectionWeight[slot.section] || 0) + wAdd;
       const fromSlot =
         e.slotLabel ||
         DockStorage.formatSlot(e.section, e.level, e.lateral);
@@ -407,18 +525,31 @@
       for (let p = 0; p < proCount; p++) {
         const dest = pick(DEMO_DESTINATIONS);
         const pieceCount = randInt(2, 8);
-        const size = pick(SIZE_POOL);
+        // v47: mix light + heavy sizes so nose/tail can take light pieces
+        const lightPool = SIZE_POOL.filter((s) => s.weight <= 700);
+        const heavyPool = SIZE_POOL.filter((s) => s.weight >= 800);
+        const size =
+          p % 3 === 0
+            ? pick(lightPool.length ? lightPool : SIZE_POOL)
+            : p % 3 === 1
+              ? pick(heavyPool.length ? heavyPool : SIZE_POOL)
+              : pick(SIZE_POOL);
         const pro = String(proSeq++);
         const pieces = [];
         for (let i = 1; i <= pieceCount; i++) {
+          // Within a bill, sprinkle one light piece when the bill is heavy
+          let sz = size;
+          if (size.weight >= 1100 && i === pieceCount && lightPool.length) {
+            sz = pick(lightPool);
+          }
           pieces.push({
             pro,
             pieceFraction: `${i}/${pieceCount}`,
             destination: dest,
-            h: jitter(size.h, 0.08),
-            w: size.w,
-            d: size.d,
-            weight: jitter(size.weight, 0.12),
+            h: jitter(sz.h, 0.08),
+            w: sz.w,
+            d: sz.d,
+            weight: jitter(sz.weight, 0.12),
           });
         }
         bills.push({ pro, dest, pieces });
@@ -531,7 +662,7 @@
   }
 
   /**
-   * Pick the best remaining piece for a slot level:
+   * Pick the best remaining piece for a slot level (no weight caps):
    * A (floor) → heaviest; B/C (deck) → shortest then lightest.
    * Mutates `pool` (removes chosen piece).
    * @param {object[]} pool
@@ -555,6 +686,105 @@
     }
     return pool.splice(bestIdx, 1)[0];
   }
+
+  /**
+   * v47: pick a piece for a slot under nose/tail/axle remaining caps.
+   * Nose + tail → lightest that fits (prefer keeping zone under soft 3,000).
+   * Middle floor A → heaviest that fits; B/C → shortest then lightest.
+   * Mutates `pool`. Returns null if nothing fits this slot.
+   * @param {object[]} pool
+   * @param {{section:number, level:string}} slot
+   * @param {object} state
+   */
+  function takePieceForSlot(pool, slot, state) {
+    if (!pool.length) return null;
+    const rem = remainingCapForSection(state, slot.section);
+    if (rem <= 0) return null;
+    const sec = Number(slot.section) || 0;
+    const isNose = PUP_NOSE_SECTIONS.indexOf(sec) >= 0;
+    const isTail = PUP_TAIL_SECTIONS.indexOf(sec) >= 0;
+    const isEnd = isNose || isTail;
+    const lv = String(slot.level || '').toUpperCase();
+
+    /** @type {number[]} */
+    const fit = [];
+    for (let i = 0; i < pool.length; i++) {
+      if (pieceWeight(pool[i]) <= rem) fit.push(i);
+    }
+    if (!fit.length) return null;
+
+    // Soft target for end zones when possible
+    let candidates = fit;
+    if (isEnd) {
+      const zoneSecs = isNose ? PUP_NOSE_SECTIONS : PUP_TAIL_SECTIONS;
+      const cur = sumSections(state, zoneSecs);
+      const softFit = fit.filter(
+        (i) => cur + pieceWeight(pool[i]) <= PUP_ZONE_SOFT_LB
+      );
+      if (softFit.length) candidates = softFit;
+    }
+
+    // When packing the nose, reserve lightest pieces that still fit the tail budget
+    // so the tail does not get stuck with only heavies.
+    if (isNose && candidates.length > 1) {
+      const tailRem = remainingCapForSection(state, PUP_TAIL_SECTIONS[0]);
+      const byLight = pool
+        .map((p, i) => ({ i, w: pieceWeight(p) }))
+        .filter((x) => x.w > 0 && x.w <= PUP_ZONE_MAX_LB)
+        .sort((a, b) => a.w - b.w);
+      const reserved = new Set();
+      let reservedW = 0;
+      for (let k = 0; k < byLight.length; k++) {
+        if (reservedW >= tailRem) break;
+        const item = byLight[k];
+        if (reservedW + item.w > tailRem && reserved.size > 0) continue;
+        if (item.w <= tailRem - reservedW || reserved.size === 0) {
+          // Reserve only while we still have room; skip if it would blow tail
+          if (item.w <= tailRem) {
+            reserved.add(item.i);
+            reservedW += item.w;
+          }
+        }
+      }
+      const unreserved = candidates.filter((i) => !reserved.has(i));
+      if (unreserved.length) candidates = unreserved;
+    }
+
+    let bestIdx = candidates[0];
+    if (isEnd) {
+      // Lightest; on decks also prefer shorter
+      for (let c = 1; c < candidates.length; c++) {
+        const i = candidates[c];
+        const dw = pieceWeight(pool[i]) - pieceWeight(pool[bestIdx]);
+        if (dw < 0) bestIdx = i;
+        else if (
+          dw === 0 &&
+          lv !== 'A' &&
+          pieceHeight(pool[i]) < pieceHeight(pool[bestIdx])
+        ) {
+          bestIdx = i;
+        }
+      }
+    } else if (lv === 'A') {
+      for (let c = 1; c < candidates.length; c++) {
+        const i = candidates[c];
+        if (pieceWeight(pool[i]) > pieceWeight(pool[bestIdx])) bestIdx = i;
+      }
+    } else {
+      for (let c = 1; c < candidates.length; c++) {
+        const i = candidates[c];
+        const dh = pieceHeight(pool[i]) - pieceHeight(pool[bestIdx]);
+        if (
+          dh < 0 ||
+          (dh === 0 && pieceWeight(pool[i]) < pieceWeight(pool[bestIdx]))
+        ) {
+          bestIdx = i;
+        }
+      }
+    }
+    return pool.splice(bestIdx, 1)[0];
+  }
+
 
   /**
    * Local section-Tetris (high-and-tight) demo planner.
@@ -721,6 +951,9 @@
       }
     });
 
+    // Restore forklift load order: nose→tail section Tetris (placement used middle-first)
+    sortMovesTetrisOrder(moves);
+
     const packedCount = moves.length;
     const unplacedPieceCount = unplaced.reduce((n, u) => n + (u.pieceCount || 0), 0);
     const totalDestPieces = packedCount + unplacedPieceCount;
@@ -730,7 +963,7 @@
       note =
         `Demo planner packed ${packedCount}/${totalDestPieces} pieces — ` +
         `${unplaced.length} PRO(s) unplaced (${unplacedPieceCount} piece(s)). ` +
-        `Unique slots only (no last-slot reuse). ` +
+        `Unique slots only (no last-slot reuse). Light freight in nose/tail zones (max 3,200 lb). ` +
         (secondStubCount
           ? `Opened ${secondStubCount} second outbound stub(s). `
           : '') +
@@ -739,12 +972,12 @@
       note = `${skippedNoDest} bill(s) skipped — no destination set. Tap Edit bill on each, then build again.`;
     } else if (cityFloorOnlyCount > 0) {
       note =
-        `Packed section-by-section (nose→tail): floor then decks per bay; never whole-floor-first. ` +
+        `Packed high-and-tight per bay; light freight in nose/tail (≤3,200 lb), heavy in middle. ` +
         `City loads floor-only. ${cityFloorOnlyCount} city load(s) used floor only (level A) — no decks. ` +
         `Every piece has a unique outbound slot.`;
     } else {
       note =
-        'Packed section-by-section (nose→tail): floor then decks per bay; never whole-floor-first. City loads floor-only. Every piece has a unique outbound slot.';
+        'Packed high-and-tight per bay; light freight in nose/tail zones (≤3,200 lb each), heavy toward the middle. City loads floor-only. Every piece has a unique outbound slot.';
     }
 
     const plan = {

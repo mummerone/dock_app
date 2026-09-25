@@ -174,7 +174,9 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
-v46 **Top-down trailer + PUP axle check** — OUT panel Side view | Top-down; deck jumps Floor/Deck 2/Deck 3 (lowest first, height line); width columns Left · Mid-L · Mid-R · Right (Middle spans both halves); live Front/Rear axle (20k) + nose zone (warn 2.8k / max 3.2k) with plain over-weight messages. `loadPlan.js` untouched. Stamp + SW `dock-app-v46`.
+v47 **Nose/tail light freight (planner)** — pup nose+tail zones (sec 1 & 12, ~4 ft) hard-capped at 3,200 lb; front/rear axle 20k; planner puts light pieces on the ends and heavy in the middle (still high-and-tight per bay). Weight strip shows Tail like Nose. `loadPlan.js` changed. Stamp + SW `dock-app-v47`.
+
+v46 **Top-down trailer + PUP axle check** — OUT panel Side view | Top-down; deck jumps Floor/Deck 2/Deck 3 (lowest first, height line); width columns Left · Mid-L · Mid-R · Right (Middle spans both halves); live Front/Rear axle (20k) + nose zone (warn 2.8k / max 3.2k) with plain over-weight messages. `loadPlan.js` untouched. Stamp + SW `dock-app-v47`.
 
 v45 **Guided tour polish** — callout docks at the viewport edge (prefer bottom on phone) so the door grid / OUT strip stay visible; both ends of the move light up (forklift + OUT chip); short bold lead line + status header (`Moved N of T · 4 of 5 working`); Pause toggle checked when guided mode is on (Show boss demo turns it on); Continue / Play without stops unchanged (still every-action pauses). Optional: Operator Start my jobs orange; softer Solo/Crew hint. Stamp + SW `dock-app-v45`.
 
@@ -226,7 +228,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v46`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v47`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

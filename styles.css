@@ -3074,7 +3074,7 @@ button {
 
 
 
-/* v46 — PUP axle / nose weight strip */
+/* v47 — PUP axle / nose+tail weight strip */
 .trailer-weight-banner {
   margin: 0 0 10px;
   padding: 8px 10px;
@@ -3109,7 +3109,7 @@ button {
 }
 .trailer-weight-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
 .trailer-weight-cell {
@@ -3168,6 +3168,21 @@ button {
   border-radius: 4px;
 }
 .trailer-top-row.is-nose-over {
+  outline: 2px solid #e05050;
+  outline-offset: 1px;
+  border-radius: 4px;
+  background: rgba(224, 80, 80, 0.12);
+}
+.trailer-top-row.is-tail-zone .trailer-top-sec {
+  color: #70c0ff;
+  font-weight: 900;
+}
+.trailer-top-row.is-tail-warn {
+  outline: 1px solid rgba(240, 160, 48, 0.7);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+.trailer-top-row.is-tail-over {
   outline: 2px solid #e05050;
   outline-offset: 1px;
   border-radius: 4px;
