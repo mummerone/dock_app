@@ -174,6 +174,8 @@ Works even if some pieces were logged before destination existed.
 
 ## Files in this folder
 
+v49 **OUT trailer scroll + switcher** — Guided-tour blocker no longer captures pointer/touch (was freezing page + panel scroll). OUT trailer panel drops nested `max-height` scroll trap so the page is the one scroll parent; in-panel OUT chips switch trailers. Stamp + SW `dock-app-v49`.
+
 v48 **Boss demo always fresh + light-only ends** — Show boss demo always re-seeds/re-plans (never reuses a stale uncapped plan — root cause of Vision Critic nose 8,250 / axle 22,991). Planner refuses >900 lb in sec1/sec12 (redistribute heavies to middle). Tour copy matches axle rules (no “heavy at the nose”). Pause toggle ↔ Play without stops. Stamp + SW `dock-app-v48`.
 
 v47 **Nose/tail light freight (planner)** — pup nose+tail zones (sec 1 & 12, ~4 ft) hard-capped at 3,200 lb; front/rear axle 20k; planner puts light pieces on the ends and heavy in the middle (still high-and-tight per bay). Weight strip shows Tail like Nose. `loadPlan.js` changed. Stamp + SW `dock-app-v46`.
@@ -230,7 +232,7 @@ v25 Crew rectangle dock map (doors 1–10, tap operator for pull/load detail) + 
 | `storage.js` | Saves entries, PRO destinations, outbound trailers, and load plans in the browser + groups by PRO |
 | `loadPlan.js` | Demo inbound seed + local `runLoadPlan()` demo planner |
 | `manifest.json` | Lets the phone “install” it as a home-screen app |
-| `sw.js` | Offline cache helper for the PWA (`dock-app-v48`) |
+| `sw.js` | Offline cache helper for the PWA (`dock-app-v49`) |
 | `icon.svg` | App icon |
 | `REQUIREMENTS.md` | Full MVP checklist and the BOL rule |
 | `README.md` | This guide |

@@ -2815,13 +2815,10 @@
       ev.stopPropagation();
       onCrewTourSkip();
     });
+    // v49: blocker is pointer-events:none (visual dim only). Do not
+    // preventDefault on pointerdown — that froze page + OUT panel scroll.
     if (crewTour.blocker) {
       crewTour.blocker.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-      });
-      crewTour.blocker.addEventListener('pointerdown', (ev) => {
-        ev.preventDefault();
         ev.stopPropagation();
       });
     }
@@ -4287,12 +4284,24 @@
     if (el.crewOutTrailerCloseBtn) {
       el.crewOutTrailerCloseBtn.addEventListener('click', () => closeCrewOutTrailerPanel());
     }
-    // v48: Side view | Top-down tabs, deck jumps, piece tap (event delegation)
-    if (el.crewOutTrailerBody && !el.crewOutTrailerBody.dataset.v48Bound) {
-      el.crewOutTrailerBody.dataset.v48Bound = '1';
+    // v49: Side/Top-down, deck jumps, piece tap, OUT trailer switcher (event delegation)
+    if (el.crewOutTrailerBody && !el.crewOutTrailerBody.dataset.v49Bound) {
+      el.crewOutTrailerBody.dataset.v49Bound = '1';
       el.crewOutTrailerBody.addEventListener('click', (ev) => {
         const t = ev.target;
         if (!t || !t.closest) return;
+        const switchBtn = t.closest('.crew-out-trailer-switch[data-door]');
+        if (switchBtn) {
+          const d = String(switchBtn.getAttribute('data-door') || '').trim();
+          if (d) {
+            // Keep Side/Top-down + deck; only change which OUT is shown
+            state.crewOutDoor = d;
+            state.crewOutSelectedPieceKey = null;
+            renderCrewOutTrailerPanel();
+            updateCrewSelectionUI();
+          }
+          return;
+        }
         const viewBtn = t.closest('[data-trailer-view]');
         if (viewBtn) {
           const mode = viewBtn.getAttribute('data-trailer-view') === 'top' ? 'top' : 'side';
@@ -5921,6 +5930,45 @@
     updateCrewSelectionUI();
   }
 
+
+  /**
+   * v49: OUT trailer switcher chips inside the open panel so other trailers
+   * stay reachable without hunting off-screen map chips.
+   * @param {string} activeDoor
+   * @returns {string}
+   */
+  function buildCrewOutTrailerSwitcherHtml(activeDoor) {
+    const list = crewAssignmentsCache || [];
+    const doors = Array.from(new Set(collectCrewOutDoorsWithFreight(list).map(String)));
+    if (!doors.length) return '';
+    const active = String(activeDoor || '').trim();
+    const chips = doors
+      .map((d) => {
+        const info = resolveOutTrailerForDoor(d, list);
+        const pieces = piecesForOutboundTrailer(info.trailerNumber);
+        const dest = String(info.destination || '').trim();
+        const short =
+          dest.length > 14 ? dest.slice(0, 12) + '…' : dest || 'OUT';
+        const label = 'D' + d + (short ? ' · ' + short : '');
+        const count = pieces.length ? ' · ' + pieces.length : '';
+        const cls =
+          'crew-out-trailer-switch' + (String(d) === active ? ' is-active' : '');
+        return (
+          '<button type="button" class="' +
+          cls +
+          '" data-door="' +
+          escapeHtml(String(d)) +
+          '" aria-pressed="' +
+          (String(d) === active ? 'true' : 'false') +
+          '">' +
+          escapeHtml(label + count) +
+          '</button>'
+        );
+      })
+      .join('');
+    return '<div class="crew-out-trailer-switcher" role="group" aria-label="Outbound trailers">' + chips + '</div>';
+  }
+
   function renderCrewOutTrailerPanel() {
     const panel = el.crewOutTrailerPanel;
     const body = el.crewOutTrailerBody;
@@ -6015,12 +6063,15 @@
       }
     }
 
+    const switcherHtml = buildCrewOutTrailerSwitcherHtml(door);
     body.innerHTML = `
       <div class="crew-out-trailer-head">
         <div class="crew-out-trailer-title">OUT Trailer ${escapeHtml(titleTrl)}</div>
         <div class="crew-out-trailer-meta">Door ${escapeHtml(door)} · ${escapeHtml(dest)}</div>
         ${progressBit}
       </div>
+      ${switcherHtml}
+      <p class="crew-out-trailer-scroll-hint">Scroll the page for the full trailer (nose→tail, weights, pieces). Tap a chip above for another OUT.</p>
       ${diagramHtml}
       <div class="crew-out-piece-list" role="list">${listHtml}</div>
     `;
@@ -7193,7 +7244,7 @@
     if (!('serviceWorker' in navigator)) return;
     // Only register when served over http(s) — not file://
     if (!/^https?:$/.test(location.protocol)) return;
-    navigator.serviceWorker.register('./sw.js?v=48').catch(() => {
+    navigator.serviceWorker.register('./sw.js?v=49').catch(() => {
       /* offline cache optional */
     });
   }
