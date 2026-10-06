@@ -8,7 +8,7 @@
  * Permanent rule: all pieces of the same PRO stay on the same trailer.
  * Prefer one outbound trailer per destination (do not mix destinations
  * on one outbound if avoidable). Deck trailers: A=floor, B=first deck,
- * C=second deck. Section Tetris (high-and-tight): per section nose→tail,
+ * C=Deck 3 (third level). Section Tetris (high-and-tight): per section nose→tail,
  * place floor A then decks B/C before advancing — never whole-floor-first.
  */
 (function (global) {
@@ -76,8 +76,8 @@
     { label: 'IBC 275', h: 46, w: 48, d: 40, weight: 2200 },
     { label: 'Gaylord', h: 48, w: 40, d: 36, weight: 800 },
     { label: 'Crate', h: 42, w: 36, d: 36, weight: 650 },
-    { label: 'Skid low', h: 28, w: 48, d: 40, weight: 550 },
-    { label: 'Skid high', h: 72, w: 48, d: 40, weight: 1400 },
+    { label: 'Pallet low', h: 28, w: 48, d: 40, weight: 550 },
+    { label: 'Pallet high', h: 72, w: 48, d: 40, weight: 1400 },
   ];
 
   // ---------------------------------------------------------------------
@@ -161,7 +161,8 @@
     return { front, rear };
   }
 
-  /** v51: stack height to the roof (inside height ≈ 108 in, minus load-bar room). */
+  /** v52: roof = 110 in inside height (assumed); stacks stay ≤ 100 in to leave room for load bars and forks. */
+  const TRAILER_INSIDE_HEIGHT_IN = 110;
   const STACK_HEIGHT_MAX_IN = 100;
   /** v51: sample forklift capacity — a piece heavier than this can't be moved. */
   const FORKLIFT_CAPACITY_LB = 5000;
@@ -182,8 +183,8 @@
     { kind: 'tote', h: 46, w: 48, d: 40, weight: 1450 },
     { kind: 'gaylord', h: 44, w: 48, d: 40, weight: 520 },
     { kind: 'crate', h: 42, w: 36, d: 36, weight: 450 },
-    { kind: 'skid', h: 28, w: 48, d: 40, weight: 380 },
-    { kind: 'skid', h: 64, w: 48, d: 40, weight: 980 },
+    { kind: 'pallet', h: 28, w: 48, d: 40, weight: 380 },
+    { kind: 'pallet', h: 64, w: 48, d: 40, weight: 980 },
   ];
   /** v51: fragile / no-stack piece type (floor only, nothing on top). */
   const SAMPLE_FRAGILE = { kind: 'fragile cartons', h: 44, w: 48, d: 40, weight: 360, noStack: true };
@@ -1489,7 +1490,7 @@
         `Every piece has a unique outbound slot.`;
     } else {
       note =
-        'Packed nose→tail, floor first then decks. Nose/tail take light pieces only (900 lb or less, 3,200 lb per zone); each axle ≤20,000 lb; a deck piece is never heavier than the piece under it; fragile pieces stay on the floor with nothing on top; stacks fit under the roof (100 in); every piece is under the 5,000 lb forklift limit. Every piece has a unique outbound slot.';
+        'Packed nose→tail, Floor first, then Deck 2 / Deck 3; when a trailer is not full, the rear sections stay open for the next pickup. Nose/tail take light pieces only (900 lb or less, 3,200 lb per zone); each axle ≤20,000 lb; a deck piece is never heavier than the piece under it; fragile pieces stay on the floor with nothing on top; stacks stay ≤ 100 in under a 110 in inside roof height (assumed); every piece is under the 5,000 lb forklift limit. Every piece has a unique outbound slot.';
     }
 
     const plan = {
@@ -1579,7 +1580,11 @@
       if (!row || row.cityFloorOnly) return;
       if (level === 'B' || level === 'C') {
         const sec = Number(to.section);
-        if (sec >= 1 && sec <= 12) row.sections.add(sec);
+        if (sec >= 1 && sec <= 12) {
+          row.sections.add(sec);
+          row.levels = row.levels || {};
+          row.levels[sec] = level === 'C' || row.levels[sec] === 'C' ? 'C' : 'B';
+        }
       }
     });
 
@@ -1607,8 +1612,14 @@
           trailerNumber: row.trailerNumber,
           destination: row.destination || '',
           section,
-          label: `Build deck · Section ${section} · above ~${DECK_CLEAR_HEIGHT_IN} in`,
-          detail: `Trailer ${row.trailerNumber}${row.destination ? ` → ${row.destination}` : ''} — leave clear height above floor freight, then set the deck for section ${section}.`,
+          label:
+            row.levels && row.levels[section] === 'C'
+              ? `Build Deck 2 + Deck 3 · Section ${section}`
+              : `Build Deck 2 · Section ${section} · above ~${DECK_CLEAR_HEIGHT_IN} in`,
+          detail:
+            `Trailer ${row.trailerNumber}${row.destination ? ` → ${row.destination}` : ''} — leave clear height above the Floor freight, then set load bars for Deck 2 (second level)` +
+            (row.levels && row.levels[section] === 'C' ? ' and Deck 3 (third level)' : '') +
+            ` in section ${section}. Stacks stay under 100 in (110 in inside roof height assumed).`,
         });
       });
     });
@@ -2181,6 +2192,7 @@
     axleRearShare,
     axleSplit,
     STACK_HEIGHT_MAX_IN,
+    TRAILER_INSIDE_HEIGHT_IN,
     FORKLIFT_CAPACITY_LB,
     PUP_END_LIGHT_MAX_LB,
     DECK_PIECE_MAX_LB,

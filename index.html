@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=51" />
+  <link rel="stylesheet" href="styles.css?v=52" />
 </head>
 <body>
   <div id="app">
@@ -20,7 +20,7 @@
         <span class="brand-mark" aria-hidden="true">▮</span>
         <div>
           <h1>Dock App</h1>
-          <p class="tagline">Forklift load planning for LTL docks · <span class="build-stamp" title="Build version">v51</span></p>
+          <p class="tagline">Forklift load planning for LTL docks · <span class="build-stamp" title="Build version">v52</span></p>
         </div>
       </div>
       <div id="speechStatus" class="speech-status" aria-live="polite">
@@ -58,7 +58,8 @@
           <li>Forklifts never block each other</li>
         </ul>
         <button type="button" id="heroBossDemoBtn" class="btn accept-btn hero-demo-btn">▶ Watch the boss demo</button>
-        <p class="hint hero-sub">About 2 minutes, with sample freight. Your own freight is saved and comes back when you exit.</p>
+        <button type="button" id="heroEveryMoveBtn" class="btn muted-btn hero-every-btn">Watch every move (98 stops)</button>
+        <p class="hint hero-sub">8 stops, about 2 minutes. Or watch every move. Skip to the summary any time. Uses sample freight; your own freight is saved and comes back when you exit.</p>
       </section>
 
       <div id="restoreNotice" class="restore-notice" role="status" hidden></div>
@@ -113,7 +114,7 @@
         </label>
         <p class="hint">Trailer number = which trailer. Door number = which dock door that trailer is at.</p>
         <p class="hint">Section 1–12 · Level A–C · Left / Middle / Right</p>
-        <p class="hint help-line">Where the piece sits in the trailer. Section 1 is the nose (front wall), 12 is the tail (doors). Level A is the floor, B is Deck 2, C is Deck 3. Left / Middle / Right is across the width.</p>
+        <p class="hint help-line">Where the piece sits in the trailer. Section 1 is the nose (front wall), 12 is the tail (doors). Level A is the Floor, B is Deck 2 (second level), C is Deck 3 (third level). Left / Middle / Right is across the width.</p>
 
         <div class="slot-block">
           <span class="slot-label">Section</span>
@@ -328,7 +329,7 @@
             </label>
             <label class="city-toggle-label" for="outboundCityFloorOnly">
               <input type="checkbox" id="outboundCityFloorOnly" />
-              <span><strong>City load — floor only</strong> · local / serving city: pack level A only (no decks B/C)</span>
+              <span><strong>City load — floor only</strong> · local / serving city: Floor only (no Deck 2 / Deck 3)</span>
             </label>
             <div class="outbound-dest-actions">
               <button type="button" id="outboundOpenBtn" class="btn muted-btn outbound-open-btn">Open (no destination yet)</button>
@@ -379,23 +380,25 @@
           <section class="card crew-mode-card" aria-labelledby="crew-mode-heading">
             <div class="card-head crew-mode-head">
               <h2 id="crew-mode-heading">Start mode</h2>
-              <span class="build-stamp" title="Build version">v51</span>
+              <span class="build-stamp" title="Build version">v52</span>
             </div>
             <div class="crew-mode-start" id="crewModeStart" role="group" aria-label="Start demo mode">
-              <button type="button" id="crewBossDemoBtn" class="btn accept-btn crew-mode-btn crew-boss-demo-btn">Show boss demo</button>
+              <button type="button" id="crewBossDemoBtn" class="btn accept-btn crew-mode-btn crew-boss-demo-btn">Show boss demo (8 stops)</button>
+              <button type="button" id="crewEveryMoveBtn" class="btn muted-btn crew-every-btn">Watch every move (98 stops)</button>
               <div class="crew-mode-secondary" role="group" aria-label="Other demo modes">
                 <button type="button" id="crewSoloStartBtn" class="btn muted-btn crew-mode-btn-secondary">Solo forklift</button>
                 <button type="button" id="crewMultiStartBtn" class="btn muted-btn crew-mode-btn-secondary">Crew (5)</button>
               </div>
             </div>
             <ul class="crew-mode-lines" id="crewModeLines">
-              <li><b>Show boss demo</b> — sample freight, 5 forklifts, a stop at every move.</li>
+              <li><b>Show boss demo</b> — sample freight, 5 forklifts, 8 key stops; the moves in between play on the map.</li>
+              <li><b>Watch every move</b> — the same demo with a stop at all 98 moves.</li>
               <li><b>Solo forklift</b> — one forklift does every move, first pull to last put.</li>
               <li><b>Crew (5)</b> — five forklifts at once; you tap Step or Play.</li>
               <li><b>Ground</b> (tab above) — the ground crew's view: which decks to set where.</li>
             </ul>
             <p class="hint crew-mode-same">All four are views of the same planner and the same plan.</p>
-            <p class="hint crew-boss-copy" id="crewBossCopy">Start here: sample freight, 5 forklifts, a stop at every move.</p>
+            <p class="hint crew-boss-copy" id="crewBossCopy">Start here: sample freight, 5 forklifts, 8 key stops (or watch every move).</p>
             <p class="hint crew-solo-copy" id="crewSoloCopy">Solo = one forklift. Crew (5) = five forklifts (you tap Play).</p>
             <button type="button" id="crewExitDemoBtn" class="btn muted-btn crew-exit-demo-btn" hidden>Exit demo · bring back my freight</button>
           </section>
@@ -404,7 +407,7 @@
             <details class="crew-howto-details">
               <summary id="crew-howto-heading">Crew — live demo</summary>
               <p class="hint"><strong>Show boss demo</strong> loads sample freight and stops at every forklift move. Tap <strong>Continue</strong> for the next move, or <strong>Play without stops</strong> to run to the end. The map shows inbound doors (top), forklifts (numbered circles) and outbound trailers (OUT chips). Tap an OUT chip to see that trailer's picture, weights and pieces. Solo forklift and Crew (5) are extra practice modes.</p>
-              <p class="hint crew-glossary"><strong>Words used here:</strong> <b>light</b> = 900 lb or less · <b>deck</b> = a load bar holding a second level, so freight rides double-stacked above the floor piece · <b>at target</b> = 95–100% of a limit · <b>tight</b> = less than 15 min of slack before departure (add a forklift or hold the trailer) · <b>OS&amp;D</b> = Over, Short &amp; Damaged freight · <b>fragile</b> = floor only, nothing stacked on top. Limits: 20,000 lb per single axle is the federal limit; the 3,200 lb nose/tail zones are a company setting. Sample forklift limit: 5,000 lb per piece.</p>
+              <p class="hint crew-glossary"><strong>Words used here:</strong> <b>light</b> = 900 lb or less · <b>levels</b> = Floor (the trailer floor), Deck 2 (second level) and Deck 3 (third level); Deck 2 and Deck 3 rest on load bars above the piece below · <b>pallet</b> = one piece of freight on a pallet · <b>at target</b> = 95–100% of a limit · <b>tight</b> = less than 15 min of slack before departure (send the next free forklift there first, or hold the trailer; two forklifts never share one trailer) · <b>OS&amp;D</b> = Over, Short &amp; Damaged freight · <b>fragile</b> = floor only, nothing stacked on top. Limits: 20,000 lb per single axle is the federal limit; the 3,200 lb per 4 ft section limit at the nose and tail is a company setting. Inside roof height assumed 110 in (stacks stay under 100 in). Sample forklift limit: 5,000 lb per piece.</p>
             </details>
           </section>
 
@@ -486,7 +489,7 @@
           <section class="card operator-panel-card" aria-labelledby="operator-heading">
             <div class="card-head operator-head">
               <h2 id="operator-heading">My jobs</h2>
-              <span class="build-stamp" title="Build version">v51</span>
+              <span class="build-stamp" title="Build version">v52</span>
             </div>
             <p class="hint operator-blurb">One move at a time — directions only. No map.</p>
             <div class="operator-controls" id="operatorControls" role="group" aria-label="Operator demo">
@@ -509,7 +512,7 @@
         <div id="dockPanelPlan" class="dock-panel hidden" role="tabpanel" aria-labelledby="dockSubPlan" hidden>
           <section class="card" aria-labelledby="plan-run-heading">
             <h2 id="plan-run-heading">Build load plan (demo)</h2>
-            <p class="hint">Local demo planner on this device. Reads inbound dock freight, keeps same-PRO pieces together, prefers one outbound trailer per destination, and packs <strong>section Tetris</strong> (high-and-tight): section-by-section nose→tail — floor (A) then decks B/C in each bay before moving aft (never whole-floor-first). Trailers marked <strong>City load — floor only</strong> stay on level A only.</p>
+            <p class="hint">Local demo planner on this device. Reads inbound dock freight, keeps same-PRO pieces together, prefers one outbound trailer per destination, and packs <strong>section Tetris</strong> (high-and-tight): section-by-section nose→tail — Floor (A), then Deck 2 (B) and Deck 3 (C) in each section before moving aft (never whole-floor-first). Trailers marked <strong>City load — floor only</strong> stay on the Floor only.</p>
             <p class="hint">Tip: generate freight first with <strong>Load demo inbound trailers</strong> on the Inbound section.</p>
             <button type="button" id="runLoadPlanBtn" class="btn speak-btn demo-primary-btn">Build load plan (demo)</button>
             <button type="button" id="clearPlanBtn" class="btn muted-btn demo-secondary-btn">Clear plan</button>
@@ -596,9 +599,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=51"></script>
-  <script src="speech.js?v=51"></script>
-  <script src="loadPlan.js?v=51"></script>
-  <script src="app.js?v=51"></script>
+  <script src="storage.js?v=52"></script>
+  <script src="speech.js?v=52"></script>
+  <script src="loadPlan.js?v=52"></script>
+  <script src="app.js?v=52"></script>
 </body>
 </html>

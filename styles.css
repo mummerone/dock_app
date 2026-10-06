@@ -392,7 +392,7 @@ button {
   min-height: 64px;
   margin: 4px 0 14px;
   border-radius: 14px;
-  background: linear-gradient(180deg, #3d9eff, #1f6fd1);
+  background: linear-gradient(180deg, #1b63bd, #15529e);
   color: #fff;
   font-size: 1.2rem;
   font-weight: 800;
@@ -474,6 +474,11 @@ button {
 }
 
 .btn {
+  /* v52: every button has its own dark face + light text (no browser-default
+     white face with light text). Variant classes below override this. */
+  background-color: #22324a;
+  color: #eef4fc;
+  border: 1px solid #4a6488;
   min-height: var(--tap);
   border-radius: 14px;
   font-weight: 800;
@@ -3375,7 +3380,7 @@ button.trailer-top-cell {
   opacity: 1;
 }
 .trailer-top-cell.is-loaded {
-  background: #2f9e5f;
+  background: #1d7243;
   border-color: #7dffb0;
   opacity: 1;
 }
@@ -5105,9 +5110,7 @@ button.trailer-top-cell {
 .boss-sum-real .btn { margin-left: 4px; }
 .crew-tour-actions button[hidden] { display: none !important; }
 .crew-door-cell .crew-door-trl { overflow: visible; text-overflow: clip; letter-spacing: -0.01em; }
-@media (min-width: 521px) {
-  .crew-door-cell .crew-door-trl:not(.crew-door-emptied)::before { content: 'Trl '; font-weight: 700; opacity: 0.8; }
-}
+
 .boss-sum-inputs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .boss-sum-input { min-width: 0; }
 .boss-sum-input input { width: 100%; min-width: 0; box-sizing: border-box; }
@@ -5119,4 +5122,223 @@ button.trailer-top-cell {
   border: 2px solid #7dffb0 !important;
   font-weight: 850 !important;
   margin: 6px 0 0;
+}
+
+
+/* ==================== v52 — honest counts, steady tour, wide layout ==================== */
+
+/* Tour card: Continue is the LAST button (bottom, full width); the two
+   secondaries sit side by side above it. */
+.crew-tour-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.crew-tour-actions > #crewTourContinueBtn { grid-column: 1 / -1; order: 3; }
+.crew-tour-actions > #crewTourSkipBtn { order: 1; }
+.crew-tour-actions > #crewTourSummaryBtn { order: 2; }
+
+.crew-tour-more {
+  margin: 8px 0 4px;
+  border: 1px solid #34507a;
+  border-radius: 10px;
+  background: #142033;
+}
+.crew-tour-more > summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  min-height: 40px;
+  box-sizing: border-box;
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: #cfe3ff;
+  list-style-position: inside;
+}
+.crew-tour-more[open] > summary { border-bottom: 1px solid #2a3c58; }
+.crew-tour-more ul {
+  margin: 6px 0 8px;
+  padding: 0 12px 0 28px;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: #dfe8f5;
+}
+.crew-tour-more li { margin: 3px 0; }
+
+/* Phone: every card docks to the bottom and scrolls inside itself, so the
+   map above stays visible and the buttons never move between cards. */
+@media (max-width: 899px) {
+  .crew-tour-bubble {
+    max-height: max(50vh, calc(100vh - 320px));
+    max-height: max(50dvh, calc(100dvh - 320px));
+    overflow-y: auto;
+    padding-bottom: 0;
+  }
+  /* the buttons stay pinned at the card bottom even when the text scrolls */
+  .crew-tour-bubble .crew-tour-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    background: #152238;
+    padding: 6px 0 10px;
+    margin-top: 4px;
+  }
+}
+
+/* No pull-to-refresh / overscroll reload while the demo or tour is up */
+body.demo-data-on,
+body.crew-tour-open { overscroll-behavior-y: contain; }
+
+/* Trailer strip head lines */
+.cts-counts {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #dfe8f5;
+  line-height: 1.3;
+}
+.cts-pace-line {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.82rem;
+  color: #c8d4e8;
+  line-height: 1.3;
+}
+.cts-from-now { color: #9ec2ff; font-weight: 700; }
+
+/* Outbound trailer number on the OUT chip */
+.crew-out-trlid {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #d6e4f7;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+/* Summary: time line + one fill explanation */
+.boss-sum-row-time { font-size: 0.82rem; color: #9ef0c2; font-weight: 700; line-height: 1.3; margin-top: 2px; }
+.boss-sum-row-time.is-late { color: #ff9b9b; }
+.boss-sum-fill-note {
+  margin: 4px 0 10px;
+  font-size: 0.82rem;
+  color: #dfe8f5;
+  line-height: 1.4;
+  background: #142033;
+  border-left: 3px solid #f0a030;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+/* Wide screens (laptop / tablet landscape): use the width. */
+@media (min-width: 900px) {
+  #app { max-width: 980px; }
+  #viewEntry .hero-card,
+  #viewEntry .card { max-width: 720px; margin-left: auto; margin-right: auto; }
+  body.crew-tour-open #app {
+    max-width: calc(100vw - 440px);
+    width: calc(100vw - 440px);
+    margin-left: 16px;
+    margin-right: 0;
+  }
+  .crew-map-layout { grid-template-columns: minmax(320px, 1.1fr) minmax(0, 1fr); }
+
+  /* Summary: readable 2-column grid, normal type */
+  .boss-summary { font-size: 1rem; }
+  .boss-sum-rows { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .boss-sum-row { margin: 0; }
+  .boss-sum-row-facts,
+  .boss-sum-row-time,
+  .boss-sum-row-note,
+  .boss-sum-fill-note,
+  .boss-sum-shared-note { font-size: 0.95rem; }
+  .boss-sum-crew ul,
+  .boss-sum-next ul { font-size: 0.95rem; }
+  .boss-sum-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+}
+
+/* ---- v52 Quick tour (default) ---- */
+.hero-every-btn {
+  width: 100%;
+  margin-top: 8px;
+  min-height: 48px;
+  font-size: 1rem;
+}
+.crew-every-btn {
+  width: 100%;
+  margin: 8px 0 0;
+  min-height: 46px;
+  font-size: 0.98rem;
+}
+.crew-tour-movecount {
+  margin-left: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #22324a;
+  border: 1px solid #4a6488;
+  color: #dfe8f5;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  vertical-align: 1px;
+}
+.crew-tour-stoptitle {
+  margin: 2px 0 6px;
+  font-size: 1.02rem;
+  font-weight: 900;
+  line-height: 1.25;
+  color: #ffd27a;
+}
+.crew-tour-fastbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 64px;
+  padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: #152238;
+  border-top: 2px solid #f5a623;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.5);
+  color: #eef4fc;
+}
+.crew-tour-fastbar[hidden] { display: none; }
+.crew-tour-fasttext { font-size: 0.92rem; font-weight: 800; line-height: 1.3; }
+.crew-tour-fastskip { min-height: 44px; font-size: 0.9rem; padding: 0 14px; flex: 0 0 auto; }
+@media (min-width: 900px) {
+  .crew-tour-fastbar {
+    left: auto;
+    right: 16px;
+    bottom: auto;
+    top: 72px;
+    width: 380px;
+    border: 2px solid #f5a623;
+    border-radius: 14px;
+  }
+}
+.boss-sum-headline {
+  margin: 4px 0 12px;
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1.3;
+  color: #f7fafc;
+}
+@media (min-width: 900px) {
+  .boss-sum-headline { font-size: 1.5rem; }
+}
+.crew-tour-stopextra {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #eef4fc;
+  background: #1d2c44;
+  border-left: 3px solid #ffd27a;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+@media (min-width: 900px) {
+  .boss-sum-stats span { font-size: 0.95rem; }
+  .boss-sum-input-hint { font-size: 0.9rem; }
 }
