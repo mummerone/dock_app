@@ -2777,6 +2777,10 @@
       doorLastOp: {},
       doorLeaveWhy: {},
       handoffByUid: {},
+      switches: [],
+      loadedAt: {},
+      planMismatch: 0,
+      deckFloat: 0,
     };
   }
 
@@ -2864,7 +2868,7 @@
     const total = steps.length;
     let after = 0;
     // spread the stops over the run so the fast-play between them is visible
-    const minAt = { heavy: 0.1, crew: 0.22, stack: 0.36, fragile: 0.36, tight: 0.5, finished: 0.5 };
+    const minAt = { heavy: 0.1, wait: 0.15, crew: 0.22, stack: 0.36, fragile: 0.36, tight: 0.5 };
     const take = (key, pred, extra) => {
       const floor = Math.round((minAt[key] || 0) * total);
       const s =
@@ -2877,6 +2881,8 @@
     };
     take('first', (x) => x.seq === 1);
     take('heavy', (x) => x.level === 'A' && x.section >= 2 && x.section <= 11 && !x.noStack && x.weight > PUP_END_LIGHT_MAX_LB_UI);
+    // v56: one waiting moment, with its real reason (replaces the old "OUT 25 fully loaded" stop)
+    take('wait', (x) => x.waiting > 0);
     take('crew', (x) => x.workingDoors >= Math.min(5, Object.keys(departures || {}).length || 5));
     const stack =
       take('stack', (x) => x.level === 'C' && Number.isFinite(x.belowW) && x.belowW >= x.weight) ||
@@ -2893,9 +2899,68 @@
       })
     );
     take('tight', (x) => tightDoors.has(String(x.toDoor)));
-    take('finished', (x) => x.doorFinished);
     stops.push({ seq: total, key: 'done' });
     return stops;
+  }
+
+  /**
+   * v56: the pieces under a deck piece, bottom-most last: [{piece, seq|null, preloaded}].
+   * Every one of them is already on board when the deck piece goes in.
+   */
+  function crewSupportChain(move) {
+    const out = [];
+    if (!move) return out;
+    const p = moveSlotParts(move);
+    if (p.level !== 'B' && p.level !== 'C') return out;
+    const pieces = piecesForOutboundTrailer(move.toTrailer);
+    const lat = lateralName(p.lateral);
+    const levels = p.level === 'C' ? ['B', 'A'] : ['A'];
+    levels.forEach((lv) => {
+      const hit = pieces.find((x) => { const f = parseSlotFull(x.slot); return f && f.section === p.section && f.level === lv && lateralName(f.lateral) === lat; });
+      if (!hit) return;
+      const seq = (crewDemo.loadedAt || {})[crewSlotKey(move.toTrailer, hit.slot)];
+      out.push({ piece: hit, level: lv, seq: Number.isFinite(seq) ? seq : null, preloaded: Boolean(hit.preloaded), done: Boolean(hit.done) });
+    });
+    return out;
+  }
+
+  /** v56: one key per trailer space: "T123|10/B/Left" */
+  function crewSlotKey(trailer, slot) {
+    const f = parseSlotFull(slot);
+    return String(trailer || '') + '|' + (f ? f.section + '/' + f.level + '/' + lateralName(f.lateral) : String(slot || ''));
+  }
+
+  /** v56: "the 399 lb drum on Deck 2 (loaded at move 44)" */
+  function crewSupportPhrase(s) {
+    const lvName = s.level === 'A' ? 'the Floor' : s.level === 'B' ? 'Deck 2' : 'Deck 3';
+    const kind = String(s.piece.kind || 'piece').replace(/^fragile.*/, 'fragile piece');
+    return 'the ' + fmtLb(s.piece.weight) + ' ' + kind + ' on ' + lvName + ' (' + (s.preloaded ? 'loaded earlier in the shift' : s.seq ? 'loaded at move ' + s.seq : 'on board') + ')';
+  }
+
+  /**
+   * v56: which forklifts changed trailers since the last stop, and why: the
+   * same reason the card gave when it happened (built once, at that move).
+   */
+  function crewChangesSinceText(fromSeq, toSeq, snap) {
+    if (!snap) return '';
+    const now = {};
+    crewDemo.active.forEach((a) => {
+      const m = a.move || a.justDone;
+      if (m) now[a.operator] = String(m.toDoor || '');
+    });
+    const bits = [];
+    Object.keys(now).sort().forEach((op) => {
+      const before = snap[op];
+      if (!before || before === now[op]) return;
+      const recs = (crewDemo.switches || []).filter((r) => String(r.op) === String(op) && r.at > fromSeq && r.at <= toSeq);
+      const r = recs[recs.length - 1];
+      let why = '';
+      if (r && r.why) why = r.why.kind === 'free' ? r.why.text : crewBlockText(r.why, true);
+      bits.push(crewOpLabel(op) + ': OUT ' + before + ' → OUT ' + now[op] + (r ? ' (after move ' + r.at + (why ? ': ' + why : '') + ')' : ''));
+    });
+    if (!bits.length) return 'Since the last stop every forklift kept its trailer.';
+    const shown = bits.slice(0, 3);
+    return 'Since the last stop: ' + shown.join('; ') + (bits.length > 3 ? '; and ' + (bits.length - 3) + ' more' : '') + '.';
   }
 
   /** Title + extra line for a quick-tour stop, from the live state of that card. */
@@ -2910,7 +2975,7 @@
       case 'first':
         return { title: 'First move: from an inbound door into an exact slot', extra: 'Every piece gets an exact slot: section (1 = nose … 12 = tail), level (Floor, Deck 2, Deck 3) and side.' };
       case 'heavy':
-        return { title: 'Heavy piece (over ' + fmtLb(PUP_END_LIGHT_MAX_LB_UI) + '): on the floor, weight shared by ' + TP.front.kind + ' and rear axle', extra: 'Heavy = over ' + fmtLb(PUP_END_LIGHT_MAX_LB_UI) + ': floor only, never in the 4 ft nose or tail. Its weight splits between the ' + TP.front.kind + ' (' + TP.front.atFt + ' ft) and the rear axle (' + TP.rear.atFt + ' ft) by where it sits: the closer to the rear axle, the more it carries (▲ marks both in the side view: tap Side view).' };
+        return { title: 'Heavy piece (over ' + fmtLb(PUP_END_LIGHT_MAX_LB_UI) + '): on the floor, weight shared by ' + TP.front.kind + ' and rear axle', extra: 'Heavy = over ' + fmtLb(PUP_END_LIGHT_MAX_LB_UI) + ': floor only, never in the 4 ft nose or tail. Its weight splits between the ' + TP.front.kind + ' (' + TP.front.atFt + ' ft) and the rear axle (' + TP.rear.atFt + ' ft) by where it sits: the closer to the rear axle, the more it carries.', extraHtml: ' <span class="only-wide">▲ marks both in the side view below.</span><span class="only-phone">Tap ⤢ Side view: ▲ marks both.</span>' };
       case 'crew': {
         // v54: the heading matches the picture: who is at an inbound door, who just dropped
         const pulling = crewDemo.active.filter((a) => crewOpStatus(a) === 'pulling').length;
@@ -2918,13 +2983,42 @@
         const where = dropping.length
           ? crewOpLabel(dropping[0].operator) + ' just dropped at OUT ' + (dropping[0].justDone.toDoor || '?') + '; the other ' + pulling + ' are picking up at inbound doors. '
           : 'All ' + pulling + ' are picking up at inbound doors. ';
+        const prevStop = crewTour.stopSnap || null;
+        const changes = prevStop ? crewChangesSinceText(prevStop.seq, ev.seq, prevStop.map) : '';
         return {
           title: 'All ' + ops + ' forklifts busy at once, each loading a different OUT trailer',
-          extra: where + 'One forklift per trailer at a time (two would block the doorway); at most 2 per inbound door.',
+          extra: where + 'One forklift per trailer at a time (two would block the doorway); at most 2 per inbound door.' + (changes ? ' ' + changes : ''),
         };
       }
-      case 'stack':
-        return { title: 'A deck stack: lighter piece on a heavier one', extra: 'Deck rule: Deck 2 and 3 sit on load bars. A deck piece is ' + fmtLb(DECK_PIECE_MAX_LB_UI) + ' or less, never heavier than the piece under it; stack under 100 in. Highlighted in the side view below.' };
+      case 'stack': {
+        const chain = crewSupportChain(m);
+        const p = moveSlotParts(m);
+        const lvName = p.level === 'C' ? 'Deck 3' : 'Deck 2';
+        const kind = String(m.kind || 'piece');
+        const stackTxt = chain.length
+          ? 'This ' + fmtLb(m.weight) + ' ' + kind + ' on ' + lvName + ' (sec ' + p.section + ', ' + lateralName(p.lateral) + ') sits on ' +
+            chain.map(crewSupportPhrase).join(', which sits on ') + '. ' +
+            (chain.length > 1 ? 'Both are' : 'It is') + ' on board before this piece goes in: a deck piece never goes in before the piece under it. '
+          : '';
+        return {
+          title: 'A deck stack: lighter piece on a heavier one',
+          extra: stackTxt + 'Deck rule: Deck 2 and 3 sit on load bars. A deck piece is ' + fmtLb(DECK_PIECE_MAX_LB_UI) + ' or less, never heavier than the piece under it; stack under 100 in.',
+          extraHtml:
+            ' <span class="only-wide">The stack is highlighted in the side view below.</span>' +
+            '<span class="only-phone">Tap ⤢ Side view to see the stack highlighted.</span>',
+        };
+      }
+      case 'wait': {
+        const w = crewDemo.active.filter((a) => crewOpStatus(a) === 'waiting');
+        const names = crewNamesAnd(w.map((a) => a.operator));
+        return {
+          title: names + (w.length === 1 ? ' has' : ' have') + ' to wait: every trailer with work left is blocked right now',
+          extra:
+            'The two forklift rules: one forklift per trailer at a time, and at most 2 forklifts pulling from one inbound door. ' +
+            'When every trailer with work left is blocked by one of them, a free forklift waits (the reason is below, and the map shows it under "Waiting"). ' +
+            'Waiting time is part of the forklift labor hours on the summary.',
+        };
+      }
       case 'fragile':
         return { title: 'Fragile piece: floor only, nothing stacked on top', extra: 'Fragile rule: floor only, and nothing is ever stacked on top of it.' };
       case 'tight': {
@@ -2936,7 +3030,7 @@
           extra:
             spare != null && spare >= 0 && Number.isFinite(done)
               ? 'Tight = on time, but under ' + CREW_TIGHT_MARGIN_MIN + ' min to spare. OUT ' + d + ': done ' + formatDoneClock(done) +
-                ', leaves ' + formatClock(dep) + ' (' + spare + ' min spare). If anything slips, hold it a few minutes or start it earlier. ' +
+                ', leaves ' + formatClock(dep) + ' (' + spare + ' min spare). If anything slips, hold it a few minutes or start loading it earlier next shift. ' +
                 'Another forklift won\'t help: one per trailer at a time.'
               : 'Tight = under ' + CREW_TIGHT_MARGIN_MIN + ' min to spare. ' + tightAdvice(spare),
         };
@@ -2967,11 +3061,11 @@
     // departure is called late.
     const noFork = 'Adding a forklift won\'t speed up this one trailer: never two forklifts in one trailer at the same time.';
     if (Number.isFinite(spare) && spare < 0) {
-      return 'At this pace it leaves ' + Math.abs(spare) + ' min late: hold it ' + Math.abs(spare) + ' min, or start it earlier next shift. ' + noFork;
+      return 'At this pace it leaves ' + Math.abs(spare) + ' min late: hold it ' + Math.abs(spare) + ' min, or start loading it earlier next shift. ' + noFork;
     }
     return (
       (Number.isFinite(spare) ? 'It still leaves on time, with ' + spare + ' min to spare. ' : '') +
-      'If anything slips (a late inbound, a slow move), hold it a few minutes or start it earlier next shift. ' + noFork
+      'If anything slips (a late inbound, a slow move), hold it a few minutes or start loading it earlier next shift. ' + noFork
     );
   }
 
@@ -3406,7 +3500,8 @@
     const mpm = Number(crewDemo.minPerMove) || CREW_MIN_PER_MOVE;
     return (
       '1 move = one forklift trip carrying one piece. Each move ≈ ' + mpm + ' min handling + ' + CREW_TRAVEL_MIN_PER_DOOR +
-      ' min per door of travel, rounded up to whole minutes (change it on the summary).'
+      ' min per door of travel, rounded up to whole minutes (change it on the summary). ' +
+      'Doors apart = how far apart the IN door and the OUT door sit along the dock wall, as drawn on the map (IN 1–5 sit right above Doors 21–25): IN 2 to Door 22 is 0 doors apart (0 min travel); IN 1 to Door 23 is 2 apart (1 min).'
     );
   }
 
@@ -3525,7 +3620,28 @@
     if (Number.isFinite(wt) && wt > 0) bits.push(fmtLb(wt));
     if (m.noStack) bits.push('FRAGILE, no stacking');
     if (m.fromDoor) bits.push('from IN door ' + m.fromDoor + (m.fromTrailer ? ' (Trl ' + m.fromTrailer + ')' : ''));
+    const trav = crewTravelText(m);
+    if (trav) bits.push(trav);
     return bits.join(' · ');
+  }
+
+  /**
+   * v56: travel the way the map draws it: IN 1–5 sit in columns above Doors 21–25,
+   * so "doors apart" = columns apart on the dock wall (not the gap in door numbers).
+   * "IN 2 to Door 22: 0 doors apart, 0 min travel (4 min in all)"
+   */
+  function crewTravelText(m) {
+    if (!m || !crewDemo.inIdx || !crewDemo.outIdx) return '';
+    const a = crewDemo.inIdx[String(m.fromDoor || '')];
+    const b = crewDemo.outIdx[String(m.toDoor || '')];
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return '';
+    const dist = Math.abs(a - b);
+    const trav = dist * CREW_TRAVEL_MIN_PER_DOOR;
+    const total = moveDurationMin(m);
+    const base = Number(crewDemo.minPerMove) || CREW_MIN_PER_MOVE;
+    const rounded = Math.abs(base + trav - total) > 1e-9;
+    return 'IN ' + m.fromDoor + ' to Door ' + m.toDoor + ': ' + dist + ' door' + (dist === 1 ? '' : 's') + ' apart, ' +
+      String(trav).replace(/\.0$/, '') + ' min travel (' + total + ' min in all' + (rounded ? ', rounded up' : '') + ')';
   }
 
   /**
@@ -3601,8 +3717,8 @@
     const onDeck = p.level === 'B' || p.level === 'C';
     if (move.noStack) {
       return (
-        'Why here: fragile, so it rides on the floor and nothing is stacked on top. ' +
-        'It fills the ' + zone + ' (sec ' + p.section + '), next in nose-to-tail order.'
+        'Why here: this ' + wtTxt + ' ' + String(move.kind || 'piece') + ' is fragile, so it rides on the floor (' + (p.lateral ? p.lateral + ', ' : '') + 'sec ' + p.section + ') and nothing is stacked on top. ' +
+        'It fills the ' + zone + ' of OUT ' + (move.toDoor || '') + ', next in nose-to-tail order.'
       );
     }
     if (p.section === 1 || p.section === 12) {
@@ -3648,10 +3764,27 @@
         '. Lighter freight can stack on top.'
       );
     }
+    // v56: specific to this move: which spot, and what that section now carries
+    const secLb = crewSectionLoadLb(move.toTrailer, p.section);
+    const secTxt = Number.isFinite(secLb)
+      ? ' Sec ' + p.section + ' now carries ' + fmtLb(secLb) + ' of its ' + fmtLb(TP.sectionMaxLb) + ' max (company setting).'
+      : ' ' + TP_RULES.section;
     return (
-      'Why here: next open floor spot, loading nose to tail. The ' + zone + ' (sec ' + p.section +
-      ') fills floor first, then decks. ' + TP_RULES.section
+      'Why here: this ' + wtTxt + ' ' + String(move.kind || 'piece') + ' takes the next open floor spot, ' + (p.lateral ? p.lateral + ' ' : '') + 'in the ' + zone + ' (sec ' + p.section +
+      '): loading nose to tail, floor first, then decks.' + secTxt
     );
+  }
+
+  /** v56: freight weight on board in one 4 ft section of a trailer (all levels). */
+  function crewSectionLoadLb(trailer, section) {
+    const pieces = piecesForOutboundTrailer(trailer);
+    if (!pieces.length) return NaN;
+    let sum = 0;
+    pieces.forEach((x) => {
+      const f = parseSlotFull(x.slot);
+      if (f && f.section === section && (x.done || x.preloaded)) sum += Number(x.weight) || 0;
+    });
+    return sum;
   }
 
   /**
@@ -3686,7 +3819,8 @@
         '</ul>' +
         '<div class="ctr-sub">Reading the map</div><ul>' +
         li('Circles 1–5 are the forklifts, drawn where they are now: at an inbound door picking up, or on an OUT door right after a drop.') +
-        li('"FL 3 coming" under an OUT door = forklift 3 is bringing that trailer\'s next piece. "Waiting" = free but blocked right now (the card says why); "Done" = no work left for it.') +
+        li('"FL 3 coming" under an OUT door = forklift 3 is bringing that trailer\'s next piece. "FL 3 next" = forklift 3 just dropped somewhere else and comes here next (the card says why). "Waiting" = free but blocked right now (the card says why); "Done" = no work left for it.') +
+        li('The small green square that moves on the map = the piece on its way, from its inbound door to the OUT trailer. In the side view, the yellow block = this piece (the one on the card).') +
         li('IN 81001 = the inbound trailer at that door. OUT chip = door, trailer, city, pieces loaded / total.') +
         '</ul>' +
         '<p class="ctr-equip">' + escapeHtml(EQUIP_LONG) + '</p>';
@@ -3722,8 +3856,6 @@
       crewOpLabel(ev.op) + ' → OUT ' + toDoor + (dest ? ' ' + dest : '') +
       (where ? ': ' + where : '');
     const notes = (ev.notes || []).slice();
-    const handoff = m.uid != null ? (crewDemo.handoffByUid || {})[m.uid] : '';
-    if (handoff) notes.unshift(handoff);
     if (ev.doorFinished) {
       const counts = trailerCountsLine(toDoor);
       notes.unshift('OUT ' + toDoor + ' is fully loaded' + (counts ? ' — ' + counts : '') + '.');
@@ -4352,6 +4484,8 @@
     if (ev.seq) crewTour.lastShownSeq = Math.max(crewTour.lastShownSeq, ev.seq);
     const total = Number(crewDemo.total) || 0;
     // v50 #6: the trailer panel always shows the trailer this move loads
+    // v56: the pieces holding up a deck piece are outlined in the side views
+    state.crewOutSupportKeys = ev.move && !ev.intro ? crewSupportChain(ev.move).map((s) => crewOutPieceKey(s.piece)) : null;
     if (ev.move && ev.move.toDoor) {
       state.crewOutDoor = String(ev.move.toDoor);
       state.crewOutJustLoadedKey = crewOutPieceKey({
@@ -4393,11 +4527,21 @@
       parts.detail =
         crewDemo.quickStops.length + ' stops = ' + crewDemo.quickStops.length + ' key moments; the ' + total +
         ' forklift moves in between play on the map. The "Trailer being loaded" box on each card is the trailer that just got a piece. ' +
-        'Gray hatched freight was loaded by the earlier shift with this same planner.';
+        'Gray hatched freight was loaded by the earlier shift with this same planner. ' +
+        'Each trip = ' + (Number(crewDemo.minPerMove) || CREW_MIN_PER_MOVE) + ' min handling + ' + CREW_TRAVEL_MIN_PER_DOOR + ' min per door apart along the dock wall (as drawn: IN 2 sits right above Door 22, so that trip is 0 doors apart, 0 min travel).';
     }
     if (crewTour.stopExtraEl) {
-      crewTour.stopExtraEl.textContent = qText && qText.extra ? qText.extra : '';
+      crewTour.stopExtraEl.innerHTML = qText && qText.extra ? escapeHtml(qText.extra) + (qText.extraHtml || '') : '';
       crewTour.stopExtraEl.hidden = !(qText && qText.extra);
+    }
+    // v56: remember who works which trailer at this stop, so the next stop can say what changed
+    if (qStop) {
+      const snapMap = {};
+      crewDemo.active.forEach((a) => {
+        const mm = a.move || a.justDone;
+        if (mm) snapMap[a.operator] = String(mm.toDoor || '');
+      });
+      crewTour.stopSnap = { seq: ev.intro ? 0 : ev.seq || 0, map: snapMap };
     }
     if (crewTour.trailerEl) {
       const stripDoor = ev.move && ev.move.toDoor ? String(ev.move.toDoor) : String(state.crewOutDoor || '');
@@ -4445,6 +4589,21 @@
     crewTour.root.classList.add('is-open');
     document.body.classList.add('crew-tour-open');
     if (crewTour.bubble) crewTour.bubble.scrollTop = 0;
+    // v56: a card that appears on its own (quick-tour stop after fast play, the
+    // intro, a resumed tour) takes the very first tap at once. Only a card shown
+    // BY a Continue tap keeps the 400 ms window, so the second tap of one fast
+    // double tap does not skip the card it just opened.
+    if (!crewTour.handling) {
+      crewTour.lastAcceptedAt = -1e9;
+      crewTour.lastContAt = 0;
+    }
+    // v56: place the card now (not 2 frames later), so Continue is where it is
+    // drawn from the first visible frame
+    try {
+      positionCrewTourBubble({ skipScroll: true });
+    } catch (e) {
+      /* ignore */
+    }
     // v55: Continue looks dimmed only for what is left of the 400 ms after the
     // previous accepted tap (the one window where a tap is ignored)
     if (crewTour.continueBtn) {
@@ -4901,7 +5060,7 @@
    * @param {string} [preferDoor]
    * @returns {object|null}
    */
-  function pickNextMoveForForklift(op, preferDoor) {
+  function pickNextMoveForForklift(op, preferDoor, peek) {
     const busyLoad = busyLoadKeys(op);
     const busyPull = busyPullDoors(op);
     // v51: how many forklifts are pulling from each inbound door right now
@@ -4927,6 +5086,8 @@
       if (busyLoad.has(k)) return;
       const m = crewDemo.queue[idx];
       if ((pullCount.get(String(m.fromDoor || '')) || 0) >= CREW_MAX_PER_PULL_DOOR) return;
+      // v56: a deck piece only goes in once the piece under it is on board
+      if (!crewDeckSupportLoaded(m)) return;
       const cand = {
         idx,
         same: pref && String(m.toDoor || '') === pref ? 1 : 0,
@@ -4945,7 +5106,23 @@
       }
     });
     if (!best) return null;
+    if (peek) return crewDemo.queue[best.idx];
     return crewDemo.queue.splice(best.idx, 1)[0];
+  }
+
+  /**
+   * v56: true when the piece this move sits on (Deck 2 → Floor, Deck 3 → Deck 2,
+   * same section and side) is already on board: not still in line and not on a forklift.
+   */
+  function crewDeckSupportLoaded(m) {
+    const lv = String((m && m.toLevel) || '').toUpperCase();
+    if (lv !== 'B' && lv !== 'C') return true;
+    const below = (m.toSection != null ? m.toSection : String(m.toSlot || '').split('/')[0]) + '/' + (lv === 'B' ? 'A' : 'B') + '/' + String(m.toLateral || '');
+    const t = String(m.toTrailer || '');
+    const pending = (x) => x && String(x.toTrailer || '') === t && String(x.toSlot || '') === below;
+    if (crewDemo.queue.some(pending)) return false;
+    if (crewDemo.active.some((a) => a && pending(a.move))) return false;
+    return true;
   }
 
   /**
@@ -5178,6 +5355,8 @@
           belowW: below ? Number(below.weight) : NaN,
           doorFinished: Boolean(ev.doorFinished),
           workingDoors: doors.size,
+          // v56: forklifts shown under "Waiting" on this card
+          waiting: crewDemo.active.filter((a) => crewOpStatus(a) === 'waiting').length,
         });
       }
       return {
@@ -5264,7 +5443,12 @@
         '), and never two forklifts work one trailer at the same time.';
     }
     // v54: checked against the live pull count, never assumed
-    const ready = open.filter((r) => (pullCount[String(r.head.fromDoor || '')] || 0) < CREW_MAX_PER_PULL_DOOR);
+    const capOk = open.filter((r) => (pullCount[String(r.head.fromDoor || '')] || 0) < CREW_MAX_PER_PULL_DOOR);
+    // v56: a deck piece waits until the piece under it is on board
+    const ready = capOk.filter((r) => crewDeckSupportLoaded(r.head));
+    if (capOk.length && !ready.length) {
+      return 'the next piece for ' + capOk.map((r) => 'OUT ' + r.door).join(' and ') + ' goes on a deck, on top of a piece that is not on board yet (a deck piece never goes in before the piece under it).';
+    }
     if (ready.length) {
       const list = ready.map((r) => 'OUT ' + r.door).join(', ');
       return 'work is handed out at the start of the next move: the next piece for ' + list + (ready.length === 1 ? ' is' : ' are') +
@@ -5279,12 +5463,13 @@
     const bits = [];
     byIn.forEach((outs, f) => {
       const andList = outs.length > 1 ? outs.slice(0, -1).join(', ') + ' and ' + outs[outs.length - 1] : outs[0];
+      // v56: name the 2 forklifts at that door, so the claim can be checked on the map
       bits.push(
         (outs.length === 1 ? 'the next piece for ' + andList + ' is' : 'the next pieces for ' + andList + (outs.length === 2 ? ' are both' : ' are all')) +
-          ' at IN door ' + f
+          ' at IN ' + f + ', where ' + crewNamesAnd(crewPullersAt(f, op)) + ' are already pulling'
       );
     });
-    return bits.join('; ') + (byIn.size === 1 ? ', which already has' : ', and each of those doors already has') + ' 2 forklifts pulling from it (the most allowed).';
+    return bits.join('; ') + ' (2 per inbound door at most).';
   }
 
   /**
@@ -5319,11 +5504,65 @@
   }
 
   /**
-   * v55: free forklifts take their next move, in the order they became free.
-   * postDrop = right after a drop: only forklifts that were already waiting
-   * (the one that just dropped picks at the start of the next move, after them).
+   * v56: names of the forklifts pulling from one inbound door right now
+   * (the same forklifts the map draws at that door).
    */
-  function crewAssignFreeForklifts(notes, postDrop) {
+  function crewPullersAt(inDoor, exceptOp) {
+    return crewDemo.active
+      .filter((x) => x && x.move && x.operator !== exceptOp && String(x.move.fromDoor || '') === String(inDoor))
+      .map((x) => x.operator)
+      .sort((p, q) => p - q);
+  }
+
+  function crewNamesAnd(ops) {
+    const l = ops.map((o) => crewOpLabel(o));
+    return l.length > 1 ? l.slice(0, -1).join(', ') + ' and ' + l[l.length - 1] : l[0] || '';
+  }
+
+  /**
+   * v56: why a forklift cannot (or does not) take the next piece of OUT door d
+   * right now, built from the live state (the state the map shows on this card).
+   * Returns { kind, d, inDoor, ops } or null when the piece is free to take.
+   */
+  function crewDoorBlock(d, op) {
+    const door = String(d || '');
+    if (crewRemainingForDoor(door) === 0) return { kind: 'full', d: door };
+    const taker = crewDemo.active.find((x) => x && x.operator !== op && x.move && String(x.move.toDoor || '') === door);
+    if (taker) return { kind: 'taken', d: door, ops: [taker.operator] };
+    const head = crewDemo.queue.find((x) => String(x.toDoor || '') === door);
+    if (!head) return { kind: 'full', d: door };
+    const pullers = crewPullersAt(head.fromDoor, op);
+    if (pullers.length >= CREW_MAX_PER_PULL_DOOR) return { kind: 'cap', d: door, inDoor: String(head.fromDoor || ''), ops: pullers };
+    return null;
+  }
+
+  /** v56: one wording for a block, present ("are") or past ("were") tense. */
+  function crewBlockText(b, past) {
+    if (!b) return '';
+    const is = past ? 'was' : 'is';
+    const are = past ? 'were' : 'are';
+    if (b.kind === 'full') return 'OUT ' + b.d + ' ' + (past ? 'was' : 'is') + ' fully loaded';
+    if (b.kind === 'taken') return crewOpLabel(b.ops[0]) + ' ' + (past ? 'had already taken' : 'is already bringing') + ' OUT ' + b.d + '\'s next piece (one forklift per trailer)';
+    if (b.kind === 'cap') return 'OUT ' + b.d + '\'s next piece ' + is + ' at IN ' + b.inDoor + ', where ' + crewNamesAnd(b.ops) + ' ' + are + ' already pulling (2 per inbound door at most)';
+    return '';
+  }
+
+  /** v56: the next move this forklift WOULD take now (same rule as the real pick, nothing removed). */
+  function peekNextMoveForForklift(op, preferDoor) {
+    return pickNextMoveForForklift(op, preferDoor, true);
+  }
+
+  /**
+   * v56: free forklifts take their next move, in the order they became free.
+   * postDrop = right after a drop. Each decision is narrated ONCE, on the card
+   * where it is made, from the state that card's map shows:
+   *   - a forklift that was waiting takes a piece: who, which trailer, and what
+   *     just changed to make it possible;
+   *   - the forklift that just dropped: its next trip is worked out now (the
+   *     exact pick it makes at the start of the next move) and, if it leaves its
+   *     trailer, the card says why. The map marks that trailer "FL n next".
+   */
+  function crewAssignFreeForklifts(notes, postDrop, finisher) {
     const freeOps = crewDemo.active
       .filter((a) => !a.move && (!postDrop || !a.justDone))
       .sort((x, y) => (Number(x.freedAt) || 0) - (Number(y.freedAt) || 0) || x.operator - y.operator);
@@ -5332,38 +5571,66 @@
       const prev = a.justDone;
       const prevDoor = prev ? String(prev.toDoor || '') : String(a.lastToDoor || '');
       a.justDone = null;
+      const planned = a.nextPlan || null;
+      a.nextPlan = null;
       const next = pickNextMoveForForklift(a.operator, prevDoor);
       const who = crewOpLabel(a.operator);
       if (next) {
         const nextDoor = String(next.toDoor || '');
-        if (a.idle && a.waitShown) {
-          // v55: never "back at work": say she was waiting (and since when), then what she takes
-          const name = who.split(' (')[0];
+        if (planned) {
+          // announced on the previous card; it must be the same pick
+          if (planned.uid !== next.uid) crewDemo.planMismatch = (crewDemo.planMismatch || 0) + 1;
+        } else if (!postDrop) {
+          // every pick at the start of a move was announced on the card before
+          crewDemo.planMismatch = (crewDemo.planMismatch || 0) + 1;
+        } else {
+          const name = crewOpName(a.operator) || who;
+          let why = '';
+          if (finisher && finisher.justDone) {
+            const f = finisher.justDone;
+            const fName = crewOpName(finisher.operator) || crewOpLabel(finisher.operator);
+            if (String(f.toDoor || '') === nextDoor) why = 'OUT ' + nextDoor + ' is free now: ' + fName + ' just dropped there';
+            else if (String(f.fromDoor || '') === String(next.fromDoor || '')) why = 'IN ' + next.fromDoor + ' has room again: ' + fName + '\'s trip from there just ended';
+          }
           notes.push({
             op: a.operator,
             kind: 'back',
             door: nextDoor,
-            text: who + ' was waiting' + (a.idleSince ? ' since move ' + a.idleSince : '') + '; now ' + name + ' takes OUT ' + nextDoor +
-              '\'s next piece, from IN door ' + (next.fromDoor || '?') + '.',
+            text:
+              (a.idle && a.waitShown ? who + ' was waiting' + (a.idleSince ? ' since move ' + a.idleSince : '') + '; now ' + name : who) +
+              ' takes OUT ' + nextDoor + '\'s next piece, from IN ' + (next.fromDoor || '?') + (why ? ' (' + why + ')' : '') + '.',
           });
-          if (prevDoor && nextDoor !== prevDoor) {
-            crewDemo.doorLeaveWhy[prevDoor] = { op: a.operator, why: 'after waiting, OUT ' + nextDoor + ' had the first move ready' };
-          }
-        } else if (prevDoor && nextDoor !== prevDoor) {
-          notes.push({ op: a.operator, kind: 'switch', door: nextDoor, text: describeDoorSwitch(a.operator, prevDoor, nextDoor) });
+          crewDemo.switches.push({ op: a.operator, from: prevDoor, to: nextDoor, at: crewDemo.doneCount, why: why ? { kind: 'free', text: why } : null });
         }
-        recordCrewHandoff(a, next);
         assignCrewMove(a, next);
         a.idle = false;
         a.idleSince = 0;
         a.waitShown = false;
-        a.waitedNoted = false;
       } else {
         if (!a.idle) a.idleSince = crewDemo.doneCount + (postDrop ? 0 : 1);
         a.idle = true;
-        if (!a.waitedNoted && (prev || prevDoor)) a.waitedNoted = true;
       }
     });
+    // the forklift that just dropped: work out its next trip now
+    if (postDrop && finisher && finisher.justDone && !finisher.move) {
+      const prevDoor = String(finisher.justDone.toDoor || '');
+      const plan = peekNextMoveForForklift(finisher.operator, prevDoor);
+      finisher.nextPlan = plan || null;
+      if (plan && String(plan.toDoor || '') !== prevDoor) {
+        const b = crewDoorBlock(prevDoor, finisher.operator);
+        const who = crewOpLabel(finisher.operator);
+        const name = crewOpName(finisher.operator) || who;
+        notes.push({
+          op: finisher.operator,
+          kind: 'next',
+          door: String(plan.toDoor || ''),
+          text:
+            'Next for ' + who + ': OUT ' + plan.toDoor + '\'s next piece, from IN ' + (plan.fromDoor || '?') +
+            (b && b.kind !== 'full' ? '. ' + name + ' leaves OUT ' + prevDoor + ' because ' + crewBlockText(b, false) : '') + '.',
+        });
+        crewDemo.switches.push({ op: finisher.operator, from: prevDoor, to: String(plan.toDoor || ''), at: crewDemo.doneCount, why: b });
+      }
+    }
   }
 
   function stepCrewDemo() {
@@ -5396,7 +5663,10 @@
     });
     crewDemo.stepsTaken += 1;
     finisher.move = null;
+    // v56: a deck piece never goes in before the piece under it is on board
+    if (!crewDeckSupportLoaded(m)) crewDemo.deckFloat = (crewDemo.deckFloat || 0) + 1;
     finisher.justDone = m;
+    crewDemo.loadedAt[crewSlotKey(m.toTrailer, m.toSlot)] = crewDemo.doneCount + 1;
     finisher.idle = false;
     finisher.lastDoor = m.fromDoor || finisher.lastDoor;
     finisher.lastToDoor = m.toDoor || '';
@@ -5413,7 +5683,7 @@
     // (same order and same state as at the start of the next move, so the run
     // is unchanged), so a "Waiting" forklift on this card is truly blocked.
     // The forklift that just dropped stays drawn on its OUT door until the next move.
-    if (!lastMove) crewAssignFreeForklifts(notes, true);
+    if (!lastMove) crewAssignFreeForklifts(notes, true, finisher);
     // v55: whoever is still free now is drawn under "Waiting" on this card;
     // only those may later be described as "was waiting"
     crewDemo.active.forEach((a) => {
@@ -6178,9 +6448,10 @@
       (rate ? ' · $' + Math.round(laborHours * rate).toLocaleString('en-US') + ' labor' : '');
     const laborScope =
       'Forklift time for these ' + (crewDemo.total || 0) + ' moves only (' + ops.length + ' forklifts × ' + minutes + ' min). ' +
-      'Not included: the ' + totalPre + ' pieces loaded earlier, clerks, and breaks.';
+      'Waiting time included (a forklift waiting is still paid). Not included: the ' + totalPre + ' pieces loaded earlier, clerks, and breaks.';
+    // v56: the cost sits inside the labor-hours tile, so the tile grid stays even (6 tiles)
     const costHtml = rate
-      ? '<span class="boss-sum-cost"><b>$' + escapeHtml(Math.round(laborHours * rate).toLocaleString('en-US')) +
+      ? ' <span class="boss-sum-cost"><b>$' + escapeHtml(Math.round(laborHours * rate).toLocaleString('en-US')) +
         '</b> labor (' + laborHours.toFixed(1) + ' h × $' + escapeHtml(String(rate)) + ')</span>'
       : '';
     // v53: "Your dock today" — the boss types their own numbers; blank = no compare
@@ -6208,16 +6479,16 @@
       '<h3 class="boss-sum-title">Dock loaded — Ready</h3>' +
       '<p class="boss-sum-headline">' + escapeHtml(headline) + '</p>' +
       '<div class="boss-sum-stats">' +
-      '<span><b>' + rows.length + '</b> trailers loaded</span>' +
+      // v56: trailers loaded + on time in ONE tile (6 tiles: an even 3 × 2 / 2 × 3 grid)
+      '<span><b>' + rows.length + '</b> trailers loaded' +
+      (rows.length ? ' · <b>' + onTime + ' of ' + rows.length + '</b> on time' + (tightList.length ? ' · ' + tightList.map((t) => 'OUT ' + t.door + ' tight (' + t.spare + ' min to spare)').join(', ') : '') : '') + '</span>' +
       '<span>this run: <b>' + crewDemo.doneCount + ' of ' + (crewDemo.total || crewDemo.doneCount) + '</b> moved · trailers: ' + totalPieces + ' pieces on board' + (totalPre ? ' (' + totalPre + ' loaded earlier)' : '') + ' · ' + escapeHtml(fmtLb(totalLb)) + '</span>' +
       '<span><b>' + (allLegal ? 'All weight limits met ✓' : 'Limit problem ✗') + '</b>' + (allLegal ? ' (' + FREIGHT_ONLY + '; trailer weight not counted): ' + escapeHtml(TP.front.label.toLowerCase()) + ' and ' + escapeHtml(TP.rear.label.toLowerCase()) + ', every 4 ft section' : '') + '</span>' +
       (unplacedN === 0
         ? '<span><b>Unplaced 0</b> · every piece has a slot</span>'
         : '<span><b>Unplaced ' + unplacedN + '</b> · see Plan</span>') +
       '<span><b>~' + minutes + ' min</b> with ' + ops.length + ' forklift' + (ops.length === 1 ? '' : 's') + '</span>' +
-      '<span><b>' + laborHours.toFixed(1) + ' forklift labor hours</b>: ' + escapeHtml(laborScope) + '</span>' +
-      costHtml +
-      (rows.length ? '<span><b>' + onTime + ' of ' + rows.length + '</b> on time' + (tightList.length ? ' · ' + tightList.map((t) => 'OUT ' + t.door + ' tight (' + t.spare + ' min to spare)').join(', ') : '') + '</span>' : '') +
+      '<span><b>' + laborHours.toFixed(1) + ' forklift labor hours</b>: ' + escapeHtml(laborScope) + costHtml + '</span>' +
       '</div>' +
       '<div class="boss-sum-inputs">' +
       '<label class="boss-sum-input">Minutes per move <input type="number" id="bossMinPerMove" min="1" max="30" step="0.5" inputmode="decimal" value="' +
@@ -7936,15 +8207,29 @@
 
   /** v54: one small block per piece in a space (loaded / planned / loaded earlier). */
   function pieceBlocksHtml(arr, justKey) {
-    return (arr || [])
-      .map(({ p, lat }) => {
-        const cls = p.preloaded ? 'is-pre' : p.done ? 'is-loaded' : 'is-planned';
-        const just = justKey && crewOutPieceKey(p) === justKey ? ' is-just' : '';
-        const t = (lat || 'piece') + ' · ' + (p.preloaded ? 'loaded earlier' : p.done ? 'loaded' : 'planned') +
-          (Number.isFinite(Number(p.weight)) ? ' · ' + fmtLb(p.weight) : '');
-        return '<i class="tfp ' + cls + just + '" title="' + escapeHtml(t) + '"></i>';
-      })
-      .join('');
+    const list = arr || [];
+    if (!list.length) return '';
+    // v56: each piece is drawn in its own third of the width (Left | Center | Right),
+    // so a deck piece is drawn exactly above the piece it sits on
+    const sup = state.crewOutSupportKeys || null;
+    const one = ({ p, lat }) => {
+      const cls = p.preloaded ? 'is-pre' : p.done ? 'is-loaded' : 'is-planned';
+      const key = crewOutPieceKey(p);
+      const just = justKey && key === justKey ? ' is-just' : '';
+      const isSup = sup && sup.indexOf(key) >= 0 ? ' is-support' : '';
+      const t = (lat || 'piece') + ' · ' + (p.preloaded ? 'loaded earlier' : p.done ? 'loaded' : 'planned') +
+        (Number.isFinite(Number(p.weight)) ? ' · ' + fmtLb(p.weight) : '') + (isSup ? ' · holds up the piece above' : '');
+      const st = p.preloaded ? 'pre' : p.done ? 'loaded' : 'planned';
+      return '<i class="tfp ' + cls + just + isSup + '" data-lat="' + escapeHtml(lateralName(lat)) + '" data-st="' + st + '" title="' + escapeHtml(t) + '"></i>';
+    };
+    const pos = ['Left', 'Center', 'Right'];
+    let html = '';
+    pos.forEach((L) => {
+      const hit = list.find((x) => lateralName(x.lat) === L);
+      html += hit ? one(hit) : '<i class="tfp is-gap" aria-hidden="true"></i>';
+    });
+    list.filter((x) => pos.indexOf(lateralName(x.lat)) < 0).forEach((x) => { html += one(x); });
+    return html;
   }
 
   /**
@@ -7971,7 +8256,7 @@
         let cells = '';
         for (let sec = 1; sec <= TP_SECTIONS; sec++) {
           const arr = bySpace.get(sec + '/' + lvl) || [];
-          cells += '<span class="msv-cell' + (arr.length ? '' : ' is-empty') + '">' + pieceBlocksHtml(arr, justKey) + '</span>';
+          cells += '<span class="msv-cell' + (arr.length ? '' : ' is-empty') + '" data-sec="' + sec + '" data-lvl="' + lvl + '">' + pieceBlocksHtml(arr, justKey) + '</span>';
         }
         return '<div class="msv-row"><span class="msv-lvl">' + name + '</span><span class="msv-cells">' + cells + '</span></div>';
       })
@@ -7980,7 +8265,7 @@
       '<div class="msv"' + (door ? ' data-cts-expand="' + escapeHtml(String(door)) + '" title="Tap for a bigger trailer view"' : '') +
       ' role="img" aria-label="Side view: ' + TP_SECTIONS + ' sections from nose to tail, Floor, Deck 2 and Deck 3; one block per piece; ' +
       escapeHtml(TP.front.kind) + ' at ' + TP.front.atFt + ' ft, rear axle at ' + TP.rear.atFt + ' ft">' +
-      '<div class="msv-ends"><span>Nose</span><span>1 block = 1 piece</span><span>Tail</span></div>' +
+      '<div class="msv-ends"><span>Nose</span><span>1 block = 1 piece · <b class="msv-key-just">yellow</b> = this piece</span><span>Tail</span></div>' +
       rows +
       '<div class="msv-row msv-suprow"><span class="msv-lvl"></span><span class="msv-supports">' + supportMarkersHtml() + '</span></div>' +
       '</div>'
@@ -8036,11 +8321,16 @@
     const captionSub =
       'trailer: ' + (loadedPieces === totalPieces ? totalPieces : loadedPieces + ' of ' + totalPieces) + ' pieces on board' +
       (preInList ? ' (' + preInList + ' loaded earlier)' : '');
+    // v56: the on-board / still-to-load counts are the ones in the picture right now
+    const leftPieces = Math.max(0, totalPieces - loadedPieces);
     const spacesNote =
-      'Each small block is one piece; up to 3 sit side by side (Left / Center / Right) in a section on each level. ' +
+      'Each small block is one piece, drawn in its own third of the width (Left / Center / Right), so a deck piece sits right above the piece under it. ' +
       (levels.length > 1
         ? '"Floor full" means no floor length is left. Open deck spots above can only take stackable pieces that pass the deck rules (' +
-          fmtLb(DECK_PIECE_MAX_LB_UI) + ' or less, never heavier than the piece below, stack under ' + TP.stackMaxIn + ' in), and this trailer\'s freight is all on board.'
+          fmtLb(DECK_PIECE_MAX_LB_UI) + ' or less, never heavier than the piece below, stack under ' + TP.stackMaxIn + ' in). ' +
+          (leftPieces
+            ? 'Right now ' + loadedPieces + ' of ' + totalPieces + ' pieces are on board; ' + leftPieces + ' planned piece' + (leftPieces === 1 ? '' : 's') + ' (orange outline) still to load.'
+            : 'All ' + totalPieces + ' pieces are on board.')
         : '');
 
     let rowsHtml = '';
@@ -8077,7 +8367,7 @@
           cls +
           (spaceArr.length ? ' has-blocks' : '') +
           (justCell === sec + '/' + lvl ? ' is-just-loaded' : '') +
-          '" title="' +
+          '" data-sec="' + sec + '" data-lvl="' + lvl + '" title="' +
           escapeHtml(title) +
           '" aria-label="' +
           escapeHtml(title) +
@@ -8128,6 +8418,9 @@
       (list.some((p) => p && p.preloaded)
         ? '<span><i class="trailer-fill-swatch is-loaded is-preloaded"></i> loaded earlier (earlier shift, same planner)</span>'
         : '') +
+      // v56: the two highlight colours explained
+      (justCell ? '<span><i class="tfp-key is-just"></i> this piece (the one on the card)</span>' : '') +
+      (state.crewOutSupportKeys && state.crewOutSupportKeys.length ? '<span><i class="tfp-key is-support"></i> yellow outline = the pieces under it, already on board</span>' : '') +
       '</div>' +
       '</div>'
     );
@@ -9057,7 +9350,18 @@
           // v53: keep the line's space so the map height never changes
           const opLine = document.createElement('span');
           opLine.className = 'crew-out-ops is-none';
-          opLine.textContent = crewDemoAllDone() || crewRemainingForDoor(d) === 0 ? 'done' : 'no FL now';
+          // v56: the forklift that just dropped elsewhere and comes here next (explained on the card)
+          const nextFor = crewDemo.active.find((x) => x && !x.move && x.nextPlan && String(x.nextPlan.toDoor || '') === String(d));
+          if (nextFor) {
+            opLine.classList.remove('is-none');
+            opLine.classList.add('is-next');
+            const t = document.createElement('span');
+            t.className = 'crew-out-ops-txt';
+            t.textContent = `FL ${nextFor.operator} next`;
+            opLine.appendChild(t);
+          } else {
+            opLine.textContent = crewDemoAllDone() || crewRemainingForDoor(d) === 0 ? 'done' : 'no FL now';
+          }
           chip.appendChild(opLine);
         }
 
@@ -9963,7 +10267,7 @@
     // first visit (fresh site data) never has the worker installing while the
     // tour starts. The worker never takes over an open page (no clients.claim).
     const go = () => {
-      navigator.serviceWorker.register('./sw.js?v=55').catch(() => {
+      navigator.serviceWorker.register('./sw.js?v=56').catch(() => {
         /* offline cache optional */
       });
     };

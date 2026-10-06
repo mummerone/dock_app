@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=55" />
+  <link rel="stylesheet" href="styles.css?v=56" />
 </head>
 <body>
   <div id="app">
@@ -20,7 +20,7 @@
         <span class="brand-mark" aria-hidden="true">▮</span>
         <div>
           <h1>Dock App</h1>
-          <p class="tagline">Forklift load planning for LTL docks · <span class="build-stamp" title="Build version">v55</span></p>
+          <p class="tagline">Forklift load planning for LTL docks · <span class="build-stamp" title="Build version">v56</span></p>
         </div>
       </div>
       <div id="speechStatus" class="speech-status" aria-live="polite">
@@ -381,7 +381,7 @@
           <section class="card crew-mode-card" aria-labelledby="crew-mode-heading">
             <div class="card-head crew-mode-head">
               <h2 id="crew-mode-heading">Start mode</h2>
-              <span class="build-stamp" title="Build version">v55</span>
+              <span class="build-stamp" title="Build version">v56</span>
             </div>
             <div class="crew-mode-start" id="crewModeStart" role="group" aria-label="Start demo mode">
               <button type="button" id="crewBossDemoBtn" class="btn accept-btn crew-mode-btn crew-boss-demo-btn">Show boss demo (8 key moments)</button>
@@ -459,6 +459,7 @@
                 <div id="crewMapKey" class="crew-map-key" aria-label="Map key">
                   <span><i class="mk-chip mk-fl">1</i> forklift FL 1, where it is now</span>
                   <span><b>FL 3 coming</b> = bringing that trailer's next piece</span>
+                  <span><i class="mk-chip mk-tok" aria-hidden="true"></i> the piece on its way from its inbound door</span>
                   <span><i class="mk-chip mk-in">IN 81001</i> inbound</span>
                   <span><i class="mk-chip mk-out">OUT</i> outbound, loaded/total</span>
                   <span><i class="mk-chip mk-empty">empty</i> nothing left</span>
@@ -497,7 +498,7 @@
           <section class="card operator-panel-card" aria-labelledby="operator-heading">
             <div class="card-head operator-head">
               <h2 id="operator-heading">My jobs</h2>
-              <span class="build-stamp" title="Build version">v55</span>
+              <span class="build-stamp" title="Build version">v56</span>
             </div>
             <p class="hint operator-blurb">One move at a time — directions only. No map.</p>
             <div class="operator-controls" id="operatorControls" role="group" aria-label="Operator demo">
@@ -608,9 +609,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=55"></script>
-  <script src="speech.js?v=55"></script>
-  <script src="loadPlan.js?v=55"></script>
-  <script src="app.js?v=55"></script>
+  <script src="storage.js?v=56"></script>
+  <script src="speech.js?v=56"></script>
+  <script src="loadPlan.js?v=56"></script>
+  <script src="app.js?v=56"></script>
 </body>
 </html>

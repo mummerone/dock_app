@@ -5804,3 +5804,36 @@ body.tx-open { overflow: hidden; }
   .crew-dock-map.is-boss .crew-out-ops { min-height: 54px; }
 }
 .crew-op-marker.is-pill { animation: none !important; box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.55) !important; transform: none !important; }
+/* v56: phone vs wide wording inside one card */
+.only-phone { display: none; }
+@media (max-width: 899px) {
+  .only-phone { display: inline; }
+  .only-wide { display: none; }
+}
+/* v56: every piece keeps its own third (Left | Center | Right); an empty third stays empty */
+.tfp.is-gap { background: transparent; box-shadow: none; }
+/* v56: the pieces holding up the current deck piece */
+.tfp.is-support { outline: 2px solid #ffd166; outline-offset: -2px; }
+.tfp.is-loaded.is-support, .tfp.is-pre.is-support { box-shadow: inset 0 0 0 3px #ffd166; }
+.crew-out-ops.is-next .crew-out-ops-txt { border: 1px dashed #9ad0ff; border-radius: 4px; padding: 0 3px; color: #cfe8ff; }
+/* v56 legend swatches */
+.tfp-key { display: inline-block; width: 12px; height: 10px; border-radius: 2px; vertical-align: -1px; margin-right: 3px; }
+.tfp-key.is-just { background: #ffd166; box-shadow: 0 0 0 1px #fff; }
+.tfp-key.is-support { background: #2f9e5f; box-shadow: inset 0 0 0 2px #ffd166; }
+.msv-key-just { color: #ffd166; }
+.mk-chip.mk-tok { display: inline-block; width: 12px; height: 12px; padding: 0; border-radius: 3px; background: #7dffb0; border: 2px solid #f7fff9; vertical-align: -2px; }
+/* v56: "Coming in the real version" runs the full width under the two columns */
+.boss-sum-cols > .boss-sum-next { grid-column: 1 / -1; }
+.boss-sum-cost { display: block; margin-top: 4px; }
+/* v56 wide: the "Playing moves" pill sits centered at the bottom, fully inside the window, never over the map */
+@media (min-width: 900px) {
+  .crew-tour-fastbar {
+    box-sizing: border-box;
+    top: auto;
+    bottom: 16px;
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(560px, calc(100vw - 32px));
+  }
+}
