@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=49" />
+  <link rel="stylesheet" href="styles.css?v=50" />
 </head>
 <body>
   <div id="app">
@@ -20,12 +20,12 @@
         <span class="brand-mark" aria-hidden="true">▮</span>
         <div>
           <h1>Dock App</h1>
-          <p class="tagline">Freight log · same PRO = same trailer · <span class="build-stamp" title="Build version">v49</span></p>
+          <p class="tagline">Freight log · same PRO = same trailer · <span class="build-stamp" title="Build version">v50</span></p>
         </div>
       </div>
       <div id="speechStatus" class="speech-status" aria-live="polite">
         <span class="dot" id="listenDot"></span>
-        <span id="speechStatusText">Voice ready</span>
+        <span id="speechStatusText" title="Voice: tap Speak Dimensions and say the size and weight, e.g. 48 by 40 by 48, 1200">Voice ready</span>
       </div>
     </header>
 
@@ -41,13 +41,28 @@
       </button>
     </nav>
 
+    <!-- v50: shows on every screen while the boss demo's sample data is loaded -->
+    <div id="demoModeBar" class="demo-mode-bar" hidden role="status">
+      <span>You're viewing <b>sample demo data</b>. Your own freight is saved.</span>
+      <button type="button" id="demoModeExitBtn" class="btn tiny demo-mode-exit">Exit demo</button>
+    </div>
+
     <main class="content" id="viewEntry" role="tabpanel" aria-labelledby="tabEntry">
+      <!-- v50: first-screen hero for a first-time boss -->
+      <section class="card hero-card" aria-labelledby="hero-heading">
+        <h2 id="hero-heading">Dock App</h2>
+        <p class="hero-what">Plans and tracks forklift loading so trailers leave full, legal, and on time.</p>
+        <button type="button" id="heroBossDemoBtn" class="btn accept-btn hero-demo-btn">▶ Watch the boss demo</button>
+        <p class="hint hero-sub">About 2 minutes. Uses sample freight; your own data is saved and comes back when you exit. Dock clerks log freight below.</p>
+      </section>
+
       <!-- ID -->
       <section class="card" aria-labelledby="id-heading">
         <h2 id="id-heading">Shipment</h2>
         <div class="row stack">
           <label class="field">
             <span>PRO number</span>
+            <small class="help-line">PRO = the freight bill's tracking number. Every piece on one bill shares it.</small>
             <input id="proInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 1234567" />
           </label>
           <div class="field piece-field">
@@ -88,6 +103,7 @@
         </label>
         <p class="hint">Trailer number = which trailer. Door number = which dock door that trailer is at.</p>
         <p class="hint">Section 1–12 · Level A–C · Left / Middle / Right</p>
+        <p class="hint help-line">Where the piece sits in the trailer. Section 1 is the nose (front wall), 12 is the tail (doors). Level A is the floor, B is Deck 2, C is Deck 3. Left / Middle / Right is across the width.</p>
 
         <div class="slot-block">
           <span class="slot-label">Section</span>
@@ -107,6 +123,7 @@
       <section class="card" aria-labelledby="preset-heading">
         <h2 id="preset-heading">Size presets</h2>
         <p class="hint">Pallets fill W×D only (enter height). Drums / pails / totes include height. Weight stays empty.</p>
+        <p class="hint help-line">GMA 48×40 = the standard 48 in × 40 in wooden pallet used by most shippers.</p>
         <div class="preset-grid" id="presetGrid"></div>
       </section>
 
@@ -114,6 +131,7 @@
       <section class="card dims-card" aria-labelledby="dims-heading">
         <h2 id="dims-heading">Dimensions &amp; weight</h2>
         <p class="hint">Inches and pounds only — units are locked.</p>
+        <p class="hint help-line">Voice: tap Speak Dimensions and say “48 by 40 by 48, 1200” (height, width, depth, then pounds). Hands stay on the freight.</p>
 
         <button type="button" id="speakBtn" class="btn speak-btn">
           <span class="speak-icon" aria-hidden="true">🎤</span>
@@ -179,7 +197,7 @@
           <h2 id="recent-heading">Recent entries</h2>
           <button type="button" id="clearListBtn" class="btn tiny muted-btn">Clear all</button>
         </div>
-        <p class="hint bol-note">BOL rule: pieces with the same PRO belong on one trailer.</p>
+        <p class="hint bol-note">BOL rule: pieces with the same PRO belong on one trailer. (BOL = bill of lading, the shipping paperwork for one bill.)</p>
         <div id="recentList" class="recent-list"></div>
       </section>
     </main>
@@ -259,6 +277,7 @@
           Plan
         </button>
       </nav>
+      <p class="hint dock-tabs-guide" id="dockTabsGuide" aria-live="polite">Crew: live forklift map and the boss demo. Start here.</p>
 
       <div class="dock-panels">
         <div id="dockPanelInbound" class="dock-panel" role="tabpanel" aria-labelledby="dockSubInbound">
@@ -350,7 +369,7 @@
           <section class="card crew-mode-card" aria-labelledby="crew-mode-heading">
             <div class="card-head crew-mode-head">
               <h2 id="crew-mode-heading">Start mode</h2>
-              <span class="build-stamp" title="Build version">v49</span>
+              <span class="build-stamp" title="Build version">v50</span>
             </div>
             <div class="crew-mode-start" id="crewModeStart" role="group" aria-label="Start demo mode">
               <button type="button" id="crewBossDemoBtn" class="btn accept-btn crew-mode-btn crew-boss-demo-btn">Show boss demo</button>
@@ -359,14 +378,15 @@
                 <button type="button" id="crewMultiStartBtn" class="btn muted-btn crew-mode-btn-secondary">Crew (5)</button>
               </div>
             </div>
-            <p class="hint crew-boss-copy" id="crewBossCopy">One tap: packed trailers + forklifts on different OUT doors.</p>
+            <p class="hint crew-boss-copy" id="crewBossCopy">Start here: sample freight, 5 forklifts, a stop at every move.</p>
             <p class="hint crew-solo-copy" id="crewSoloCopy">Solo = one forklift. Crew (5) = five forklifts (you tap Play).</p>
+            <button type="button" id="crewExitDemoBtn" class="btn muted-btn crew-exit-demo-btn" hidden>Exit demo · bring back my freight</button>
           </section>
 
           <section class="card crew-howto-card" aria-labelledby="crew-howto-heading">
             <details class="crew-howto-details">
               <summary id="crew-howto-heading">Crew — live demo</summary>
-              <p class="hint"><strong>Show boss demo</strong> is the main button — Play + busiest OUT fill + spread banner. Solo / Crew (5) are secondary. Tap OUT for trailer picture + list · LOAD SLOT on detail/queue. Demo controls fold away during boss mode. Guided tour pauses on each new forklift action (Continue / Play without stops).</p>
+              <p class="hint"><strong>Show boss demo</strong> loads sample freight and stops at every forklift move. Tap <strong>Continue</strong> for the next move, or <strong>Play without stops</strong> to run to the end. The map shows inbound doors (top), forklifts (numbered circles) and outbound trailers (OUT chips). Tap an OUT chip to see that trailer's picture, weights and pieces. Solo forklift and Crew (5) are extra practice modes.</p>
             </details>
           </section>
 
@@ -375,7 +395,7 @@
               <h2 id="crew-board-heading">Who is pulling where</h2>
               <button type="button" id="crewRefreshBtn" class="btn tiny muted-btn">Refresh assignments</button>
             </div>
-            <p class="hint" id="crewBoardHint">From the current load plan. One operator per inbound door.</p>
+            <p class="hint" id="crewBoardHint">No plan yet. Tap Show boss demo.</p>
 
             <details class="crew-demo-controls-details" id="crewDemoControlsDetails">
               <summary class="crew-demo-controls-summary">Demo controls</summary>
@@ -390,23 +410,15 @@
                 </label>
               </div>
             </details>
-            <p class="hint" id="crewDemoProgress" aria-live="polite">Moved 0 of 0</p>
+            <p class="hint" id="crewDemoProgress" aria-live="polite">No plan yet. Tap Show boss demo.</p>
             <div id="crewSoloJobCard" class="crew-solo-job-card" hidden aria-live="polite"></div>
-            <div id="crewDemoDone" class="crew-demo-done" hidden role="status">Dock loaded — Ready</div>
+            <div id="crewDemoDone" class="crew-demo-done" hidden role="status"></div>
 
             <div id="crewSpreadBanner" class="crew-spread-banner is-hint" aria-live="polite">Tap Show boss demo — packed trailers + forklifts on different doors.</div>
 
             <div id="crewGodHud" class="crew-god-hud" aria-live="polite">
-              <div id="crewGodPulse" class="crew-god-pulse">● 0 live · 0 idle · Moved 0/0</div>
+              <div id="crewGodPulse" class="crew-god-pulse">● Not started · no forklifts moving</div>
               <div id="crewGodOutPills" class="crew-god-out-pills" role="list" aria-label="Outbound fill"></div>
-            </div>
-
-            <div id="crewOutTrailerPanel" class="crew-out-trailer-panel" hidden>
-              <div class="crew-out-trailer-panel-bar">
-                <h3 class="crew-out-trailer-panel-heading" id="crew-out-trailer-heading">Outbound trailer</h3>
-                <button type="button" id="crewOutTrailerCloseBtn" class="btn tiny muted-btn">Close</button>
-              </div>
-              <div id="crewOutTrailerBody" class="crew-out-trailer-body" aria-live="polite"></div>
             </div>
 
             <details class="crew-door-count-details" id="crewDoorCountDetails">
@@ -416,7 +428,7 @@
               </label>
               <p class="hint" id="crewDoorCountHint">Set how many doors your dock has. Empty doors show muted; busy doors light up.</p>
             </details>
-            <p class="hint crew-map-tap-hint" id="crewMapTapHint">Tap an operator or <strong>OUT</strong> chip for detail.</p>
+            <p class="hint crew-map-tap-hint" id="crewMapTapHint">Tap a forklift or an <strong>OUT</strong> chip for detail.</p>
             <div class="crew-map-layout">
               <div id="crewDockMap" class="crew-dock-map" role="img" aria-label="Dock floor map">
                 <div id="crewFloor" class="crew-floor" aria-label="Dock floor">
@@ -425,6 +437,20 @@
               </div>
               <div id="crewOpDetail" class="crew-op-detail" hidden aria-live="polite"></div>
             </div>
+            <div id="crewMapLegend" class="crew-map-legend" aria-label="Map legend">
+              <span><i class="lg-door"></i> inbound door with freight</span>
+              <span><i class="lg-door is-empty"></i> empty door</span>
+              <span><i class="lg-fl">1</i> forklift</span>
+              <span><i class="lg-out">OUT</i> outbound trailer · loaded/total</span>
+            </div>
+            <div id="crewOutTrailerPanel" class="crew-out-trailer-panel" hidden>
+              <div class="crew-out-trailer-panel-bar">
+                <h3 class="crew-out-trailer-panel-heading" id="crew-out-trailer-heading">Outbound trailer</h3>
+                <button type="button" id="crewOutTrailerCloseBtn" class="btn tiny muted-btn">Close</button>
+              </div>
+              <div id="crewOutTrailerBody" class="crew-out-trailer-body" aria-live="polite"></div>
+            </div>
+
 
             <h3 class="crew-queue-heading">Remaining dock moves</h3>
             <div id="crewMoveQueue" class="crew-move-queue" role="list">
@@ -433,7 +459,7 @@
 
             <h3 class="crew-active-heading">Active forklifts</h3>
             <div id="crewBoardList" class="crew-board-list" role="list">
-              <div class="empty-state">No assignments yet. Load demo inbound trailers or build a load plan.</div>
+              <div class="empty-state">No forklifts working yet. Tap <b>Show boss demo</b> to watch 5 sample forklifts load the dock.</div>
             </div>
           </section>
         </div>
@@ -442,7 +468,7 @@
           <section class="card operator-panel-card" aria-labelledby="operator-heading">
             <div class="card-head operator-head">
               <h2 id="operator-heading">My jobs</h2>
-              <span class="build-stamp" title="Build version">v49</span>
+              <span class="build-stamp" title="Build version">v50</span>
             </div>
             <p class="hint operator-blurb">One move at a time — directions only. No map.</p>
             <div class="operator-controls" id="operatorControls" role="group" aria-label="Operator demo">
@@ -552,9 +578,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=49"></script>
-  <script src="speech.js?v=49"></script>
-  <script src="loadPlan.js?v=49"></script>
-  <script src="app.js?v=49"></script>
+  <script src="storage.js?v=50"></script>
+  <script src="speech.js?v=50"></script>
+  <script src="loadPlan.js?v=50"></script>
+  <script src="app.js?v=50"></script>
 </body>
 </html>

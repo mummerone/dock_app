@@ -56,6 +56,14 @@
   const PUP_FRONT_SECTIONS = [1, 2, 3, 4, 5, 6];
   const PUP_REAR_SECTIONS = [7, 8, 9, 10, 11, 12];
   const PUP_MIDDLE_SECTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  /**
+   * v50 stacking rule: a piece on a deck (B or C) must be no heavier than the
+   * piece directly under it, and never more than this per-piece deck limit.
+   */
+  const DECK_PIECE_MAX_LB = 1500;
+  /** v50 sample freight: pieces per destination (kept even so all 5 forklifts stay busy). */
+  const DEMO_PIECES_PER_DEST_MIN = 19;
+  const DEMO_PIECES_PER_DEST_MAX = 21;
 
   const SIZE_POOL = [
     { label: 'GMA pallet', h: 48, w: 48, d: 40, weight: 900 },
@@ -299,6 +307,8 @@
       usedLabels: new Set(),
       loadGroups: [],
       sectionWeight,
+      /** v50: slot label → piece (deck stacking rule) */
+      slotPiece: new Map(),
     };
   }
 
@@ -385,7 +395,10 @@
     const skipLabels = new Set();
     const rollback = () => {
       moves.length = startMoveLen;
-      addedLabels.forEach((lab) => state.usedLabels.delete(lab));
+      addedLabels.forEach((lab) => {
+        state.usedLabels.delete(lab);
+        if (state.slotPiece) state.slotPiece.delete(lab);
+      });
       state.cursor = startCursor;
       for (let s = 1; s <= 12; s++) state.sectionWeight[s] = startWeights[s];
     };
@@ -409,6 +422,7 @@
       }
       state.usedLabels.add(slot.slotLabel);
       addedLabels.push(slot.slotLabel);
+      if (state.slotPiece) state.slotPiece.set(slot.slotLabel, e);
       const wAdd = pieceWeight(e);
       state.sectionWeight[slot.section] =
         (state.sectionWeight[slot.section] || 0) + wAdd;
@@ -517,25 +531,31 @@
     let proSeq = 700100;
     const baseTime = Date.now();
 
-    DEMO_INBOUND.forEach((ib, ibIdx) => {
-      // 3–6 PROs per inbound trailer
-      const proCount = randInt(3, 6);
-      /** @type {{pro:string, dest:string, pieces:object[]}[]} */
-      const bills = [];
-      let totalPieces = 0;
-
-      for (let p = 0; p < proCount; p++) {
-        const dest = pick(DEMO_DESTINATIONS);
-        const pieceCount = randInt(2, 8);
-        // v48: mix light + heavy so nose/tail always have ≤800 lb pieces available
-        const lightPool = SIZE_POOL.filter((s) => s.weight <= 800);
-        const heavyPool = SIZE_POOL.filter((s) => s.weight >= 900);
+    // v50: build bills per destination with an EVEN piece count per destination
+    // (19–21 each) so every outbound trailer has about the same work and all
+    // five forklifts stay busy until near the end. The piece count written in
+    // each fraction ("3/8") is the one source of truth for that PRO.
+    const lightPool = SIZE_POOL.filter((s) => s.weight <= 800);
+    const heavyPool = SIZE_POOL.filter((s) => s.weight >= 900);
+    /** @type {{pro:string, dest:string, pieces:object[]}[]} */
+    const allBills = [];
+    DEMO_DESTINATIONS.forEach((dest) => {
+      let left = randInt(DEMO_PIECES_PER_DEST_MIN, DEMO_PIECES_PER_DEST_MAX);
+      let p = 0;
+      while (left > 0) {
+        let pieceCount = Math.min(left, randInt(2, 7));
+        if (left - pieceCount === 1) {
+          pieceCount = pieceCount < 8 ? pieceCount + 1 : pieceCount - 1;
+        }
+        left -= pieceCount;
+        // Mix light + heavy so nose/tail always have light pieces available
         const size =
           p % 3 === 0
             ? pick(lightPool.length ? lightPool : SIZE_POOL)
             : p % 3 === 1
               ? pick(heavyPool.length ? heavyPool : SIZE_POOL)
               : pick(SIZE_POOL);
+        p += 1;
         const pro = String(proSeq++);
         const pieces = [];
         for (let i = 1; i <= pieceCount; i++) {
@@ -554,14 +574,31 @@
             weight: jitter(sz.weight, 0.12),
           });
         }
-        bills.push({ pro, dest, pieces });
-        totalPieces += pieceCount;
+        allBills.push({ pro, dest, pieces });
       }
+    });
+    // Shuffle bills, then deal each to the inbound trailer with the fewest pieces
+    for (let i = allBills.length - 1; i > 0; i--) {
+      const j = randInt(0, i);
+      const t = allBills[i];
+      allBills[i] = allBills[j];
+      allBills[j] = t;
+    }
+    /** @type {{pro:string, dest:string, pieces:object[]}[][]} */
+    const billsByInbound = DEMO_INBOUND.map(() => []);
+    const piecesByInbound = DEMO_INBOUND.map(() => 0);
+    allBills.forEach((bill) => {
+      let best = 0;
+      for (let k = 1; k < piecesByInbound.length; k++) {
+        if (piecesByInbound[k] < piecesByInbound[best]) best = k;
+      }
+      billsByInbound[best].push(bill);
+      piecesByInbound[best] += bill.pieces.length;
+    });
 
-      // Cap so one inbound trailer stays within ~108 slots with room
-      if (totalPieces > 72) {
-        // Trim last bill pieces (shouldn't often happen with 3–6 × 2–8)
-      }
+    DEMO_INBOUND.forEach((ib, ibIdx) => {
+      const bills = billsByInbound[ibIdx];
+      const totalPieces = piecesByInbound[ibIdx];
 
       const slots = allocateInboundSlots(totalPieces);
       let slotIdx = 0;
@@ -709,12 +746,22 @@
     const isTail = PUP_TAIL_SECTIONS.indexOf(sec) >= 0;
     const isEnd = isNose || isTail;
     const lv = String(slot.level || '').toUpperCase();
+    // v50 deck rule: needs a piece underneath, no heavier than it, ≤ deck limit
+    let deckMax = Infinity;
+    if (lv === 'B' || lv === 'C') {
+      const below =
+        state.slotPiece &&
+        state.slotPiece.get(`${sec}/${lv === 'B' ? 'A' : 'B'}/${slot.lateral}`);
+      if (!below) return null;
+      deckMax = Math.min(pieceWeight(below), DECK_PIECE_MAX_LB);
+    }
 
     /** @type {number[]} */
     const fit = [];
     for (let i = 0; i < pool.length; i++) {
       const w = pieceWeight(pool[i]);
       if (w > rem) continue;
+      if (w > deckMax) continue;
       // v48 hard rule: no heavy pieces in first/last 4 ft (sec1 / sec12)
       if (isEnd && w > PUP_END_LIGHT_MAX_LB) continue;
       fit.push(i);
@@ -793,6 +840,191 @@
     return pool.splice(bestIdx, 1)[0];
   }
 
+
+  // ---------------------------------------------------------------------
+  // v50 packer — one pass per trailer, nose → tail, floor then decks.
+  // Plain coding rules (no AI):
+  //   1. Slots are filled in order: section 1 (nose) → 12 (tail); in each
+  //      section the floor (A) Left/Middle/Right first, then Deck 2 (B), then
+  //      Deck 3 (C). A part-full trailer therefore sits at the nose, the way
+  //      real trailers are loaded.
+  //   2. Nose (sec 1) and tail (sec 12): pieces ≤ 900 lb only, zone ≤ 3,000 lb
+  //      target (3,200 lb hard cap).
+  //   3. Front axle (secs 1–6) and rear axle (secs 7–12) ≤ 20,000 lb each.
+  //   4. A deck piece needs a piece directly under it, must be no heavier than
+  //      that piece, and no heavier than DECK_PIECE_MAX_LB.
+  //   5. Each slot takes the heaviest remaining piece that passes 1–4, so heavy
+  //      freight lands on the floor and lighter freight stacks on top.
+  // ---------------------------------------------------------------------
+
+  function pieceFractionNum(e) {
+    const m = /^(\d+)/.exec(String((e && e.pieceFraction) || ''));
+    return m ? Number(m[1]) : 0;
+  }
+
+  function slotOrderForTrailer(cityFloorOnly) {
+    return cityFloorOnly ? buildFloorOnlySlotOrder() : buildHighTightSlotOrder();
+  }
+
+  /**
+   * Can piece `e` go in `slot` right now?
+   * @returns {boolean}
+   */
+  function pieceFitsSlotV50(e, slot, secW, bySlot, zoneTarget) {
+    const w = pieceWeight(e);
+    const sec = Number(slot.section) || 0;
+    const isNose = PUP_NOSE_SECTIONS.indexOf(sec) >= 0;
+    const isTail = PUP_TAIL_SECTIONS.indexOf(sec) >= 0;
+    if (isNose || isTail) {
+      if (w > PUP_END_LIGHT_MAX_LB) return false;
+      const zone = sumSections({ sectionWeight: secW }, isNose ? PUP_NOSE_SECTIONS : PUP_TAIL_SECTIONS);
+      if (zone + w > zoneTarget) return false;
+    }
+    if (PUP_FRONT_SECTIONS.indexOf(sec) >= 0) {
+      if (sumSections({ sectionWeight: secW }, PUP_FRONT_SECTIONS) + w > PUP_AXLE_CAP_LB) return false;
+    }
+    if (PUP_REAR_SECTIONS.indexOf(sec) >= 0) {
+      if (sumSections({ sectionWeight: secW }, PUP_REAR_SECTIONS) + w > PUP_AXLE_CAP_LB) return false;
+    }
+    const lv = String(slot.level || 'A').toUpperCase();
+    if (lv === 'B' || lv === 'C') {
+      const belowLevel = lv === 'B' ? 'A' : 'B';
+      const below = bySlot.get(`${sec}/${belowLevel}/${slot.lateral}`);
+      if (!below) return false;
+      if (w > pieceWeight(below)) return false;
+      if (w > DECK_PIECE_MAX_LB) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Pack a set of pieces into one trailer.
+   * @param {object[]} pieces inbound entries
+   * @param {boolean} cityFloorOnly
+   * @returns {{placements:{piece:object, slot:object, below:object|null}[], unplaced:object[], sectionWeight:Record<number,number>}}
+   */
+  function packTrailerPiecesV50(pieces, cityFloorOnly) {
+    const order = slotOrderForTrailer(cityFloorOnly);
+    const pool = pieces.slice().sort((a, b) => {
+      const dw = pieceWeight(b) - pieceWeight(a);
+      if (dw !== 0) return dw;
+      const dp = String(a.pro || '').localeCompare(String(b.pro || ''));
+      if (dp !== 0) return dp;
+      return pieceFractionNum(a) - pieceFractionNum(b);
+    });
+    /** @type {Record<number, number>} */
+    const secW = {};
+    for (let s = 1; s <= 12; s++) secW[s] = 0;
+    /** @type {Map<string, object>} */
+    const bySlot = new Map();
+    const placements = [];
+    for (let c = 0; c < order.length && pool.length; c++) {
+      const slot = order[c];
+      let idx = -1;
+      // Prefer the 3,000 lb target in end zones; never past the 3,200 hard cap
+      for (let i = 0; i < pool.length; i++) {
+        if (pieceFitsSlotV50(pool[i], slot, secW, bySlot, PUP_ZONE_SOFT_LB)) {
+          idx = i;
+          break;
+        }
+      }
+      if (idx < 0) continue;
+      const e = pool.splice(idx, 1)[0];
+      secW[slot.section] = (secW[slot.section] || 0) + pieceWeight(e);
+      bySlot.set(slot.slotLabel, e);
+      const lv = String(slot.level || 'A').toUpperCase();
+      const below =
+        lv === 'B'
+          ? bySlot.get(`${slot.section}/A/${slot.lateral}`) || null
+          : lv === 'C'
+            ? bySlot.get(`${slot.section}/B/${slot.lateral}`) || null
+            : null;
+      placements.push({ piece: e, slot, below });
+    }
+    return { placements, unplaced: pool, sectionWeight: secW };
+  }
+
+  /**
+   * Build moves + a loadout from a trailer's final packing.
+   * @returns {object} loadout
+   */
+  function finalizeTrailerV50(st, destination, moves) {
+    const res = packTrailerPiecesV50(st.pieces, st.cityFloorOnly);
+    const outbound = st.outbound;
+    const toDoor =
+      String(outbound.doorNumber || '').trim() ||
+      (DockStorage.outboundDoorFor
+        ? DockStorage.outboundDoorFor({
+            trailerNumber: outbound.trailerNumber,
+            destination,
+          })
+        : '');
+    /** @type {Map<string, object[]>} */
+    const byPro = new Map();
+    st.ships.forEach((ship) => byPro.set(ship.pro, []));
+    res.placements.forEach(({ piece: e, slot, below }) => {
+      const fromSlot =
+        e.slotLabel || DockStorage.formatSlot(e.section, e.level, e.lateral);
+      const belowInfo = below
+        ? {
+            pro: below.pro,
+            pieceFraction: below.pieceFraction,
+            weight: below.weight,
+          }
+        : null;
+      moves.push({
+        entryId: e.id,
+        pro: e.pro,
+        pieceFraction: e.pieceFraction,
+        destination,
+        from: {
+          door: String(e.doorNumber || '').trim(),
+          trailer: String(e.trailerNumber || '').trim(),
+          slot: fromSlot,
+          section: e.section,
+          level: e.level,
+          lateral: e.lateral,
+        },
+        to: {
+          trailer: outbound.trailerNumber,
+          door: toDoor,
+          slot: slot.slotLabel,
+          section: slot.section,
+          level: slot.level,
+          lateral: slot.lateral,
+          below: belowInfo,
+        },
+        h: e.h,
+        w: e.w,
+        d: e.d,
+        weight: e.weight,
+      });
+      if (!byPro.has(e.pro)) byPro.set(e.pro, []);
+      byPro.get(e.pro).push({
+        entryId: e.id,
+        pieceFraction: e.pieceFraction,
+        slot: slot.slotLabel,
+        section: slot.section,
+        level: slot.level,
+        lateral: slot.lateral,
+        h: e.h,
+        w: e.w,
+        d: e.d,
+        weight: e.weight,
+        below: belowInfo,
+        fromDoor: String(e.doorNumber || '').trim(),
+        fromTrailer: String(e.trailerNumber || '').trim(),
+        fromSlot,
+      });
+    });
+    st.loadGroups = [];
+    byPro.forEach((pieces, pro) => {
+      if (!pieces.length) return;
+      pieces.sort((a, b) => pieceFractionNum(a) - pieceFractionNum(b));
+      st.loadGroups.push({ pro, pieces });
+    });
+    return finalizeLoadoutFromState(st, destination);
+  }
 
   /**
    * Local section-Tetris (high-and-tight) demo planner.
@@ -893,8 +1125,23 @@
         shipments.filter((s) => s.destination === destination)
       );
 
-      /** @type {ReturnType<typeof initTrailerPackState>[]} */
-      const trailerStates = [initTrailerPackState(primary)];
+      // v50: each trailer keeps a list of whole PROs; a PRO is accepted only if
+      // the full trailer (old pieces + this PRO) still packs with every rule.
+      const newV50State = (outbound) => {
+        const st = initTrailerPackState(outbound);
+        st.pieces = [];
+        st.ships = [];
+        return st;
+      };
+      const tryAddShip = (st, ship) => {
+        const trial = st.pieces.concat(ship.pieces);
+        const res = packTrailerPiecesV50(trial, st.cityFloorOnly);
+        if (res.unplaced.length) return false;
+        st.pieces = trial;
+        st.ships.push(ship);
+        return true;
+      };
+      const trailerStates = [newV50State(primary)];
       if (trailerStates[0].cityFloorOnly) cityFloorOnlyCount += 1;
 
       destShipments.forEach((ship) => {
@@ -903,12 +1150,9 @@
 
         // Prefer existing trailers that can take the WHOLE PRO (same-PRO intact).
         for (let ti = 0; ti < trailerStates.length; ti++) {
-          if (freeSlotCount(trailerStates[ti]) >= n) {
-            const ok = placeEntireProOnTrailer(ship, trailerStates[ti], moves);
-            if (ok) {
-              placed = true;
-              break;
-            }
+          if (tryAddShip(trailerStates[ti], ship)) {
+            placed = true;
+            break;
           }
         }
 
@@ -917,12 +1161,9 @@
           const extra = createExtraOutboundStub(destination, primary);
           if (extra) {
             secondStubCount += 1;
-            const st = initTrailerPackState(extra);
+            const st = newV50State(extra);
             trailerStates.push(st);
-            if (freeSlotCount(st) >= n) {
-              const ok = placeEntireProOnTrailer(ship, st, moves);
-              if (ok) placed = true;
-            }
+            if (tryAddShip(st, ship)) placed = true;
           }
         }
 
@@ -946,8 +1187,8 @@
       });
 
       trailerStates.forEach((st) => {
-        if (st.loadGroups.length) {
-          outboundLoadouts.push(finalizeLoadoutFromState(st, destination));
+        if (st.pieces.length) {
+          outboundLoadouts.push(finalizeTrailerV50(st, destination, moves));
         }
       });
     });
@@ -985,7 +1226,7 @@
         `Every piece has a unique outbound slot.`;
     } else {
       note =
-        'Packed high-and-tight per bay; light freight in nose/tail zones (≤3,200 lb each), heavy toward the middle. City loads floor-only. Every piece has a unique outbound slot.';
+        'Packed nose→tail, floor first then decks. Nose/tail take light pieces only (≤3,200 lb each zone); each axle ≤20,000 lb; a deck piece is never heavier than the piece under it. Every piece has a unique outbound slot.';
     }
 
     const plan = {
@@ -1424,6 +1665,7 @@
           (g.pieces || []).forEach((p) => {
             if (p.slot) {
               st.usedLabels.add(p.slot);
+              if (st.slotPiece) st.slotPiece.set(p.slot, p);
               const sec =
                 p.section != null
                   ? Number(p.section)
