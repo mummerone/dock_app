@@ -80,8 +80,36 @@
     { label: 'Skid high', h: 72, w: 48, d: 40, weight: 1400 },
   ];
 
+  // ---------------------------------------------------------------------
+  // v51: deterministic sample freight. The boss demo always uses the same
+  // seed, so every load gives the identical freight, move count, weights and
+  // percentages (any screen width, any reload).
+  // ---------------------------------------------------------------------
+  const DEMO_SEED = 51051;
+  let rngSeeded = false;
+  let rngState = 0;
+
+  function seedRng(seed) {
+    rngSeeded = true;
+    rngState = seed >>> 0;
+  }
+
+  function unseedRng() {
+    rngSeeded = false;
+  }
+
+  /** mulberry32: tiny, well-known seeded PRNG. */
+  function rand() {
+    if (!rngSeeded) return Math.random();
+    rngState = (rngState + 0x6d2b79f5) >>> 0;
+    let t = rngState;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+
   function randInt(min, max) {
-    return min + Math.floor(Math.random() * (max - min + 1));
+    return min + Math.floor(rand() * (max - min + 1));
   }
 
   function pick(arr) {
@@ -89,9 +117,76 @@
   }
 
   function jitter(n, pct) {
-    const f = 1 + (Math.random() * 2 - 1) * pct;
+    const f = 1 + (rand() * 2 - 1) * pct;
     return Math.max(1, Math.round(n * f));
   }
+
+  // ---------------------------------------------------------------------
+  // v51 axle model (shared with the app so planned and live numbers match).
+  // Each piece's weight is split between the front support (kingpin / dolly,
+  // about 3 ft back from the nose) and the rear axle (about 42 ft back) by
+  // where it sits: a piece right over the front support is 100% front, a
+  // piece over the rear axle is 100% rear, halfway is 50/50. Freight only
+  // (trailer weight not included). 12 sections × 4 ft = 48 ft.
+  // ---------------------------------------------------------------------
+  const SECTION_FT = 4;
+  const AXLE_FRONT_SUPPORT_FT = 3;
+  const AXLE_REAR_FT = 42;
+
+  /** Share (0–1) of a piece in this section that rides on the rear axle. */
+  function axleRearShare(section) {
+    const sec = Number(section) || 0;
+    if (!sec) return 0.5;
+    const x = (sec - 0.5) * SECTION_FT;
+    const r = (x - AXLE_FRONT_SUPPORT_FT) / (AXLE_REAR_FT - AXLE_FRONT_SUPPORT_FT);
+    return Math.max(0, Math.min(1, r));
+  }
+
+  /**
+   * Front / rear axle freight weight for pieces with a section (or slot "s/L/l").
+   * @param {{section?:number, slot?:string, weight?:number}[]} pieces
+   */
+  function axleSplit(pieces) {
+    let front = 0;
+    let rear = 0;
+    (pieces || []).forEach((p) => {
+      const w = Number(p && p.weight);
+      if (!Number.isFinite(w) || w <= 0) return;
+      let sec = Number(p.section);
+      if (!sec && p.slot) sec = Number(String(p.slot).split('/')[0]);
+      const r = axleRearShare(sec);
+      rear += w * r;
+      front += w * (1 - r);
+    });
+    return { front, rear };
+  }
+
+  /** v51: stack height to the roof (inside height ≈ 108 in, minus load-bar room). */
+  const STACK_HEIGHT_MAX_IN = 100;
+  /** v51: sample forklift capacity — a piece heavier than this can't be moved. */
+  const FORKLIFT_CAPACITY_LB = 5000;
+  /** v51: pieces already on the OUT trailers "from earlier in the shift". */
+  const DEMO_PRELOAD_KEY = 'dockApp.demoPreload.v1';
+  /** v51: demo moves finish every OUT trailer at this section (10 of 12 ≈ 83%). */
+  const DEMO_TARGET_END_SECTION = 10;
+
+  /** v51 sample piece types (L×W in inches, weight lb). Lighter, realistic LTL mix. */
+  const SAMPLE_POOL_V51 = [
+    { kind: 'pallet', h: 48, w: 48, d: 40, weight: 640 },
+    { kind: 'pallet', h: 60, w: 48, d: 40, weight: 820 },
+    { kind: 'pallet', h: 36, w: 48, d: 40, weight: 460 },
+    { kind: 'pallet', h: 50, w: 48, d: 48, weight: 880 },
+    { kind: 'half pallet', h: 40, w: 48, d: 20, weight: 320 },
+    { kind: 'drum', h: 35, w: 23, d: 23, weight: 400 },
+    { kind: 'drum', h: 30, w: 19, d: 19, weight: 240 },
+    { kind: 'tote', h: 46, w: 48, d: 40, weight: 1450 },
+    { kind: 'gaylord', h: 44, w: 48, d: 40, weight: 520 },
+    { kind: 'crate', h: 42, w: 36, d: 36, weight: 450 },
+    { kind: 'skid', h: 28, w: 48, d: 40, weight: 380 },
+    { kind: 'skid', h: 64, w: 48, d: 40, weight: 980 },
+  ];
+  /** v51: fragile / no-stack piece type (floor only, nothing on top). */
+  const SAMPLE_FRAGILE = { kind: 'fragile cartons', h: 44, w: 48, d: 40, weight: 360, noStack: true };
 
   /**
    * Section-major high-and-tight slot order (section Tetris).
@@ -515,12 +610,36 @@
   }
 
   function seedDemoInbound() {
+    // v51: fixed seed → identical sample freight every time
+    seedRng(DEMO_SEED);
+    try {
+      return seedDemoInboundCore();
+    } finally {
+      unseedRng();
+    }
+  }
+
+  /** Make one sample piece from a pool type. */
+  function makeSamplePiece(type, extra) {
+    return Object.assign(
+      {
+        h: jitter(type.h, 0.06),
+        w: type.w,
+        d: type.d,
+        weight: jitter(type.weight, 0.1),
+        kind: type.kind,
+        noStack: Boolean(type.noStack),
+      },
+      extra || {}
+    );
+  }
+
+  function seedDemoInboundCore() {
     // Clear freight + destinations; keep outbound list but ensure stubs
     DockStorage.clearAll();
-    // Clear PRO destinations by writing empty list via setting nothing —
-    // clear each known pro by replacing pros store indirectly:
     try {
       localStorage.setItem(DockStorage.PROS_KEY, '[]');
+      localStorage.removeItem(DEMO_PRELOAD_KEY);
     } catch (_) {
       /* ignore */
     }
@@ -531,48 +650,37 @@
     let proSeq = 700100;
     const baseTime = Date.now();
 
-    // v50: build bills per destination with an EVEN piece count per destination
-    // (19–21 each) so every outbound trailer has about the same work and all
-    // five forklifts stay busy until near the end. The piece count written in
-    // each fraction ("3/8") is the one source of truth for that PRO.
-    const lightPool = SIZE_POOL.filter((s) => s.weight <= 800);
-    const heavyPool = SIZE_POOL.filter((s) => s.weight >= 900);
+    // Bills per destination with an EVEN piece count (19–21 each) so every
+    // outbound trailer has about the same work. The fraction "3/8" is the one
+    // source of truth for a PRO's piece count. One fragile (no-stack) piece
+    // per destination.
+    const lightPool = SAMPLE_POOL_V51.filter((s) => s.weight <= 700);
+    const heavyPool = SAMPLE_POOL_V51.filter((s) => s.weight > 700);
     /** @type {{pro:string, dest:string, pieces:object[]}[]} */
     const allBills = [];
     DEMO_DESTINATIONS.forEach((dest) => {
       let left = randInt(DEMO_PIECES_PER_DEST_MIN, DEMO_PIECES_PER_DEST_MAX);
       let p = 0;
+      let fragileDone = false;
       while (left > 0) {
-        let pieceCount = Math.min(left, randInt(2, 7));
-        if (left - pieceCount === 1) {
-          pieceCount = pieceCount < 8 ? pieceCount + 1 : pieceCount - 1;
-        }
+        let pieceCount = Math.min(left, randInt(2, 6));
+        if (left - pieceCount === 1) pieceCount += 1;
         left -= pieceCount;
-        // Mix light + heavy so nose/tail always have light pieces available
         const size =
-          p % 3 === 0
-            ? pick(lightPool.length ? lightPool : SIZE_POOL)
-            : p % 3 === 1
-              ? pick(heavyPool.length ? heavyPool : SIZE_POOL)
-              : pick(SIZE_POOL);
+          p % 3 === 0 ? pick(lightPool) : p % 3 === 1 ? pick(heavyPool) : pick(SAMPLE_POOL_V51);
         p += 1;
         const pro = String(proSeq++);
         const pieces = [];
         for (let i = 1; i <= pieceCount; i++) {
-          // Within a bill: guarantee light pieces for end zones (redistribute, don't drop)
           let sz = size;
-          if (lightPool.length && (i === 1 || (size.weight > PUP_END_LIGHT_MAX_LB && i === pieceCount))) {
-            sz = pick(lightPool);
+          if (i === 1 || (size.weight > PUP_END_LIGHT_MAX_LB && i === pieceCount)) sz = pick(lightPool);
+          if (!fragileDone && p === 2 && i === pieceCount) {
+            sz = SAMPLE_FRAGILE;
+            fragileDone = true;
           }
-          pieces.push({
-            pro,
-            pieceFraction: `${i}/${pieceCount}`,
-            destination: dest,
-            h: jitter(sz.h, 0.08),
-            w: sz.w,
-            d: sz.d,
-            weight: jitter(sz.weight, 0.12),
-          });
+          pieces.push(
+            makeSamplePiece(sz, { pro, pieceFraction: `${i}/${pieceCount}`, destination: dest })
+          );
         }
         allBills.push({ pro, dest, pieces });
       }
@@ -598,9 +706,7 @@
 
     DEMO_INBOUND.forEach((ib, ibIdx) => {
       const bills = billsByInbound[ibIdx];
-      const totalPieces = piecesByInbound[ibIdx];
-
-      const slots = allocateInboundSlots(totalPieces);
+      const slots = allocateInboundSlots(piecesByInbound[ibIdx]);
       let slotIdx = 0;
       bills.forEach((bill) => {
         bill.pieces.forEach((piece, pi) => {
@@ -624,8 +730,9 @@
             w: piece.w,
             d: piece.d,
             weight: piece.weight,
+            kind: piece.kind,
+            noStack: piece.noStack,
             destination: bill.dest,
-            // Stagger timestamps: older first within trailer for load order
             timestamp: new Date(
               baseTime - (DEMO_INBOUND.length - ibIdx) * 600000 - slotIdx * 1000
             ).toISOString(),
@@ -639,6 +746,77 @@
     const outboundCreated = stubs.filter((s) => s.created).length;
     const pros = new Set(rows.map((r) => r.pro));
 
+    // v51: freight already on each OUT trailer "from earlier in the shift".
+    // Pick how many sections are pre-loaded so this trailer's demo moves
+    // finish at the same section as every other trailer (consistent fill %).
+    const preloadStore = { seed: DEMO_SEED, trailers: {} };
+    let preSeq = 650100;
+    DEMO_DESTINATIONS.forEach((dest) => {
+      const row = DockStorage.outboundForDestination(dest);
+      if (!row) return;
+      const city = Boolean(row.cityFloorOnly);
+      const demoPieces = rows.filter((r) => r.destination === dest);
+      /** @type {object[]} */
+      const pool = [];
+      for (let b = 0; b < 26; b++) {
+        const pro = String(preSeq++);
+        const n = randInt(2, 4);
+        const type = b % 2 === 0 ? pick(lightPool) : pick(SAMPLE_POOL_V51);
+        for (let i = 1; i <= n; i++) {
+          pool.push(makeSamplePiece(i === 1 ? pick(lightPool) : type, { pro, pieceFraction: `${i}/${n}` }));
+        }
+      }
+      let best = null;
+      for (let P = 2; P <= DEMO_TARGET_END_SECTION - 2; P++) {
+        const pre = packTrailerPiecesV50(pool, city, { maxSection: P });
+        const preset = pre.placements.map(({ piece, slot }) =>
+          Object.assign({}, piece, { section: slot.section, level: slot.level, lateral: slot.lateral })
+        );
+        const res = packTrailerPiecesV50(demoPieces, city, { preset, minSection: P + 1 });
+        if (res.unplaced.length) continue;
+        const end = res.endSection;
+        const score = end === DEMO_TARGET_END_SECTION ? 0 : end === DEMO_TARGET_END_SECTION + 1 ? 1 : 2 + Math.abs(end - DEMO_TARGET_END_SECTION);
+        if (!best || score < best.score || (score === best.score && P > best.P)) {
+          best = { P, preset, score, end };
+        }
+      }
+      if (!best) return;
+      // Renumber pieces per PRO so fractions match what is actually on board
+      /** @type {Map<string, object[]>} */
+      const byPro = new Map();
+      best.preset.forEach((p) => {
+        if (!byPro.has(p.pro)) byPro.set(p.pro, []);
+        byPro.get(p.pro).push(p);
+      });
+      byPro.forEach((list) => {
+        list.forEach((p, i) => {
+          p.pieceFraction = `${i + 1}/${list.length}`;
+        });
+      });
+      preloadStore.trailers[row.trailerNumber] = {
+        destination: dest,
+        endSection: best.P,
+        pieces: best.preset.map((p) => ({
+          pro: p.pro,
+          pieceFraction: p.pieceFraction,
+          section: p.section,
+          level: p.level,
+          lateral: p.lateral,
+          h: p.h,
+          w: p.w,
+          d: p.d,
+          weight: p.weight,
+          kind: p.kind,
+          noStack: Boolean(p.noStack),
+        })),
+      };
+    });
+    try {
+      localStorage.setItem(DEMO_PRELOAD_KEY, JSON.stringify(preloadStore));
+    } catch (_) {
+      /* ignore */
+    }
+
     return {
       inboundTrailers: DEMO_INBOUND.length,
       proCount: pros.size,
@@ -646,6 +824,18 @@
       outboundCreated,
       destinations: DEMO_DESTINATIONS.slice(),
     };
+  }
+
+  /** v51: pre-loaded freight for the sample trailers (only while demo freight is on the dock). */
+  function readDemoPreload(entries) {
+    const list = entries || DockStorage.readAll();
+    if (!list.some((e) => String(e.id || '').indexOf('demo-') === 0)) return null;
+    try {
+      const store = JSON.parse(localStorage.getItem(DEMO_PRELOAD_KEY) || 'null');
+      return store && store.trailers ? store : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   /**
@@ -867,33 +1057,45 @@
   }
 
   /**
-   * Can piece `e` go in `slot` right now?
+   * v51: can piece `e` go in `slot` right now?
+   * Rules: forklift capacity · fragile = floor only, nothing on top · nose/tail
+   * light only (≤900 lb, zone ≤ target) · each axle ≤ 20,000 lb (lever split)
+   * · deck piece needs a piece under it, no heavier than it, ≤1,500 lb ·
+   * stack fits under the roof (≤100 in).
+   * @param {object} ctx { secW, bySlot, axle:{front,rear}, zoneTarget }
    * @returns {boolean}
    */
-  function pieceFitsSlotV50(e, slot, secW, bySlot, zoneTarget) {
+  function pieceFitsSlotV50(e, slot, ctx) {
     const w = pieceWeight(e);
+    if (w > FORKLIFT_CAPACITY_LB) return false;
     const sec = Number(slot.section) || 0;
+    const lv = String(slot.level || 'A').toUpperCase();
+    if (e.noStack && lv !== 'A') return false;
     const isNose = PUP_NOSE_SECTIONS.indexOf(sec) >= 0;
     const isTail = PUP_TAIL_SECTIONS.indexOf(sec) >= 0;
-    if (isNose || isTail) {
-      if (w > PUP_END_LIGHT_MAX_LB) return false;
-      const zone = sumSections({ sectionWeight: secW }, isNose ? PUP_NOSE_SECTIONS : PUP_TAIL_SECTIONS);
-      if (zone + w > zoneTarget) return false;
-    }
-    if (PUP_FRONT_SECTIONS.indexOf(sec) >= 0) {
-      if (sumSections({ sectionWeight: secW }, PUP_FRONT_SECTIONS) + w > PUP_AXLE_CAP_LB) return false;
-    }
-    if (PUP_REAR_SECTIONS.indexOf(sec) >= 0) {
-      if (sumSections({ sectionWeight: secW }, PUP_REAR_SECTIONS) + w > PUP_AXLE_CAP_LB) return false;
-    }
-    const lv = String(slot.level || 'A').toUpperCase();
+    if ((isNose || isTail) && w > PUP_END_LIGHT_MAX_LB) return false;
+    // v51: every 4 ft section (nose and tail included) stays under the
+    // 3,200 lb company limit (planner aims for 3,000) so weight spreads along
+    // the floor and both axles share it.
+    if ((ctx.secW[sec] || 0) + w > ctx.zoneTarget) return false;
+    const r = axleRearShare(sec);
+    if (ctx.axle.front + w * (1 - r) > PUP_AXLE_CAP_LB) return false;
+    if (ctx.axle.rear + w * r > PUP_AXLE_CAP_LB) return false;
+    let stackH = pieceHeight(e);
     if (lv === 'B' || lv === 'C') {
       const belowLevel = lv === 'B' ? 'A' : 'B';
-      const below = bySlot.get(`${sec}/${belowLevel}/${slot.lateral}`);
+      const below = ctx.bySlot.get(`${sec}/${belowLevel}/${slot.lateral}`);
       if (!below) return false;
+      if (below.noStack) return false;
       if (w > pieceWeight(below)) return false;
       if (w > DECK_PIECE_MAX_LB) return false;
+      stackH += pieceHeight(below);
+      if (lv === 'C') {
+        const floor = ctx.bySlot.get(`${sec}/A/${slot.lateral}`);
+        stackH += floor ? pieceHeight(floor) : 0;
+      }
     }
+    if (stackH > STACK_HEIGHT_MAX_IN) return false;
     return true;
   }
 
@@ -901,10 +1103,19 @@
    * Pack a set of pieces into one trailer.
    * @param {object[]} pieces inbound entries
    * @param {boolean} cityFloorOnly
-   * @returns {{placements:{piece:object, slot:object, below:object|null}[], unplaced:object[], sectionWeight:Record<number,number>}}
+   * @param {{preset?:object[], minSection?:number, maxSection?:number}} [opts]
+   *   preset = pieces already on the trailer (with section/level/lateral);
+   *   minSection = first section new pieces may use (behind the preset);
+   *   maxSection = last section new pieces may use.
+   * @returns {{placements:{piece:object, slot:object, below:object|null}[], unplaced:object[], sectionWeight:Record<number,number>, axle:{front:number,rear:number}, endSection:number}}
    */
-  function packTrailerPiecesV50(pieces, cityFloorOnly) {
-    const order = slotOrderForTrailer(cityFloorOnly);
+  function packTrailerPiecesV50(pieces, cityFloorOnly, opts) {
+    const o = opts || {};
+    const minSec = Number(o.minSection) || 1;
+    const maxSec = Number(o.maxSection) || 12;
+    const order = slotOrderForTrailer(cityFloorOnly).filter(
+      (s) => s.section >= minSec && s.section <= maxSec
+    );
     const pool = pieces.slice().sort((a, b) => {
       const dw = pieceWeight(b) - pieceWeight(a);
       if (dw !== 0) return dw;
@@ -917,21 +1128,39 @@
     for (let s = 1; s <= 12; s++) secW[s] = 0;
     /** @type {Map<string, object>} */
     const bySlot = new Map();
+    const axle = { front: 0, rear: 0 };
+    (o.preset || []).forEach((p) => {
+      const sec = Number(p.section) || 0;
+      const w = pieceWeight(p);
+      secW[sec] = (secW[sec] || 0) + w;
+      bySlot.set(`${sec}/${p.level}/${p.lateral}`, p);
+      const r = axleRearShare(sec);
+      axle.front += w * (1 - r);
+      axle.rear += w * r;
+    });
+    const ctx = { secW, bySlot, axle, zoneTarget: PUP_ZONE_SOFT_LB };
     const placements = [];
+    let endSection = 0;
     for (let c = 0; c < order.length && pool.length; c++) {
       const slot = order[c];
+      if (bySlot.has(slot.slotLabel)) continue;
       let idx = -1;
       // Prefer the 3,000 lb target in end zones; never past the 3,200 hard cap
       for (let i = 0; i < pool.length; i++) {
-        if (pieceFitsSlotV50(pool[i], slot, secW, bySlot, PUP_ZONE_SOFT_LB)) {
+        if (pieceFitsSlotV50(pool[i], slot, ctx)) {
           idx = i;
           break;
         }
       }
       if (idx < 0) continue;
       const e = pool.splice(idx, 1)[0];
-      secW[slot.section] = (secW[slot.section] || 0) + pieceWeight(e);
+      const w = pieceWeight(e);
+      secW[slot.section] = (secW[slot.section] || 0) + w;
+      const r = axleRearShare(slot.section);
+      axle.front += w * (1 - r);
+      axle.rear += w * r;
       bySlot.set(slot.slotLabel, e);
+      if (slot.section > endSection) endSection = slot.section;
       const lv = String(slot.level || 'A').toUpperCase();
       const below =
         lv === 'B'
@@ -941,7 +1170,7 @@
             : null;
       placements.push({ piece: e, slot, below });
     }
-    return { placements, unplaced: pool, sectionWeight: secW };
+    return { placements, unplaced: pool, sectionWeight: secW, axle, endSection };
   }
 
   /**
@@ -949,7 +1178,7 @@
    * @returns {object} loadout
    */
   function finalizeTrailerV50(st, destination, moves) {
-    const res = packTrailerPiecesV50(st.pieces, st.cityFloorOnly);
+    const res = packTrailerPiecesV50(st.pieces, st.cityFloorOnly, st.packOpts);
     const outbound = st.outbound;
     const toDoor =
       String(outbound.doorNumber || '').trim() ||
@@ -970,6 +1199,8 @@
             pro: below.pro,
             pieceFraction: below.pieceFraction,
             weight: below.weight,
+            h: below.h,
+            kind: below.kind || '',
           }
         : null;
       moves.push({
@@ -998,6 +1229,8 @@
         w: e.w,
         d: e.d,
         weight: e.weight,
+        kind: e.kind || '',
+        noStack: Boolean(e.noStack),
       });
       if (!byPro.has(e.pro)) byPro.set(e.pro, []);
       byPro.get(e.pro).push({
@@ -1011,6 +1244,8 @@
         w: e.w,
         d: e.d,
         weight: e.weight,
+        kind: e.kind || '',
+        noStack: Boolean(e.noStack),
         below: belowInfo,
         fromDoor: String(e.doorNumber || '').trim(),
         fromTrailer: String(e.trailerNumber || '').trim(),
@@ -1023,7 +1258,29 @@
       pieces.sort((a, b) => pieceFractionNum(a) - pieceFractionNum(b));
       st.loadGroups.push({ pro, pieces });
     });
-    return finalizeLoadoutFromState(st, destination);
+    const load = finalizeLoadoutFromState(st, destination);
+    const preset = (st.packOpts && st.packOpts.preset) || [];
+    load.preloaded = preset.map((p) => ({
+      pro: p.pro,
+      pieceFraction: p.pieceFraction,
+      slot: `${p.section}/${p.level}/${p.lateral}`,
+      section: p.section,
+      level: p.level,
+      lateral: p.lateral,
+      h: p.h,
+      w: p.w,
+      d: p.d,
+      weight: p.weight,
+      kind: p.kind || '',
+      noStack: Boolean(p.noStack),
+      preloaded: true,
+    }));
+    load.preloadedCount = load.preloaded.length;
+    let endSec = 0;
+    load.preloaded.forEach((p) => { if (p.section > endSec) endSec = p.section; });
+    res.placements.forEach(({ slot }) => { if (slot.section > endSec) endSec = slot.section; });
+    load.endSection = endSec;
+    return load;
   }
 
   /**
@@ -1097,6 +1354,7 @@
     });
 
     ensureOutboundStubs(destOrder);
+    const preload = readDemoPreload(entries);
 
     /** Map dest -> primary outbound trailer row */
     const outboundByDest = {};
@@ -1131,11 +1389,16 @@
         const st = initTrailerPackState(outbound);
         st.pieces = [];
         st.ships = [];
+        // v51: sample trailers start with freight from earlier in the shift
+        const pre = preload && preload.trailers[String(outbound.trailerNumber || '').trim()];
+        st.packOpts = pre
+          ? { preset: pre.pieces, minSection: (Number(pre.endSection) || 0) + 1 }
+          : {};
         return st;
       };
       const tryAddShip = (st, ship) => {
         const trial = st.pieces.concat(ship.pieces);
-        const res = packTrailerPiecesV50(trial, st.cityFloorOnly);
+        const res = packTrailerPiecesV50(trial, st.cityFloorOnly, st.packOpts);
         if (res.unplaced.length) return false;
         st.pieces = trial;
         st.ships.push(ship);
@@ -1226,7 +1489,7 @@
         `Every piece has a unique outbound slot.`;
     } else {
       note =
-        'Packed nose→tail, floor first then decks. Nose/tail take light pieces only (≤3,200 lb each zone); each axle ≤20,000 lb; a deck piece is never heavier than the piece under it. Every piece has a unique outbound slot.';
+        'Packed nose→tail, floor first then decks. Nose/tail take light pieces only (900 lb or less, 3,200 lb per zone); each axle ≤20,000 lb; a deck piece is never heavier than the piece under it; fragile pieces stay on the floor with nothing on top; stacks fit under the roof (100 in); every piece is under the 5,000 lb forklift limit. Every piece has a unique outbound slot.';
     }
 
     const plan = {
@@ -1915,6 +2178,13 @@
   }
 
   global.DockLoadPlan = {
+    axleRearShare,
+    axleSplit,
+    STACK_HEIGHT_MAX_IN,
+    FORKLIFT_CAPACITY_LB,
+    PUP_END_LIGHT_MAX_LB,
+    DECK_PIECE_MAX_LB,
+    DEMO_PRELOAD_KEY,
     DEMO_DESTINATIONS,
     DEMO_INBOUND,
     DECK_CLEAR_HEIGHT_IN,

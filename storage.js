@@ -337,6 +337,9 @@
             : Number(partial.weight),
         timestamp: partial.timestamp || new Date().toISOString(),
       };
+      // v51: optional sample-freight details (piece type, fragile / no-stack)
+      if (partial.kind) entry.kind = String(partial.kind);
+      if (partial.noStack) entry.noStack = true;
       entries.push(entry);
       if (partial.destination != null && String(partial.destination).trim() !== '') {
         setProDestination(entry.pro, String(partial.destination).trim());

@@ -4838,3 +4838,285 @@ button.trailer-top-cell {
   .boss-sum-stats { grid-template-columns: repeat(3, 1fr); }
 }
 .boss-sum-shared-note { margin: 0 0 8px; font-size: 0.8rem; color: #ffd166; line-height: 1.35; }
+
+/* ==================== v51 — trust + win the boss ==================== */
+
+/* Landing hero: the boss pitch is the headline */
+.hero-card { padding: 18px 16px 16px; }
+.hero-kicker {
+  margin: 0 0 4px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #ffc070;
+}
+.hero-card h2.hero-headline {
+  margin: 0 0 10px;
+  font-size: 1.55rem;
+  line-height: 1.2;
+  font-weight: 900;
+  color: #f7fafc;
+}
+.hero-bullets {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.hero-bullets li {
+  position: relative;
+  padding-left: 26px;
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: #dfe8f5;
+}
+.hero-bullets li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2f9e5f;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.hero-demo-btn { min-height: 64px; font-size: 1.3rem !important; }
+.clerk-heading {
+  margin: 22px 4px 2px;
+  font-size: 1.15rem;
+  font-weight: 850;
+  color: #c8d4e8;
+}
+.clerk-sub { margin: 0 4px 10px; }
+.speech-status { white-space: normal; max-width: 210px; line-height: 1.2; }
+#speechStatusText { font-size: 0.7rem; }
+
+/* Restore notice after Exit demo */
+.restore-notice {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #123824;
+  border: 2px solid #7dffb0;
+  color: #dfffee;
+  font-size: 0.95rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.restore-notice[hidden] { display: none !important; }
+.restore-notice .btn { margin-left: 6px; }
+.recent-list.is-restored-flash { outline: 3px solid #7dffb0; outline-offset: 4px; border-radius: 10px; }
+
+/* Demo bar: unmistakable on every screen */
+.demo-mode-bar {
+  background: repeating-linear-gradient(135deg, #3a2c0c 0 14px, #4a3610 14px 28px);
+  border: 2px solid #f5a623;
+  color: #ffe9bf;
+}
+.demo-mode-title {
+  display: block;
+  font-size: 1rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #ffd166;
+}
+.demo-mode-sub { font-size: 0.82rem; font-weight: 650; }
+.demo-mode-exit,
+.boss-sum-exit,
+.crew-exit-demo-btn {
+  background: #0b1220 !important;
+  color: #ffd166 !important;
+  border: 2px solid #ffd166 !important;
+  font-weight: 900 !important;
+  opacity: 1 !important;
+}
+.demo-mode-exit { min-height: 40px; padding: 6px 14px; }
+
+/* Crew start modes */
+.crew-mode-lines {
+  margin: 10px 0 4px;
+  padding-left: 18px;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: #c8d4e8;
+}
+.crew-mode-lines li { margin-bottom: 2px; }
+.crew-mode-same { font-weight: 750; }
+.crew-boss-copy[hidden], .crew-solo-copy[hidden] { display: none !important; }
+.crew-glossary { line-height: 1.45; }
+
+/* Door board: trailer labels legible above the highlight ring */
+.crew-door-cell { position: relative; }
+.crew-door-trl,
+.crew-door-cell .crew-door-trl {
+  position: relative;
+  z-index: 3;
+  display: inline-block;
+  margin-top: 2px;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgba(8, 14, 26, 0.88);
+  color: #e8f2ff;
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 1.15;
+  max-width: 100%;
+}
+.crew-door-cell.has-pull .crew-door-trl,
+.crew-door-cell.is-live .crew-door-trl { color: #d8ffe9; }
+@media (max-width: 520px) {
+  .crew-door-trl, .crew-door-cell .crew-door-trl { font-size: 0.66rem; padding: 1px 4px; }
+}
+.crew-tour-highlight { z-index: 2; }
+
+/* Freight loaded earlier in the shift: gray + hatched */
+.trailer-fill-cell.is-preloaded,
+.trailer-top-cell.is-preloaded,
+.trailer-fill-swatch.is-preloaded {
+  background: repeating-linear-gradient(45deg, #5b6575 0 4px, #3c4452 4px 8px) !important;
+  border-color: #9aa6b8 !important;
+}
+.trailer-top-cell.is-preloaded .trailer-top-cell-label { color: #e6ebf2; }
+.trailer-top-cell.is-fragile { box-shadow: inset 0 0 0 2px #ff9ad5; }
+.crew-out-piece .crew-out-piece-from { color: #9fb4cf; }
+
+/* Top-down zone names */
+.trailer-top-colheads { grid-template-columns: 40px 1fr 1fr 1fr 1fr; }
+.trailer-top-sec {
+  flex: 0 0 37px;
+  width: 37px;
+  flex-direction: column;
+  line-height: 1.05;
+}
+.trailer-top-zone {
+  font-style: normal;
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #b8c6da;
+  text-transform: uppercase;
+}
+
+/* Tour card: never clip, mini trailer box, 3 actions */
+.crew-tour-bubble {
+  max-height: calc(100vh - 16px);
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+}
+.crew-tour-why {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  display: block;
+  -webkit-line-clamp: unset;
+}
+.crew-tour-trailer {
+  margin: 0 0 6px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #0f1a2c;
+  border: 1px solid #36507a;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: #c8d4e8;
+}
+.crew-tour-trailer[hidden], .crew-tour-trailer:empty { display: none !important; }
+.cts-head b { color: #fff; }
+.cts-pace { padding: 0 5px; border-radius: 6px; font-weight: 850; background: #24603f; color: #d8ffe9; }
+.cts-pace.is-tight { background: #6a4a0a; color: #ffe2a8; }
+.cts-pace.is-late { background: #6a1a1a; color: #ffd0d0; }
+.cts-cells {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-top: 4px;
+}
+.cts-cell {
+  padding: 2px 4px;
+  border-radius: 6px;
+  background: #16283f;
+  border: 1px solid #2f5a3f;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  text-align: center;
+}
+.cts-cell b { display: block; font-size: 0.8rem; color: #e8f8d8; }
+.cts-cell i { display: block; font-style: normal; font-weight: 850; color: #ffd166; font-size: 0.62rem; }
+.cts-cell.is-warm { border-color: #f0a030; background: #3a2c0c; }
+.cts-cell.is-hot, .cts-cell.is-over { border-color: #e05050; }
+.cts-label { color: #9fb4cf; font-weight: 700; }
+.cts-hint { margin-top: 4px; font-size: 0.72rem; font-weight: 700; color: #ffe2a8; }
+.crew-tour-actions {
+  grid-template-columns: 1fr 1fr;
+}
+.crew-tour-actions .crew-tour-continue { grid-column: 1 / -1; }
+.crew-tour-skip, .crew-tour-tosummary {
+  min-height: 42px;
+  font-size: 0.84rem !important;
+  line-height: 1.15;
+}
+.crew-pace-hint { margin-top: 3px; font-size: 0.76rem; font-weight: 700; color: #ffe2a8; }
+
+/* Summary: inputs, real-use list */
+.boss-sum-fill {
+  margin-left: 4px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  background: #24603f;
+  color: #d8ffe9;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+.boss-sum-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 10px 0;
+}
+.boss-sum-input {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.8rem;
+  font-weight: 750;
+  color: #c8d4e8;
+}
+.boss-sum-input input {
+  min-height: 40px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #36507a;
+  background: #0f1a2c;
+  color: #fff;
+  font: inherit;
+  font-size: 1rem;
+}
+.boss-sum-input-hint { grid-column: 1 / -1; margin: 0; font-size: 0.74rem; color: #9fb4cf; line-height: 1.35; }
+.boss-sum-cost b { color: #ffd166; }
+.boss-sum-real ol { margin: 4px 0 0; padding-left: 20px; line-height: 1.5; }
+.boss-sum-real .btn { margin-left: 4px; }
+.crew-tour-actions button[hidden] { display: none !important; }
+.crew-door-cell .crew-door-trl { overflow: visible; text-overflow: clip; letter-spacing: -0.01em; }
+@media (min-width: 521px) {
+  .crew-door-cell .crew-door-trl:not(.crew-door-emptied)::before { content: 'Trl '; font-weight: 700; opacity: 0.8; }
+}
+.boss-sum-inputs { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.boss-sum-input { min-width: 0; }
+.boss-sum-input input { width: 100%; min-width: 0; box-sizing: border-box; }
+
+.boss-sum-fill { white-space: nowrap; display: inline-block; }
+.restore-notice .btn {
+  background: #0b1220 !important;
+  color: #9ef0c2 !important;
+  border: 2px solid #7dffb0 !important;
+  font-weight: 850 !important;
+  margin: 6px 0 0;
+}
