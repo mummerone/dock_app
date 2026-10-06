@@ -37,30 +37,94 @@
 
   /** Per-section stack order: floor then decks (section Tetris). */
   const LEVELS_SECTION_TETRIS = ['A', 'B', 'C'];
-  const LATERALS = ['Left', 'Middle', 'Right'];
+  /** v55: across the width: Left / Center / Right ("Middle" is only the section group 5–8). */
+  const LATERALS = ['Left', 'Center', 'Right'];
+
+  /**
+   * v55: ONE trailer profile. Every planner check and every label, gauge and
+   * rule text in the app reads from this object, so a different trailer type
+   * (28 ft pup, 53 ft tandem…) is a new profile, not a code hunt.
+   * Physics: a piece's weight is shared by the front support and the rear
+   * axle by where it sits (lever rule between front.atFt and rear.atFt).
+   */
+  const TRAILER_PROFILES = {
+    van48_single: {
+      id: 'van48_single',
+      name: '48 ft trailer',
+      lengthFt: 48,
+      sections: 12,
+      sectionFt: 4,
+      levels: ['A', 'B', 'C'],
+      /** section groups along the length (names used on every card) */
+      zones: [
+        { name: 'Nose', from: 1, to: 1 },
+        { name: 'Front', from: 2, to: 4 },
+        { name: 'Middle', from: 5, to: 8 },
+        { name: 'Rear', from: 9, to: 11 },
+        { name: 'Tail', from: 12, to: 12 },
+      ],
+      front: { kind: 'kingpin', atFt: 3, capLb: 20000, label: 'Front (kingpin)', capWhy: 'demo limit, same as one axle' },
+      rear: { kind: 'single', atFt: 42, capLb: 20000, label: 'Rear axle (single)', capWhy: 'federal single-axle limit' },
+      /** estimated trailer (tare) weight per end; null = not counted: every weight is freight only */
+      tareLb: { front: null, rear: null },
+      freightOnly: true,
+      /** most freight one trailer may carry in this demo = front cap + rear cap */
+      freightLimitLb: 40000,
+      insideHeightIn: 110,
+      stackMaxIn: 100,
+      noseSections: [1],
+      tailSections: [12],
+      /** every 4 ft section, nose and tail included (company setting); planner aims for the target */
+      sectionMaxLb: 3200,
+      sectionTargetLb: 3000,
+      /** nose and tail take light pieces only */
+      endLightMaxLb: 900,
+      deckPieceMaxLb: 1500,
+    },
+  };
+  const TRAILER_PROFILE = TRAILER_PROFILES.van48_single;
+  const SECTIONS = TRAILER_PROFILE.sections;
+
+  /** v55: the rule sentences, said ONE way everywhere (planner notes + app). */
+  function profileRuleText(tp) {
+    const p = tp || TRAILER_PROFILE;
+    const lb = (n) => Number(n).toLocaleString('en-US') + ' lb';
+    const ends = p.noseSections.concat(p.tailSections);
+    const supports =
+      p.front.label + ' ' + lb(p.front.capLb) + ' and ' + p.rear.label.charAt(0).toLowerCase() + p.rear.label.slice(1) + ' ' + lb(p.rear.capLb);
+    return {
+      section: 'Every ' + p.sectionFt + ' ft section, nose and tail included: ' + lb(p.sectionMaxLb) + ' max (company setting).',
+      ends: 'Nose and tail (sections ' + ends.join(' and ') + '): light pieces only, ' + lb(p.endLightMaxLb) + ' or less.',
+      supports: supports + (p.freightOnly ? ', freight only (trailer weight not counted).' : ', trailer weight included.'),
+    };
+  }
+  const RULE_TEXT = profileRuleText(TRAILER_PROFILE);
 
   /**
    * v48 PUP axle / end-zone weight caps (planner enforces; UI mirrors).
    * 12 sections nose→tail. On a 48–53 ft van each bay ≈ 4–4.4 ft, so:
    *   nose zone (first ~4 ft) = section 1
    *   tail zone (last ~4 ft)  = section 12
-   * Front axle share = secs 1–6; rear axle = secs 7–12.
+   * v55: each piece's weight is split between the front support (kingpin)
+   * and the rear axle by where it sits (see axleRearShare), freight only.
    */
-  const PUP_AXLE_CAP_LB = 20000;
-  const PUP_ZONE_MAX_LB = 3200; // hard cap nose + tail
-  const PUP_ZONE_SOFT_LB = 3000; // prefer staying under
-  /** v48: absolute light-only ceiling for sec1/sec12 — heavies skip ends → middle */
-  const PUP_END_LIGHT_MAX_LB = 900; // allows seed jitter on ≤800 catalog sizes
-  const PUP_NOSE_SECTIONS = [1];
-  const PUP_TAIL_SECTIONS = [12];
-  const PUP_FRONT_SECTIONS = [1, 2, 3, 4, 5, 6];
-  const PUP_REAR_SECTIONS = [7, 8, 9, 10, 11, 12];
-  const PUP_MIDDLE_SECTIONS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  // v55: all from TRAILER_PROFILE
+  const FRONT_CAP_LB = TRAILER_PROFILE.front.capLb;
+  const REAR_CAP_LB = TRAILER_PROFILE.rear.capLb;
+  const PUP_AXLE_CAP_LB = Math.min(FRONT_CAP_LB, REAR_CAP_LB); // legacy helpers only
+  const PUP_ZONE_MAX_LB = TRAILER_PROFILE.sectionMaxLb; // hard cap, every section
+  const PUP_ZONE_SOFT_LB = TRAILER_PROFILE.sectionTargetLb; // prefer staying under
+  /** v48: absolute light-only ceiling for nose/tail — heavies skip ends → middle */
+  const PUP_END_LIGHT_MAX_LB = TRAILER_PROFILE.endLightMaxLb;
+  const PUP_NOSE_SECTIONS = TRAILER_PROFILE.noseSections.slice();
+  const PUP_TAIL_SECTIONS = TRAILER_PROFILE.tailSections.slice();
+  const PUP_FRONT_SECTIONS = Array.from({ length: Math.floor(SECTIONS / 2) }, (_, i) => i + 1);
+  const PUP_REAR_SECTIONS = Array.from({ length: SECTIONS - Math.floor(SECTIONS / 2) }, (_, i) => i + 1 + Math.floor(SECTIONS / 2));
   /**
    * v50 stacking rule: a piece on a deck (B or C) must be no heavier than the
    * piece directly under it, and never more than this per-piece deck limit.
    */
-  const DECK_PIECE_MAX_LB = 1500;
+  const DECK_PIECE_MAX_LB = TRAILER_PROFILE.deckPieceMaxLb;
   /** v50 sample freight: pieces per destination (kept even so all 5 forklifts stay busy). */
   const DEMO_PIECES_PER_DEST_MIN = 19;
   const DEMO_PIECES_PER_DEST_MAX = 21;
@@ -129,9 +193,9 @@
   // piece over the rear axle is 100% rear, halfway is 50/50. Freight only
   // (trailer weight not included). 12 sections × 4 ft = 48 ft.
   // ---------------------------------------------------------------------
-  const SECTION_FT = 4;
-  const AXLE_FRONT_SUPPORT_FT = 3;
-  const AXLE_REAR_FT = 42;
+  const SECTION_FT = TRAILER_PROFILE.sectionFt;
+  const AXLE_FRONT_SUPPORT_FT = TRAILER_PROFILE.front.atFt;
+  const AXLE_REAR_FT = TRAILER_PROFILE.rear.atFt;
 
   /** Share (0–1) of a piece in this section that rides on the rear axle. */
   function axleRearShare(section) {
@@ -162,14 +226,14 @@
   }
 
   /** v52: roof = 110 in inside height (assumed); stacks stay ≤ 100 in to leave room for load bars and forks. */
-  const TRAILER_INSIDE_HEIGHT_IN = 110;
-  const STACK_HEIGHT_MAX_IN = 100;
+  const TRAILER_INSIDE_HEIGHT_IN = TRAILER_PROFILE.insideHeightIn;
+  const STACK_HEIGHT_MAX_IN = TRAILER_PROFILE.stackMaxIn;
   /** v51: sample forklift capacity — a piece heavier than this can't be moved. */
   const FORKLIFT_CAPACITY_LB = 5000;
   /** v51: pieces already on the OUT trailers "from earlier in the shift". */
   const DEMO_PRELOAD_KEY = 'dockApp.demoPreload.v1';
   /** v53: demo moves finish every OUT trailer at the tail (section 12 = full floor length). */
-  const DEMO_TARGET_END_SECTION = 12;
+  const DEMO_TARGET_END_SECTION = SECTIONS;
   /** v53: aim for front/rear axles within 25% of each other on the finished sample trailers. */
   const DEMO_AXLE_BALANCE_MAX = 1.25;
 
@@ -200,7 +264,7 @@
    */
   function buildHighTightSlotOrder() {
     const slots = [];
-    for (let section = 1; section <= 12; section++) {
+    for (let section = 1; section <= SECTIONS; section++) {
       for (const level of LEVELS_SECTION_TETRIS) {
         for (const lateral of LATERALS) {
           slots.push({
@@ -222,7 +286,7 @@
    */
   function buildFloorOnlySlotOrder() {
     const slots = [];
-    for (let section = 1; section <= 12; section++) {
+    for (let section = 1; section <= SECTIONS; section++) {
       for (const lateral of LATERALS) {
         slots.push({
           section,
@@ -396,7 +460,7 @@
     const slotOrder = buildWeightAwareSlotOrder(cityFloorOnly);
     /** @type {Record<number, number>} */
     const sectionWeight = {};
-    for (let s = 1; s <= 12; s++) sectionWeight[s] = 0;
+    for (let s = 1; s <= SECTIONS; s++) sectionWeight[s] = 0;
     return {
       outbound,
       cityFloorOnly,
@@ -443,10 +507,10 @@
       rem = Math.min(rem, PUP_ZONE_MAX_LB - sumSections(state, PUP_TAIL_SECTIONS));
     }
     if (PUP_FRONT_SECTIONS.indexOf(sec) >= 0) {
-      rem = Math.min(rem, PUP_AXLE_CAP_LB - sumSections(state, PUP_FRONT_SECTIONS));
+      rem = Math.min(rem, FRONT_CAP_LB - sumSections(state, PUP_FRONT_SECTIONS));
     }
     if (PUP_REAR_SECTIONS.indexOf(sec) >= 0) {
-      rem = Math.min(rem, PUP_AXLE_CAP_LB - sumSections(state, PUP_REAR_SECTIONS));
+      rem = Math.min(rem, REAR_CAP_LB - sumSections(state, PUP_REAR_SECTIONS));
     }
     if (!Number.isFinite(rem)) rem = PUP_AXLE_CAP_LB;
     return Math.max(0, rem);
@@ -486,7 +550,7 @@
     const startCursor = state.cursor;
     /** @type {Record<number, number>} */
     const startWeights = {};
-    for (let s = 1; s <= 12; s++) startWeights[s] = state.sectionWeight[s] || 0;
+    for (let s = 1; s <= SECTIONS; s++) startWeights[s] = state.sectionWeight[s] || 0;
     /** @type {string[]} */
     const addedLabels = [];
     /** @type {Set<string>} */
@@ -498,7 +562,7 @@
         if (state.slotPiece) state.slotPiece.delete(lab);
       });
       state.cursor = startCursor;
-      for (let s = 1; s <= 12; s++) state.sectionWeight[s] = startWeights[s];
+      for (let s = 1; s <= SECTIONS; s++) state.sectionWeight[s] = startWeights[s];
     };
     let guard = 0;
     while (plannedPieces.length < n) {
@@ -714,10 +778,10 @@
       bills.forEach((bill) => {
         bill.pieces.forEach((piece, pi) => {
           const slot = slots[slotIdx++] || {
-            section: ((slotIdx - 1) % 12) + 1,
+            section: ((slotIdx - 1) % SECTIONS) + 1,
             level: 'A',
-            lateral: 'Middle',
-            slotLabel: '1/A/Middle',
+            lateral: 'Center',
+            slotLabel: '1/A/Center',
           };
           rows.push({
             id: `demo-${ib.trailer}-${bill.pro}-${pi + 1}`,
@@ -1065,12 +1129,13 @@
   // v50 packer — one pass per trailer, nose → tail, floor then decks.
   // Plain coding rules (no AI):
   //   1. Slots are filled in order: section 1 (nose) → 12 (tail); in each
-  //      section the floor (A) Left/Middle/Right first, then Deck 2 (B), then
+  //      section the floor (A) Left/Center/Right first, then Deck 2 (B), then
   //      Deck 3 (C). A part-full trailer therefore sits at the nose, the way
   //      real trailers are loaded.
-  //   2. Nose (sec 1) and tail (sec 12): pieces ≤ 900 lb only, zone ≤ 3,000 lb
-  //      target (3,200 lb hard cap).
-  //   3. Front axle (secs 1–6) and rear axle (secs 7–12) ≤ 20,000 lb each.
+  //   2. Nose (sec 1) and tail (sec 12): pieces ≤ 900 lb only. EVERY section
+  //      (nose and tail included) stays ≤ 3,000 lb target (3,200 lb company max).
+  //   3. Front (kingpin) and rear axle ≤ 20,000 lb each, freight only; each
+  //      piece is split between them by position (axleRearShare).
   //   4. A deck piece needs a piece directly under it, must be no heavier than
   //      that piece, and no heavier than DECK_PIECE_MAX_LB.
   //   5. Each slot takes the heaviest remaining piece that passes 1–4, so heavy
@@ -1109,8 +1174,8 @@
     // the floor and both axles share it.
     if ((ctx.secW[sec] || 0) + w > ctx.zoneTarget) return false;
     const r = axleRearShare(sec);
-    if (ctx.axle.front + w * (1 - r) > PUP_AXLE_CAP_LB) return false;
-    if (ctx.axle.rear + w * r > PUP_AXLE_CAP_LB) return false;
+    if (ctx.axle.front + w * (1 - r) > FRONT_CAP_LB) return false;
+    if (ctx.axle.rear + w * r > REAR_CAP_LB) return false;
     let stackH = pieceHeight(e);
     if (lv === 'B' || lv === 'C') {
       const belowLevel = lv === 'B' ? 'A' : 'B';
@@ -1142,7 +1207,7 @@
   function packTrailerPiecesV50(pieces, cityFloorOnly, opts) {
     const o = opts || {};
     const minSec = Number(o.minSection) || 1;
-    const maxSec = Number(o.maxSection) || 12;
+    const maxSec = Number(o.maxSection) || SECTIONS;
     const order = slotOrderForTrailer(cityFloorOnly).filter(
       (s) => s.section >= minSec && s.section <= maxSec
     );
@@ -1155,7 +1220,7 @@
     });
     /** @type {Record<number, number>} */
     const secW = {};
-    for (let s = 1; s <= 12; s++) secW[s] = 0;
+    for (let s = 1; s <= SECTIONS; s++) secW[s] = 0;
     /** @type {Map<string, object>} */
     const bySlot = new Map();
     const axle = { front: 0, rear: 0 };
@@ -1174,20 +1239,20 @@
     // v53 (sample trailers): reserve the tail floor (sec 12 L/M/R) for the
     // heaviest pieces that are still light enough for the tail (≤ 900 lb), so
     // the trailer ends full to the doors. Moves are still loaded nose→tail.
-    if (o.reserveTail && maxSec >= 12 && !cityFloorOnly) {
+    if (o.reserveTail && maxSec >= SECTIONS && !cityFloorOnly) {
       LATERALS.forEach((lateral) => {
-        const slot = { section: 12, level: 'A', lateral, slotLabel: `12/A/${lateral}` };
+        const slot = { section: SECTIONS, level: 'A', lateral, slotLabel: `${SECTIONS}/A/${lateral}` };
         if (bySlot.has(slot.slotLabel)) return;
         const idx = pool.findIndex((e) => pieceFitsSlotV50(e, slot, ctx));
         if (idx < 0) return;
         const e = pool.splice(idx, 1)[0];
         const w = pieceWeight(e);
-        secW[12] = (secW[12] || 0) + w;
-        const r = axleRearShare(12);
+        secW[SECTIONS] = (secW[SECTIONS] || 0) + w;
+        const r = axleRearShare(SECTIONS);
         axle.front += w * (1 - r);
         axle.rear += w * r;
         bySlot.set(slot.slotLabel, e);
-        endSection = 12;
+        endSection = SECTIONS;
         placements.push({ piece: e, slot, below: null });
       });
     }
@@ -1195,7 +1260,7 @@
       const slot = order[c];
       if (bySlot.has(slot.slotLabel)) continue;
       let idx = -1;
-      // Prefer the 3,000 lb target in end zones; never past the 3,200 hard cap
+      // Every section stays at or under the 3,000 lb target (3,200 max)
       for (let i = 0; i < pool.length; i++) {
         if (pieceFitsSlotV50(pool[i], slot, ctx)) {
           idx = i;
@@ -1525,7 +1590,7 @@
       note =
         `Demo planner packed ${packedCount}/${totalDestPieces} pieces — ` +
         `${unplaced.length} PRO(s) unplaced (${unplacedPieceCount} piece(s)). ` +
-        `Unique slots only (no last-slot reuse). Light freight in nose/tail zones (max 3,200 lb). ` +
+        `Unique slots only (no last-slot reuse). ${RULE_TEXT.ends} ${RULE_TEXT.section} ` +
         (secondStubCount
           ? `Opened ${secondStubCount} second outbound stub(s). `
           : '') +
@@ -1534,12 +1599,12 @@
       note = `${skippedNoDest} bill(s) skipped — no destination set. Tap Edit bill on each, then build again.`;
     } else if (cityFloorOnlyCount > 0) {
       note =
-        `Packed high-and-tight per bay; light freight in nose/tail (≤3,200 lb), heavy in middle. ` +
+        `Packed high-and-tight per bay. ${RULE_TEXT.ends} ${RULE_TEXT.section} ` +
         `City loads floor-only. ${cityFloorOnlyCount} city load(s) used floor only (level A) — no decks. ` +
         `Every piece has a unique outbound slot.`;
     } else {
       note =
-        'Packed nose→tail, Floor first, then Deck 2 / Deck 3; a trailer with enough freight is loaded all the way to the tail. Nose/tail take light pieces only (900 lb or less, 3,200 lb per zone); each axle ≤20,000 lb; a deck piece is never heavier than the piece under it; fragile pieces stay on the floor with nothing on top; stacks stay ≤ 100 in under a 110 in inside roof height (assumed); every piece is under the 5,000 lb forklift limit. Every piece has a unique outbound slot.';
+        'Packed nose→tail, Floor first, then Deck 2 / Deck 3; a trailer with enough freight is loaded all the way to the tail. ' + RULE_TEXT.ends + ' ' + RULE_TEXT.section + ' ' + RULE_TEXT.supports + ' A deck piece is never heavier than the piece under it; fragile pieces stay on the floor with nothing on top; stacks stay ≤ 100 in under a 110 in inside roof height (assumed); every piece is under the 5,000 lb forklift limit. Every piece has a unique outbound slot.';
     }
 
     const plan = {
@@ -1610,7 +1675,7 @@
           const level = String(p.level || '').toUpperCase();
           if (level === 'B' || level === 'C') {
             const sec = Number(p.section);
-            if (sec >= 1 && sec <= 12) {
+            if (sec >= 1 && sec <= SECTIONS) {
               const row = ensure(load.trailerNumber, load.destination, false);
               if (row && !row.cityFloorOnly) row.sections.add(sec);
             }
@@ -1629,7 +1694,7 @@
       if (!row || row.cityFloorOnly) return;
       if (level === 'B' || level === 'C') {
         const sec = Number(to.section);
-        if (sec >= 1 && sec <= 12) {
+        if (sec >= 1 && sec <= SECTIONS) {
           row.sections.add(sec);
           row.levels = row.levels || {};
           row.levels[sec] = level === 'C' || row.levels[sec] === 'C' ? 'C' : 'B';
@@ -1994,7 +2059,7 @@
                   ? Number(p.section)
                   : Number(String(p.slot).split('/')[0]) || 0;
               const w = Number(p.weight);
-              if (sec >= 1 && sec <= 12 && Number.isFinite(w) && w > 0) {
+              if (sec >= 1 && sec <= SECTIONS && Number.isFinite(w) && w > 0) {
                 st.sectionWeight[sec] = (st.sectionWeight[sec] || 0) + w;
               }
             }
@@ -2238,6 +2303,10 @@
   }
 
   global.DockLoadPlan = {
+    TRAILER_PROFILE,
+    TRAILER_PROFILES,
+    profileRuleText,
+    RULE_TEXT,
     axleRearShare,
     axleSplit,
     STACK_HEIGHT_MAX_IN,

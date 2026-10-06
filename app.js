@@ -308,7 +308,7 @@
 
   function buildLateralChips() {
     el.lateralChips.innerHTML = '';
-    ['Left', 'Middle', 'Right'].forEach((side) => {
+    ['Left', 'Center', 'Right'].forEach((side) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'chip';
@@ -2513,7 +2513,7 @@
     if (a.idle) {
       return (
         `<div class="crew-op-detail-title">${escapeHtml(crewOpLabel(a.operator))}</div>` +
-        `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Status:</span> ${escapeHtml(a.parked ? 'Done for this run: every move that is left is already on another forklift' : 'Waiting: ' + (crewDemo.seeded ? crewWaitReason(a.operator) : 'no move ready'))}</div>`
+        `<div class="crew-op-detail-line"><span class="crew-op-detail-label">Status:</span> ${escapeHtml(a.parked ? 'Done for this run: every move that is left is already assigned to another forklift' : 'Waiting: ' + (crewDemo.seeded ? crewWaitReason(a.operator) : 'no move ready'))}</div>`
       );
     }
     if (a.dropping) {
@@ -2910,7 +2910,7 @@
       case 'first':
         return { title: 'First move: from an inbound door into an exact slot', extra: 'Every piece gets an exact slot: section (1 = nose … 12 = tail), level (Floor, Deck 2, Deck 3) and side.' };
       case 'heavy':
-        return { title: 'Heavy piece (over ' + fmtLb(PUP_END_LIGHT_MAX_LB_UI) + ') rides on the floor, between the axles', extra: 'Heavy = over ' + fmtLb(PUP_END_LIGHT_MAX_LB_UI) + '. It rides on the floor between the axles; the 4 ft nose and tail take light pieces only. Loading still runs nose to tail.' };
+        return { title: 'Heavy piece (over ' + fmtLb(PUP_END_LIGHT_MAX_LB_UI) + '): on the floor, weight shared by ' + TP.front.kind + ' and rear axle', extra: 'Heavy = over ' + fmtLb(PUP_END_LIGHT_MAX_LB_UI) + ': floor only, never in the 4 ft nose or tail. Its weight splits between the ' + TP.front.kind + ' (' + TP.front.atFt + ' ft) and the rear axle (' + TP.rear.atFt + ' ft) by where it sits: the closer to the rear axle, the more it carries (▲ marks both in the side view: tap Side view).' };
       case 'crew': {
         // v54: the heading matches the picture: who is at an inbound door, who just dropped
         const pulling = crewDemo.active.filter((a) => crewOpStatus(a) === 'pulling').length;
@@ -2946,8 +2946,10 @@
       case 'done': {
         const legal = crewAllTrailersLegal();
         return {
-          title: 'Dock done: all ' + outN + ' trailers loaded' + (legal ? ' and axle-legal' : ''),
-          extra: legal ? 'Every axle under 20,000 lb and every 4 ft section under 3,200 lb. Continue for the summary.' : 'A trailer is over a limit: see the summary.',
+          title: 'Dock done: all ' + outN + ' trailers loaded' + (legal ? ', within every weight limit (' + FREIGHT_ONLY + ')' : ''),
+          extra: legal
+            ? TP.front.label + ' and ' + TP.rear.label.toLowerCase() + ' under ' + lbTxt(Math.min(TP.front.capLb, TP.rear.capLb)) + ', every 4 ft section under ' + lbTxt(TP.sectionMaxLb) + ' (' + FREIGHT_ONLY + '). Continue for the summary.'
+            : 'A trailer is over a limit: see the summary.',
         };
       }
       default:
@@ -2982,7 +2984,7 @@
       const pieces = piecesForOutboundTrailer(L.trailerNumber);
       if (!pieces.length) return true;
       const w = computePupAxleWeights(pieces);
-      return !(w.frontOver || w.rearOver || w.noseOver || w.tailOver);
+      return !(w.frontOver || w.rearOver || w.noseOver || w.tailOver || w.sectionOver);
     });
   }
 
@@ -3002,10 +3004,10 @@
   function crewTourTapAllowed(timeGuard) {
     if (crewTour.handling) return false;
     if (!timeGuard) return true;
-    const ev = crewTour.active;
-    if (!ev || ev.intro) return true;
+    // v55: the first tap always counts (even while the move is still playing);
+    // only a second tap within 400 ms of the previous ACCEPTED tap is ignored
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    return now - (Number(crewTour.shownAt) || 0) >= CREW_TOUR_TAP_GUARD_MS;
+    return now - (Number(crewTour.lastAcceptedAt) || -1e9) >= CREW_TOUR_TAP_GUARD_MS;
   }
 
   /**
@@ -3024,6 +3026,7 @@
   /** Run a tour button action once, guarded against double taps and re-entry. */
   function crewTourGuardedAction(fn, timeGuard) {
     if (!crewTourTapAllowed(timeGuard)) return;
+    if (timeGuard) crewTour.lastAcceptedAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
     crewTour.handling = true;
     try {
       fn();
@@ -3294,6 +3297,13 @@
       ['click', 'pointerup', 'touchend'].forEach((type) => {
         crewTour.bubble.addEventListener(type, (ev) => ev.stopPropagation());
       });
+      // v55: tap the side view or "Bigger" for a full-size trailer view
+      crewTour.bubble.addEventListener('click', (ev) => {
+        const b = ev.target && ev.target.closest ? ev.target.closest('[data-cts-expand]') : null;
+        if (!b) return;
+        ev.preventDefault();
+        openTrailerExpand(b.getAttribute('data-cts-expand'));
+      });
     }
     // v49: blocker is pointer-events:none (visual dim only). Do not
     // preventDefault on pointerdown — that froze page + OUT panel scroll.
@@ -3331,8 +3341,36 @@
     let section = move && move.toSection != null ? Number(move.toSection) : NaN;
     if (!Number.isFinite(section) && parts[0]) section = Number(parts[0]);
     const level = String((move && move.toLevel) || parts[1] || '').toUpperCase();
-    const lateral = String((move && move.toLateral) || parts[2] || '');
+    const lateral = lateralName((move && move.toLateral) || parts[2] || '');
     return { section, level, lateral, raw };
+  }
+
+  /**
+   * v55: ONE trailer profile (from the planner). Every label, gauge, rule text
+   * and check below reads from it, so another trailer type is a new profile.
+   */
+  const TP =
+    (typeof DockLoadPlan !== 'undefined' && DockLoadPlan.TRAILER_PROFILE) || {
+      name: '48 ft trailer', lengthFt: 48, sections: 12, sectionFt: 4,
+      zones: [{ name: 'Nose', from: 1, to: 1 }, { name: 'Front', from: 2, to: 4 }, { name: 'Middle', from: 5, to: 8 }, { name: 'Rear', from: 9, to: 11 }, { name: 'Tail', from: 12, to: 12 }],
+      front: { kind: 'kingpin', atFt: 3, capLb: 20000, label: 'Front (kingpin)', capWhy: 'demo limit, same as one axle' },
+      rear: { kind: 'single', atFt: 42, capLb: 20000, label: 'Rear axle (single)', capWhy: 'federal single-axle limit' },
+      tareLb: { front: null, rear: null }, freightOnly: true, freightLimitLb: 40000, insideHeightIn: 110, stackMaxIn: 100,
+      noseSections: [1], tailSections: [12], sectionMaxLb: 3200, sectionTargetLb: 3000, endLightMaxLb: 900, deckPieceMaxLb: 1500,
+    };
+  const TP_SECTIONS = TP.sections;
+  const TP_RULES =
+    typeof DockLoadPlan !== 'undefined' && DockLoadPlan.profileRuleText
+      ? DockLoadPlan.profileRuleText(TP)
+      : {
+        section: 'Every 4 ft section, nose and tail included: 3,200 lb max (company setting).',
+        ends: 'Nose and tail (sections 1 and 12): light pieces only, 900 lb or less.',
+        supports: 'Front (kingpin) 20,000 lb and rear axle (single) 20,000 lb, freight only (trailer weight not counted).',
+      };
+  /** "freight only" goes right next to every ✓ legal claim */
+  const FREIGHT_ONLY = TP.freightOnly ? 'freight only' : 'trailer weight included';
+  function lbTxt(n) {
+    return Math.round(Number(n) || 0).toLocaleString('en-US') + ' lb';
   }
 
   /** v51: light = 900 lb or less (same number the planner uses for the nose/tail). */
@@ -3345,13 +3383,23 @@
   const AXLE_BALANCE_RATIO = 1.25;
 
   /** v54: the demo's equipment, said the same way everywhere weights appear. */
-  const EQUIP_SHORT = '48 ft trailer · 20,000 lb per axle';
+  // v55: all built from the trailer profile (TP)
+  const EQUIP_SHORT = TP.name + ' · ' + TP.front.kind + ' + ' + TP.rear.kind + ' rear axle · ' + FREIGHT_ONLY;
   const EQUIP_LONG =
-    'Demo trailer: 48 ft long, 12 sections of 4 ft. Weights are freight only, checked against 20,000 lb on the front (kingpin) ' +
-    'and 20,000 lb on the rear axle: the federal single-axle limit, stricter than the 34,000 lb a tandem may carry. ' +
-    'Other trailer types (pups, 53 ft, tandems) become a setting in the real version.';
+    'Demo trailer: ' + TP.lengthFt + ' ft long, ' + TP.sections + ' sections of ' + TP.sectionFt + ' ft. ' +
+    'Front support: ' + TP.front.kind + ' at ' + TP.front.atFt + ' ft from the nose (' + lbTxt(TP.front.capLb) + ', ' + TP.front.capWhy + '). ' +
+    'Rear: one ' + TP.rear.kind + ' axle at ' + TP.rear.atFt + ' ft (' + lbTxt(TP.rear.capLb) + ', the ' + TP.rear.capWhy + '; a tandem would allow 34,000 lb). ' +
+    (TP.freightOnly
+      ? 'Weights are freight only: the trailer\'s own weight is not counted, so these are freight checks, not a scale ticket. '
+      : 'Weights include an estimated trailer weight per end. ') +
+    'Other trailer types (28 ft pups, 53 ft, tandems) become a setting in the real version.';
   const WEIGHT_BASIS_TEXT =
-    'Weight % = freight ÷ 40,000 lb: the two 20,000 lb axle checks added together, the most freight this demo lets one trailer carry (a demo setting).';
+    'Weight % = freight ÷ ' + lbTxt(TP.freightLimitLb) + ': ' + TP.front.label.toLowerCase() + ' ' + lbTxt(TP.front.capLb) + ' + ' +
+    TP.rear.label.toLowerCase() + ' ' + lbTxt(TP.rear.capLb) + ', the most freight this demo lets one trailer carry (a demo setting).';
+  /** v55: how a piece's weight splits between the two supports (the planner's physics, in words). */
+  const SUPPORT_RULE_TEXT =
+    'A piece\'s weight is shared by the ' + TP.front.kind + ' (at ' + TP.front.atFt + ' ft) and the rear axle (at ' + TP.rear.atFt +
+    ' ft) by where it sits: the closer to one, the more that one carries. Heavy pieces go on the floor, never in the 4 ft nose or tail.';
 
   /** v54: "Each move ≈ 4 min handling + 0.5 min per door of travel". */
   function crewMoveTimeRuleText() {
@@ -3359,6 +3407,16 @@
     return (
       '1 move = one forklift trip carrying one piece. Each move ≈ ' + mpm + ' min handling + ' + CREW_TRAVEL_MIN_PER_DOOR +
       ' min per door of travel, rounded up to whole minutes (change it on the summary).'
+    );
+  }
+
+  /** v55: where the demo's times come from (sample settings; a real dock uses its own). */
+  function crewSampleSettingsText() {
+    const mpm = Number(crewDemo.minPerMove) || CREW_MIN_PER_MOVE;
+    return (
+      'Sample settings: the shift starts at ' + formatClock(CREW_SAMPLE_START_MIN) + '; the ' + mpm + ' min per move is a sample handling time; ' +
+      'the departure times are sample times picked for this demo (one is tight on purpose). ' +
+      'A real dock uses its own start time, move times and departure schedule.'
     );
   }
 
@@ -3378,15 +3436,22 @@
     return worst;
   }
 
-  /** v51: Nose (sec 1) · Front (2–4) · Middle (5–8) · Rear (9–11) · Tail (12). */
+  /** v51/v55: section groups from the profile: Nose (1) · Front (2–4) · Middle (5–8) · Rear (9–11) · Tail (12). */
   function sectionZoneName(section) {
     const s = Number(section);
-    if (s === 1) return 'Nose';
-    if (s >= 2 && s <= 4) return 'Front';
-    if (s >= 5 && s <= 8) return 'Middle';
-    if (s >= 9 && s <= 11) return 'Rear';
-    if (s === 12) return 'Tail';
-    return 'Middle';
+    const z = (TP.zones || []).find((x) => s >= x.from && s <= x.to);
+    return z ? z.name : 'Section';
+  }
+  /** v55: "Nose = sec 1 · Front = 2–4 · Middle = 5–8 · Rear = 9–11 · Tail = 12" */
+  function sectionZonesText() {
+    return (TP.zones || [])
+      .map((z) => z.name + ' = sec ' + (z.from === z.to ? z.from : z.from + '–' + z.to))
+      .join(' · ');
+  }
+  /** v55: across the width the slots are Left / Center / Right (old saved "Middle" reads as Center). */
+  function lateralName(l) {
+    const s = String(l || '');
+    return /^middle$/i.test(s) ? 'Center' : s;
   }
 
   /**
@@ -3413,7 +3478,7 @@
 
   /**
    * Plain location from the ACTUAL slot: "Nose (sec 1) · Floor · Left",
-   * "Middle (sec 3) · Deck 2 · Right", "Tail (sec 12) · Floor · Middle".
+   * "Front (sec 3) · Deck 2 · Right", "Tail (sec 12) · Floor · Center".
    * @param {string} slot
    * @param {object|null} move
    * @returns {string}
@@ -3547,8 +3612,7 @@
         ? ', stacked on a ' + fmtLb(underEnd.weight) + ' piece'
         : '';
       return (
-        'Why here: light piece (' + wtTxt + onTxt + '; light = 900 lb or less). The ' + where +
-        ' is only 4 ft, so it takes light pieces only, 3,200 lb total.'
+        'Why here: light piece (' + wtTxt + onTxt + ') in the ' + where + ' (sec ' + p.section + '). ' + TP_RULES.ends
       );
     }
     if (onDeck) {
@@ -3559,28 +3623,34 @@
       if (under && Number.isFinite(Number(under.weight))) {
         return (
           'Why here: ' + deckName + '. ' +
-          wtTxt + ' sits on a ' + fmtLb(under.weight) + ' piece; a deck piece is ' + fmtLb(DECK_PIECE_MAX_LB_UI) + ' or less, never heavier than the piece under it, and the stack stays under 100 in (110 in inside roof height assumed).' + hazNote
+          wtTxt + ' sits on a ' + fmtLb(under.weight) + ' piece; a deck piece is ' + fmtLb(DECK_PIECE_MAX_LB_UI) + ' or less, never heavier than the piece under it, and the stack stays under ' + TP.stackMaxIn + ' in (' + TP.insideHeightIn + ' in inside roof height assumed).' + hazNote
         );
       }
       return 'Why here: ' + deckName + ', lighter than the piece under it.' + hazNote;
     }
     if (Number.isFinite(wt) && wt > PUP_END_LIGHT_MAX_LB_UI) {
+      // v55: say the physics: the weight splits between the kingpin and the rear axle by where it sits
       const r = typeof DockLoadPlan !== 'undefined' && DockLoadPlan.axleRearShare ? DockLoadPlan.axleRearShare(p.section) : NaN;
-      let split = ', between the axles';
+      const ft = Math.round((p.section - 0.5) * TP.sectionFt);
+      let split = '';
       if (Number.isFinite(r)) {
         const rp = Math.round(r * 100);
-        if (rp >= 95) split = ', over the rear axle (the rear axle carries it)';
-        else if (rp <= 5) split = ', at the front (the front axle carries it)';
-        else split = ', between the axles: about ' + (100 - rp) + '% of its weight sits on the front axle and ' + rp + '% on the rear';
+        if (rp >= 95) split = ': right over the rear axle (' + TP.rear.atFt + ' ft), so the rear axle carries it';
+        else if (rp <= 5) split = ': right at the ' + TP.front.kind + ' (' + TP.front.atFt + ' ft), so the ' + TP.front.kind + ' carries it';
+        else {
+          split = ': between the ' + TP.front.kind + ' (' + TP.front.atFt + ' ft) and the rear axle (' + TP.rear.atFt + ' ft)' +
+            (rp > 55 ? ', closer to the axle' : rp < 45 ? ', closer to the ' + TP.front.kind : '') +
+            ', so about ' + (100 - rp) + '% of its weight is on the ' + TP.front.kind + ' and ' + rp + '% on the rear axle';
+        }
       }
       return (
-        'Why here: heavy piece (' + wtTxt + ', over the 900 lb light limit) rides on the floor of the ' + zone + ' (sec ' + p.section + ')' + split +
-        '. Lighter freight can stack on top. Each 4 ft section stays under 3,200 lb (company setting).'
+        'Why here: heavy piece (' + wtTxt + ', over ' + fmtLb(PUP_END_LIGHT_MAX_LB_UI) + ') rides on the floor of the ' + zone + ' (sec ' + p.section + '), about ' + ft + ' ft from the nose' + split +
+        '. Lighter freight can stack on top.'
       );
     }
     return (
       'Why here: next open floor spot, loading nose to tail. The ' + zone + ' (sec ' + p.section +
-      ') fills floor first, then decks, keeping each 4 ft section under 3,200 lb (company setting).'
+      ') fills floor first, then decks. ' + TP_RULES.section
     );
   }
 
@@ -3604,16 +3674,19 @@
       // v54: the key rules and how to read the map, shown open on the first card
       const rules =
         '<div class="ctr-sub">Key rules (the planner follows them on every move)</div><ul>' +
-        li('Nose and tail (the first and last 4 ft section): light pieces only, ' + fmtLb(PUP_END_LIGHT_MAX_LB_UI) + ' or less ("light"; over that is "heavy"), and 3,200 lb max per section.') +
-        li('Heavy pieces ride on the floor between the axles.') +
-        li('Decks: Deck 2 and Deck 3 sit on load bars. A deck piece is ' + fmtLb(DECK_PIECE_MAX_LB_UI) + ' or less and never heavier than the piece under it. Stacks stay under 100 in (110 in inside height assumed).') +
+        li(TP_RULES.ends + ' Over ' + fmtLb(PUP_END_LIGHT_MAX_LB_UI) + ' = "heavy".') +
+        li(TP_RULES.section) +
+        li('Heavy pieces go on the floor. ' + SUPPORT_RULE_TEXT.replace(' Heavy pieces go on the floor, never in the 4 ft nose or tail.', '')) +
+        li('Decks: Deck 2 and Deck 3 sit on load bars. A deck piece is ' + fmtLb(DECK_PIECE_MAX_LB_UI) + ' or less and never heavier than the piece under it. Stacks stay under ' + TP.stackMaxIn + ' in (' + TP.insideHeightIn + ' in inside height assumed).') +
         li('Fragile: floor only, nothing on top.') +
-        li('Axles: 20,000 lb each (federal single-axle limit). Balanced = the heavier axle carries no more than 25% more than the lighter' + (gap ? '; all ' + outN + ' demo trailers finish within ' + gap + '%.' : '.')) +
+        li(TP_RULES.supports + ' Balanced = the heavier one carries no more than 25% more than the lighter' + (gap ? '; all ' + outN + ' demo trailers finish within ' + gap + '%.' : '.')) +
+        li('Where things are: ' + sectionZonesText() + '. Across the width: Left / Center / Right.') +
         li('Forklifts: never two in one trailer at the same time; at most 2 pull from one inbound door; the forklift free longest takes the next move.') +
+        li(crewSampleSettingsText()) +
         '</ul>' +
         '<div class="ctr-sub">Reading the map</div><ul>' +
         li('Circles 1–5 are the forklifts, drawn where they are now: at an inbound door picking up, or on an OUT door right after a drop.') +
-        li('"FL 3 coming" under an OUT door = forklift 3 is bringing that trailer\'s next piece. "Waiting" / "Done" = free forklifts.') +
+        li('"FL 3 coming" under an OUT door = forklift 3 is bringing that trailer\'s next piece. "Waiting" = free but blocked right now (the card says why); "Done" = no work left for it.') +
         li('IN 81001 = the inbound trailer at that door. OUT chip = door, trailer, city, pieces loaded / total.') +
         '</ul>' +
         '<p class="ctr-equip">' + escapeHtml(EQUIP_LONG) + '</p>';
@@ -3622,7 +3695,7 @@
           ops + ' forklift' + (ops === 1 ? '' : 's') + ' finish ' + outN + ' outbound trailers: ' + total +
           ' moves from ' + inN + ' inbound trailers.',
         detail:
-          crewMoveTimeRuleText() + ' ' +
+          crewMoveTimeRuleText() + ' ' + crewSampleSettingsText() + ' ' +
           'The "Trailer being loaded" box on each card is the trailer that just got a piece. Gray hatched freight was loaded by the earlier shift with this same planner.',
         why: '',
         note: savedLine.trim(),
@@ -3632,12 +3705,12 @@
           li('Whichever forklift is free first takes the next move; far doors take longer, so the order is not 1→5.') +
           li('Never two forklifts in one trailer at the same time: they would block each other in the trailer doorway. A different forklift can take over a trailer later, and the card says who and why. That is why some forklifts wait near the end.') +
           li('At most 2 forklifts pull from one inbound door.') +
-          li('Loading goes nose to tail, all the way to the doors (every trailer ends full). Heavy pieces ride on the floor between the axles; the 4 ft nose and tail take light pieces only (900 lb or less). A part-loaded trailer is front-heavy because loading starts at the nose; it evens out as the rear fills.') +
-          li('Each axle under 20,000 lb (federal single-axle limit). Each 4 ft section under 3,200 lb (company setting). ' + WEIGHT_BASIS_TEXT) +
+          li('Loading goes nose to tail, all the way to the doors (every trailer ends full). ' + SUPPORT_RULE_TEXT + ' A part-loaded trailer reads front-heavy because loading starts at the nose, near the ' + TP.front.kind + '; it evens out as the rear fills.') +
+          li(TP_RULES.supports + ' ' + TP_RULES.section + ' ' + WEIGHT_BASIS_TEXT) +
           li('Levels: Floor (the trailer floor), Deck 2 (second level) and Deck 3 (third level); Deck 2 and Deck 3 sit on load bars; a deck piece is never heavier than the piece under it. Roof: 110 in inside height assumed; stacks stay under 100 in.') +
           li('A PRO\'s pieces load in slot order (nose to tail). The card says "piece 2 of 4 for PRO …" in loading order; the label numbers are on the Operator screen.') +
           li('Fragile pieces stay on the floor with nothing on top. Every piece is under the 5,000 lb forklift limit.') +
-          li('Sample data: forklift names and departure times. For real: weights come from the bill of lading (scale weight when available); departure times are typed in or imported from your schedule (coming in the real version); drivers use the Operator screen, one move at a time.') +
+          li(crewSampleSettingsText() + ' Sample data: forklift names. For real: weights come from the bill of lading (scale weight when available); departure times are typed in or imported from your schedule (coming in the real version); drivers use the Operator screen, one move at a time.') +
           '</ul>',
       };
     }
@@ -3681,8 +3754,9 @@
     if (!left || !(now.frontAxle > now.rearAxle * 1.25)) return '';
     crewTour.frontHeavySeq = ev.seq;
     return (
-      'Why the front axle is heavier right now: loading starts at the nose, so a part-loaded trailer leans on the front axle. ' +
-      'It evens out as the rear fills: when full, OUT ' + door + ' has ' + fmtLb(full.frontAxle) + ' front and ' + fmtLb(full.rearAxle) + ' rear.'
+      'Why the front reads heavier right now: loading starts at the nose, right by the ' + TP.front.kind + ' (' + TP.front.atFt + ' ft), so the ' + TP.front.kind + ' carries most of those first pieces. ' +
+      'Pieces near the tail sit by the rear axle (' + TP.rear.atFt + ' ft) and add almost nothing to the front reading, so late in the load the front number barely moves while the rear catches up. ' +
+      'When full, OUT ' + door + ': ' + fmtLb(full.frontAxle) + ' ' + TP.front.label.toLowerCase() + ', ' + fmtLb(full.rearAxle) + ' ' + TP.rear.label.toLowerCase() + ' (' + FREIGHT_ONLY + ').'
     );
   }
 
@@ -3804,11 +3878,20 @@
     if (crewDemoAllDone()) {
       return crewSize === 1 ? 'Done — the forklift finished' : 'Done — all ' + crewSize + ' finished';
     }
-    const working = crewWorkingCount();
-    const waiting = crewSize - working;
+    // v55: same statuses as the map and the card (working / waiting / done)
+    let working = 0;
+    let waiting = 0;
+    let done = 0;
+    crewDemo.active.forEach((a) => {
+      const s = crewOpStatus(a);
+      if (s === 'pulling' || s === 'dropping') working += 1;
+      else if (s === 'done') done += 1;
+      else waiting += 1;
+    });
     return (
-      (crewSize === 1 ? '1 forklift working' : working + ' of ' + crewSize + ' forklifts working') +
-      (waiting > 0 ? ' · ' + waiting + ' waiting' : '')
+      (crewSize === 1 ? (working ? '1 forklift working' : done ? 'the forklift is done' : 'the forklift is waiting') : working + ' of ' + crewSize + ' forklifts working') +
+      (crewSize > 1 && waiting > 0 ? ' · ' + waiting + ' waiting' : '') +
+      (crewSize > 1 && done > 0 ? ' · ' + done + ' done' : '')
     );
   }
 
@@ -3863,15 +3946,15 @@
       const parsed = parseSlotSectionLevel(p && p.slot);
       if (parsed && parsed.section > maxSec) maxSec = parsed.section;
     });
-    const pct = Math.round((maxSec / 12) * 100);
-    const openFt = (12 - maxSec) * 4;
+    const pct = Math.round((maxSec / TP_SECTIONS) * 100);
+    const openFt = (TP_SECTIONS - maxSec) * TP.sectionFt;
     return {
       maxSec,
       pct,
       openFt,
       line:
-        maxSec >= 12
-          ? '100% of floor length (sections 1–12, nose to tail)'
+        maxSec >= TP_SECTIONS
+          ? 'floor full: no floor length left (sections 1–' + TP_SECTIONS + ', nose to tail)'
           : pct + '% of floor length (sections 1–' + maxSec + ')',
     };
   }
@@ -3893,18 +3976,28 @@
     const w = computePupAxleWeights(loaded);
     const pace = crewDemo.bossMode ? crewPaceForDoor(d) : null;
     const cells = [
-      ['Front axle', w.frontAxle, PUP_AXLE_CAP_LB],
-      ['Rear axle', w.rearAxle, PUP_AXLE_CAP_LB],
-      ['Nose', w.nose, PUP_ZONE_MAX_LB],
-      ['Tail', w.tail, PUP_ZONE_MAX_LB],
-    ]
+      [TP.front.label, w.frontAxle, TP.front.capLb],
+      [TP.rear.label, w.rearAxle, TP.rear.capLb],
+      ['Nose (sec ' + TP.noseSections.join(',') + ')', w.nose, TP.sectionMaxLb],
+      ['Tail (sec ' + TP.tailSections.join(',') + ')', w.tail, TP.sectionMaxLb],
+    ];
+    // v55: one short line for the phone card (the full gauges are in the bigger view)
+    const gaugeSt = cells.map(([label, v, cap]) => ({ label, st: weightCellStatus(v, cap) }));
+    const overG = gaugeSt.filter((g) => g.st.cls === 'is-over' || g.st.cls === 'is-hot');
+    const warmG = gaugeSt.filter((g) => g.st.cls === 'is-warm');
+    const wsum =
+      'Weights now (' + FREIGHT_ONLY + '): ' +
+      (overG.length
+        ? 'over the limit at ' + overG.map((g) => g.label).join(', ')
+        : 'all within limits' + (warmG.length ? '; ' + warmG.map((g) => g.label).join(', ') + ' at target (95–100%)' : ''));
+    const cellsHtml = cells
       .map(([label, v, cap]) => {
         const st = weightCellStatus(v, cap);
         // v53: units + the limit next to every value
         return (
           '<span class="cts-cell' + (st.cls ? ' ' + st.cls : '') + '"><span class="cts-label">' +
-          escapeHtml(label) + '</span> <b>' + escapeHtml(Math.round(v).toLocaleString('en-US')) + '</b>' +
-          '<span class="cts-cap"> / ' + escapeHtml(Math.round(cap).toLocaleString('en-US')) + ' lb</span>' +
+          escapeHtml(label) + '</span><span class="cts-val"><b>' + escapeHtml(Math.round(v).toLocaleString('en-US')) + '</b>' +
+          '<span class="cts-cap"> / ' + escapeHtml(Math.round(cap).toLocaleString('en-US')) + ' lb</span></span>' +
           (st.tag ? ' <i>' + escapeHtml(st.tag) + '</i>' : '') + '</span>'
         );
       })
@@ -3928,7 +4021,7 @@
     const fullGap = gapPct(full.frontAxle, full.rearAxle);
     let balance = '';
     if (left > 0 && w.frontAxle > w.rearAxle * AXLE_BALANCE_RATIO) {
-      balance = 'Front-heavy for now (loading started at the nose) · when full: ' +
+      balance = 'Front-heavy for now: the first pieces went in near the ' + TP.front.kind + '; pieces near the tail add mostly to the rear axle · when full: ' +
         Math.round(full.frontAxle).toLocaleString('en-US') + ' front / ' + Math.round(full.rearAxle).toLocaleString('en-US') + ' rear lb' +
         (fullGap != null ? ' (' + fullGap + '% apart; balanced = within 25%)' : '');
     } else if (w.frontAxle > 0 || w.rearAxle > 0) {
@@ -3940,12 +4033,15 @@
       }
     }
     return (
-      '<div class="cts-kicker">Trailer being loaded <span class="cts-equip">· ' + escapeHtml(EQUIP_SHORT) + '</span></div>' +
+      '<div class="cts-top"><div class="cts-kicker">Trailer being loaded <span class="cts-equip">· ' + escapeHtml(EQUIP_SHORT) + '</span></div>' +
+      (o.inExpand ? '' : '<button type="button" class="cts-expand" data-cts-expand="' + escapeHtml(d) + '" aria-label="Open the side view and weights, bigger">⤢ Side view</button>') + '</div>' +
       '<div class="cts-head"><b>OUT ' + escapeHtml(d) + ' · Trl ' + escapeHtml(info.trailerNumber || '—') + ' · ' +
       escapeHtml(info.destination || '') + '</b></div>' +
       '<div class="cts-counts">' + escapeHtml(trailerCountsLine(d)) + '</div>' + paceHtml +
-      buildMiniSideViewHtml(pieces) +
-      '<div class="cts-cells" aria-label="Weight check, on board now, value / limit in lb">' + cells + '</div>' +
+      (o.inExpand ? '' : buildMiniSideViewHtml(pieces, d)) +
+      '<div class="cts-wsum">' + escapeHtml(wsum) + '</div>' +
+      '<div class="cts-wtitle">Weights on board now (' + FREIGHT_ONLY + ', lb / limit)</div>' +
+      '<div class="cts-cells" aria-label="Weight check, on board now, value / limit in lb, freight only">' + cellsHtml + '</div>' +
       (balance ? '<div class="cts-balance">' + escapeHtml(balance) + '</div>' : '') +
       (!o.noHint && pace && (pace.status === 'tight' || pace.status === 'late')
         ? '<div class="cts-hint">' +
@@ -4019,7 +4115,9 @@
 
   function placeHighlightRing(ringEl, target) {
     if (!ringEl) return;
-    if (!target) {
+    // v55: the "N here" pill sits inside the OUT chip, which already has its
+    // own ring; a second glowing ring would cover the text around the pill
+    if (!target || (target.classList && target.classList.contains('is-pill'))) {
       ringEl.style.display = 'none';
       return;
     }
@@ -4035,6 +4133,7 @@
   function dismissCrewTourPopup(opts) {
     clearCrewTourHighlightClass();
     hideCrewMoveToken();
+    closeTrailerExpand();
     if (crewTour.root) {
       crewTour.root.hidden = true;
       crewTour.root.setAttribute('hidden', '');
@@ -4346,16 +4445,18 @@
     crewTour.root.classList.add('is-open');
     document.body.classList.add('crew-tour-open');
     if (crewTour.bubble) crewTour.bubble.scrollTop = 0;
-    // v54: show that Continue is settling for the 400 ms double-tap guard
-    // (instead of silently ignoring a tap), then it takes the next tap
+    // v55: Continue looks dimmed only for what is left of the 400 ms after the
+    // previous accepted tap (the one window where a tap is ignored)
     if (crewTour.continueBtn) {
       clearTimeout(crewTour.settleTimer);
-      const settle = !ev.intro;
+      const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const left = CREW_TOUR_TAP_GUARD_MS - (nowMs - (Number(crewTour.lastAcceptedAt) || -1e9));
+      const settle = !ev.intro && left > 0;
       crewTour.continueBtn.classList.toggle('is-settling', settle);
       if (settle) {
         crewTour.settleTimer = setTimeout(() => {
           if (crewTour.continueBtn) crewTour.continueBtn.classList.remove('is-settling');
-        }, CREW_TOUR_TAP_GUARD_MS);
+        }, left);
       }
     }
     requestAnimationFrame(() => {
@@ -4428,6 +4529,55 @@
     }
   }
 
+  /**
+   * v55: tap-to-expand trailer view: the full side view (with the kingpin and
+   * rear axle, lb per section) and the weight check, in big readable text,
+   * above the card. Close returns to the same card.
+   */
+  function openTrailerExpand(door) {
+    const d = String(door || '').trim();
+    if (!d) return;
+    const info = resolveOutTrailerForDoor(d, crewAssignmentsCache);
+    const pieces = piecesForOutboundTrailer(info.trailerNumber);
+    if (!pieces.length) return;
+    let ov = document.getElementById('trailerExpand');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'trailerExpand';
+      ov.className = 'tx-overlay';
+      ov.hidden = true;
+      document.body.appendChild(ov);
+      ov.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (ev.target === ov || (ev.target.closest && ev.target.closest('.tx-close'))) closeTrailerExpand();
+      });
+      ['pointerup', 'touchend'].forEach((t) => ov.addEventListener(t, (ev) => ev.stopPropagation()));
+      document.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Escape' && !ov.hidden) closeTrailerExpand();
+      });
+    }
+    ov.innerHTML =
+      '<div class="tx-sheet" role="dialog" aria-modal="true" aria-label="Trailer view, OUT ' + escapeHtml(d) + '">' +
+      '<div class="tx-head"><b>Side view and weights</b>' +
+      '<button type="button" class="btn tx-close" aria-label="Close trailer view">Close ✕</button></div>' +
+      '<div class="tx-strip">' + buildTourTrailerStripHtml(d, { inExpand: true }) + '</div>' +
+      '<div class="tx-sub">Side view, nose (front wall) to tail (doors)</div>' +
+      buildTrailerFillDiagramHtml(pieces, info.cityFloorOnly) +
+      '<p class="tx-equip">' + escapeHtml(EQUIP_LONG) + '</p>' +
+      '<button type="button" class="btn accept-btn tx-close tx-close-bottom">Close and go back to the card</button>' +
+      '</div>';
+    ov.hidden = false;
+    document.body.classList.add('tx-open');
+    const btn = ov.querySelector('.tx-close');
+    if (btn) btn.focus({ preventScroll: true });
+  }
+
+  function closeTrailerExpand() {
+    const ov = document.getElementById('trailerExpand');
+    if (ov) ov.hidden = true;
+    document.body.classList.remove('tx-open');
+  }
+
   function hideCrewMoveToken() {
     const tok = document.getElementById('crewMoveToken');
     if (tok) tok.hidden = true;
@@ -4498,6 +4648,8 @@
   }
 
   function onCrewTourContinue() {
+    // v55: a tap finishes the current move's animation at once
+    hideCrewMoveToken();
     dismissCrewTourPopup({ keepResume: true });
     if (crewTour.queue.length) {
       showCrewTourEvent(crewTour.queue.shift());
@@ -5093,7 +5245,7 @@
 
   function crewRemainingListText(rows) {
     return rows
-      .map((r) => 'OUT ' + r.door + ': ' + r.left + ' left' + (r.op != null ? ', ' + crewOpLabel(r.op) + ' in it' : ''))
+      .map((r) => 'OUT ' + r.door + ': ' + r.left + ' left' + (r.op != null ? ', assigned to ' + crewOpLabel(r.op) : ''))
       .join('; ');
   }
 
@@ -5108,8 +5260,8 @@
     });
     const open = rows.filter((r) => r.head && r.op == null);
     if (!open.length) {
-      return 'every trailer with moves left already has a forklift in it (' + crewRemainingListText(rows) +
-        '), and two forklifts in one trailer would block each other.';
+      return 'every trailer with moves left already has a forklift assigned (' + crewRemainingListText(rows) +
+        '), and never two forklifts work one trailer at the same time.';
     }
     // v54: checked against the live pull count, never assumed
     const ready = open.filter((r) => (pullCount[String(r.head.fromDoor || '')] || 0) < CREW_MAX_PER_PULL_DOOR);
@@ -5126,7 +5278,11 @@
     });
     const bits = [];
     byIn.forEach((outs, f) => {
-      bits.push('the next piece for ' + outs.join(', ') + (outs.length === 1 ? ' is' : ' are all') + ' at IN door ' + f);
+      const andList = outs.length > 1 ? outs.slice(0, -1).join(', ') + ' and ' + outs[outs.length - 1] : outs[0];
+      bits.push(
+        (outs.length === 1 ? 'the next piece for ' + andList + ' is' : 'the next pieces for ' + andList + (outs.length === 2 ? ' are both' : ' are all')) +
+          ' at IN door ' + f
+      );
     });
     return bits.join('; ') + (byIn.size === 1 ? ', which already has' : ', and each of those doors already has') + ' 2 forklifts pulling from it (the most allowed).';
   }
@@ -5155,23 +5311,21 @@
     if (done.length) {
       const rows = crewRemainingByDoor();
       parts.push(
-        'Done for this run: ' + names(done) + '. Every move that is left is already on another forklift (' +
+        'Done for this run: ' + names(done) + '. Every move that is left is already assigned to another forklift (' +
         crewRemainingListText(rows) + ').'
       );
     }
     return parts.join(' ');
   }
 
-  function stepCrewDemo() {
-    if (!crewDemo.seeded) return false;
-    if (crewDemoAllDone()) {
-      stopCrewDemoPlay();
-      return false;
-    }
-    const notes = crewDemo.pendingNotes;
-    // v51: free forklifts pick in the order they became free ("next forklift free")
+  /**
+   * v55: free forklifts take their next move, in the order they became free.
+   * postDrop = right after a drop: only forklifts that were already waiting
+   * (the one that just dropped picks at the start of the next move, after them).
+   */
+  function crewAssignFreeForklifts(notes, postDrop) {
     const freeOps = crewDemo.active
-      .filter((a) => !a.move)
+      .filter((a) => !a.move && (!postDrop || !a.justDone))
       .sort((x, y) => (Number(x.freedAt) || 0) - (Number(y.freedAt) || 0) || x.operator - y.operator);
     freeOps.forEach((a) => {
       if (a.move) return;
@@ -5182,24 +5336,45 @@
       const who = crewOpLabel(a.operator);
       if (next) {
         const nextDoor = String(next.toDoor || '');
-        if (a.idle && a.waitedNoted) {
-          notes.push({ op: a.operator, kind: 'back', door: nextDoor, text: who + ' is back at work on OUT ' + nextDoor + '.' });
+        if (a.idle && a.waitShown) {
+          // v55: never "back at work": say she was waiting (and since when), then what she takes
+          const name = who.split(' (')[0];
+          notes.push({
+            op: a.operator,
+            kind: 'back',
+            door: nextDoor,
+            text: who + ' was waiting' + (a.idleSince ? ' since move ' + a.idleSince : '') + '; now ' + name + ' takes OUT ' + nextDoor +
+              '\'s next piece, from IN door ' + (next.fromDoor || '?') + '.',
+          });
           if (prevDoor && nextDoor !== prevDoor) {
-            crewDemo.doorLeaveWhy[prevDoor] = { op: a.operator, why: 'after waiting for a free inbound door, OUT ' + nextDoor + ' had the first move ready' };
+            crewDemo.doorLeaveWhy[prevDoor] = { op: a.operator, why: 'after waiting, OUT ' + nextDoor + ' had the first move ready' };
           }
         } else if (prevDoor && nextDoor !== prevDoor) {
           notes.push({ op: a.operator, kind: 'switch', door: nextDoor, text: describeDoorSwitch(a.operator, prevDoor, nextDoor) });
         }
         recordCrewHandoff(a, next);
         assignCrewMove(a, next);
+        a.idle = false;
+        a.idleSince = 0;
+        a.waitShown = false;
         a.waitedNoted = false;
       } else {
+        if (!a.idle) a.idleSince = crewDemo.doneCount + (postDrop ? 0 : 1);
         a.idle = true;
-        // v54: the Waiting / Done line is built after the drop from the same
-        // state the map draws (see crewIdleStatusNote), never from here
         if (!a.waitedNoted && (prev || prevDoor)) a.waitedNoted = true;
       }
     });
+  }
+
+  function stepCrewDemo() {
+    if (!crewDemo.seeded) return false;
+    if (crewDemoAllDone()) {
+      stopCrewDemoPlay();
+      return false;
+    }
+    const notes = crewDemo.pendingNotes;
+    // v51: free forklifts pick in the order they became free ("next forklift free")
+    crewAssignFreeForklifts(notes, false);
 
     trackPullSpread();
     const busy = crewDemo.active.filter((a) => a.move);
@@ -5234,6 +5409,16 @@
     if (doorFinished) crewDemo.doorDoneAt[door] = clock;
     // v52: notes only when true right now; nothing redundant on the card
     const lastMove = crewDemo.doneCount >= crewDemo.total;
+    // v55: forklifts that were already waiting take work right after this drop
+    // (same order and same state as at the start of the next move, so the run
+    // is unchanged), so a "Waiting" forklift on this card is truly blocked.
+    // The forklift that just dropped stays drawn on its OUT door until the next move.
+    if (!lastMove) crewAssignFreeForklifts(notes, true);
+    // v55: whoever is still free now is drawn under "Waiting" on this card;
+    // only those may later be described as "was waiting"
+    crewDemo.active.forEach((a) => {
+      if (a.idle && !a.move) a.waitShown = true;
+    });
     let evNotes = notes.splice(0).filter((n) => {
       if (!n || typeof n === 'string') return Boolean(n);
       // the lead already says this forklift is on this trailer
@@ -5469,7 +5654,9 @@
     if (el.crewBossCopy) {
       el.crewBossCopy.hidden = !boss;
       el.crewBossCopy.textContent = boss
-        ? 'Boss demo running — sample freight, 5 sample forklifts, never two forklifts in one trailer at the same time.'
+        ? (crewDemoAllDone()
+          ? 'Boss demo finished: all ' + Object.keys(crewDemo.doorTotals || {}).length + ' trailers loaded. Summary below; Watch again to rerun.'
+          : 'Boss demo running — sample freight, 5 sample forklifts, never two forklifts in one trailer at the same time.')
         : 'Start here: sample freight, 5 forklifts, 8 key stops (or watch every move).';
     }
     if (el.crewExitDemoBtn) {
@@ -5746,10 +5933,44 @@
   const BOSS_YOUR_HOURS_KEY = 'dockApp.bossYourHours.v1';
   const BOSS_YOUR_FILL_KEY = 'dockApp.bossYourFill.v1';
 
+  /**
+   * v55: the boss's own numbers (rate, hours, fill) are blank by default and
+   * kept only for this run's summary (sessionStorage, cleared when a new run
+   * starts). Sample values show as grey placeholders only.
+   */
+  function bossSessionStore() {
+    try {
+      return window.sessionStorage;
+    } catch (e) {
+      return null;
+    }
+  }
+  function bossSetNumber(key, v) {
+    const s = bossSessionStore();
+    if (!s) return;
+    try {
+      if (v == null) s.removeItem(key);
+      else s.setItem(key, String(v));
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  function clearBossOwnNumbers() {
+    [BOSS_YOUR_HOURS_KEY, BOSS_YOUR_FILL_KEY, CREW_RATE_KEY].forEach((k) => {
+      bossSetNumber(k, null);
+      try {
+        localStorage.removeItem(k); // v54 kept these forever; never pre-fill from old runs
+      } catch (e) {
+        /* ignore */
+      }
+    });
+  }
+
   /** v53: a number the boss typed on the summary, or null when blank. */
   function bossNumberSetting(key) {
     try {
-      const raw = localStorage.getItem(key);
+      const st = bossSessionStore();
+      const raw = st ? st.getItem(key) : null;
       if (raw === null || raw === '') return null;
       const v = Number(raw);
       return Number.isFinite(v) && v >= 0 ? v : null;
@@ -5786,14 +6007,8 @@
   }
 
   function crewLaborRateSetting() {
-    try {
-      const raw = localStorage.getItem(CREW_RATE_KEY);
-      if (raw === null || raw === '') return null;
-      const v = Number(raw);
-      return Number.isFinite(v) && v > 0 ? v : null;
-    } catch (e) {
-      return null;
-    }
+    const v = bossNumberSetting(CREW_RATE_KEY);
+    return v != null && v > 0 ? v : null;
   }
 
   /**
@@ -5851,7 +6066,7 @@
       const pieces = piecesForOutboundTrailer(L.trailerNumber);
       if (!pieces.length) return;
       const w = computePupAxleWeights(pieces);
-      const legal = !(w.frontOver || w.rearOver || w.noseOver || w.tailOver);
+      const legal = !(w.frontOver || w.rearOver || w.noseOver || w.tailOver || w.sectionOver);
       if (!legal) allLegal = false;
       totalLb += w.total;
       totalPieces += pieces.length;
@@ -5880,7 +6095,7 @@
         note =
           'Light: only ' + lengthPct + '% of the floor used. Consolidation candidate: hold at the door for more freight, or combine with a trailer going the same way.';
       }
-      const weightPct = Math.round((w.total / (2 * PUP_AXLE_CAP_LB)) * 100);
+      const weightPct = Math.round((w.total / TP.freightLimitLb) * 100);
       rows.push({
         door,
         weightPct,
@@ -5904,13 +6119,13 @@
     const secs = Array.from(new Set(rows.map((r) => r.fill.maxSec)));
     const wPcts = rows.map((r) => r.weightPct).sort((a, b) => a - b);
     const wTxt = wPcts.length ? (wPcts[0] === wPcts[wPcts.length - 1] ? wPcts[0] + '%' : wPcts[0] + '–' + wPcts[wPcts.length - 1] + '%') : '';
-    const allFloorFull = secs.length === 1 && secs[0] >= 12;
+    const allFloorFull = secs.length === 1 && secs[0] >= TP_SECTIONS;
     const fillNote =
       (allFloorFull
-        ? 'Floor: 100% full on every trailer (sections 1–12, nose to tail: no floor space left). '
+        ? 'Floor full on every trailer: no floor length left (sections 1–' + TP_SECTIONS + ', nose to tail). Some deck spots above stay open; only stackable pieces that pass the deck rules can use them. '
         : 'Floor = % of floor length used (nose to the last loaded 4 ft section). ') +
-      (wTxt ? 'Weight: ' + wTxt + ' of the 40,000 lb freight limit. ' : '') +
-      (allFloorFull ? 'So these trailers are space-full, not weight-full; that is normal for LTL, where freight runs out of room before it runs out of weight. ' : '') +
+      (wTxt ? 'Weight: ' + wTxt + ' of the ' + lbTxt(TP.freightLimitLb) + ' freight limit. ' : '') +
+      (allFloorFull ? 'So these trailers are floor-full, not weight-full; that is normal for LTL, where freight runs out of room before it runs out of weight. ' : '') +
       WEIGHT_BASIS_TEXT + ' ' + EQUIP_LONG;
     const ops = crewDemo.active.slice().sort((a, b) => a.operator - b.operator);
     const minutes = Math.max(1, Math.round(run.minutes));
@@ -5934,13 +6149,13 @@
           '<div class="boss-sum-row' + (r.late ? ' is-late' : '') + '">' +
           '<div class="boss-sum-row-main"><strong>OUT ' + escapeHtml(String(r.door)) + ' · Trl ' + escapeHtml(String(r.trailer)) +
           ' · ' + escapeHtml(r.dest) + '</strong>' +
-          ' <span class="boss-sum-fill">Floor: ' + r.lengthPct + '% full</span>' +
-          ' <span class="boss-sum-fill is-weight">Weight: ' + r.weightPct + '% of 40,000 lb</span></div>' +
+          ' <span class="boss-sum-fill">' + (r.lengthPct >= 100 ? 'Floor full' : 'Floor: ' + r.lengthPct + '% of length') + '</span>' +
+          ' <span class="boss-sum-fill is-weight">Weight: ' + r.weightPct + '% of ' + escapeHtml(lbTxt(TP.freightLimitLb)) + '</span></div>' +
           '<div class="boss-sum-row-facts">' + r.pieces + ' pieces on board' +
           (r.preN ? ' (' + r.preN + ' loaded earlier)' : '') + ' · ' + escapeHtml(fmtLb(r.lb)) +
-          ' · axles ' + escapeHtml(Math.round(r.front).toLocaleString('en-US')) + ' / ' +
-          escapeHtml(Math.round(r.rear).toLocaleString('en-US')) + ' lb ' +
-          (r.legal ? 'legal ✓' : 'OVER a limit ✗') + '</div>' +
+          ' · ' + escapeHtml(TP.front.kind) + ' ' + escapeHtml(Math.round(r.front).toLocaleString('en-US')) + ' / rear axle ' +
+          escapeHtml(Math.round(r.rear).toLocaleString('en-US')) + ' lb · ' +
+          (r.legal ? 'within limits ✓ (' + FREIGHT_ONLY + ')' : 'OVER a limit ✗') + '</div>' +
           (r.timeTxt ? '<div class="boss-sum-row-time' + (r.late ? ' is-late' : '') + '">' + escapeHtml(r.timeTxt) + '</div>' : '') +
           (r.note ? '<div class="boss-sum-row-note">' + escapeHtml(r.note) + '</div>' : '') +
           '</div>'
@@ -5953,9 +6168,10 @@
     const pcts = Array.from(new Set(rows.map((r) => r.lengthPct))).sort((a, b) => a - b);
     const pctTxt = pcts.length === 1 ? pcts[0] + '%' : pcts[0] + '–' + pcts[pcts.length - 1] + '%';
     const headline =
-      rows.length + ' trailer' + (rows.length === 1 ? '' : 's') + ' out ' + pctTxt + ' full by floor space' +
-      (wTxt ? ' (' + wTxt + ' of weight limit)' : '') + ', ' +
-      (allLegal ? 'all axle-legal' : 'NOT all axle-legal') + ', ' +
+      rows.length + ' trailer' + (rows.length === 1 ? '' : 's') + ' out ' +
+      (pcts.length === 1 && pcts[0] >= 100 ? 'with the floor full (no floor length left)' : pctTxt + ' of floor length used') +
+      (wTxt ? ' at ' + wTxt + ' of the weight limit' : '') + ', ' +
+      (allLegal ? 'all within the ' + TP.front.kind + ' and rear-axle limits (' + FREIGHT_ONLY + ')' : 'NOT all within the ' + TP.front.kind + ' and rear-axle limits') + ', ' +
       onTime + ' of ' + rows.length + ' on time' +
       (tightList.length ? ' (' + tightList.map((t) => 'OUT ' + t.door + ' tight: ' + t.spare + ' min to spare').join(', ') + ')' : '') +
       ' · ' + laborHours.toFixed(1) + ' forklift labor hours' +
@@ -5977,14 +6193,14 @@
       '<div class="boss-sum-compare"><div class="boss-sum-sub">Your dock today (compare)</div>' +
       '<div class="boss-sum-compare-inputs">' +
       '<label class="boss-sum-input">Your labor hours for this much freight (' + rows.length + ' trailers, ' + (crewDemo.total || 0) + ' moves) ' +
-      '<input type="number" id="bossYourHours" min="0" step="0.1" inputmode="decimal" placeholder="your hours" value="' +
+      '<input type="number" id="bossYourHours" min="0" step="0.1" inputmode="decimal" placeholder="e.g. 12" value="' +
       escapeHtml(yourHours != null ? String(yourHours) : '') + '" /></label>' +
       '<label class="boss-sum-input">Your typical trailer fill % ' +
-      '<input type="number" id="bossYourFill" min="0" max="100" step="1" inputmode="numeric" placeholder="your usual" value="' +
+      '<input type="number" id="bossYourFill" min="0" max="100" step="1" inputmode="numeric" placeholder="e.g. 80" value="' +
       escapeHtml(yourFill != null ? String(yourFill) : '') + '" /></label>' +
       '</div>' +
       '<div id="bossCompareOut">' + compareOut + '</div>' +
-      '<p class="boss-sum-input-hint">Your numbers are kept on this phone for next time (also after Watch again). Clear a box to remove it.</p>' +
+      '<p class="boss-sum-input-hint">Blank until you type: the grey numbers are only examples. What you type stays while this summary is open; a new run starts blank.</p>' +
       '</div>';
     return (
       '<div class="boss-summary" role="status">' +
@@ -5994,7 +6210,7 @@
       '<div class="boss-sum-stats">' +
       '<span><b>' + rows.length + '</b> trailers loaded</span>' +
       '<span>this run: <b>' + crewDemo.doneCount + ' of ' + (crewDemo.total || crewDemo.doneCount) + '</b> moved · trailers: ' + totalPieces + ' pieces on board' + (totalPre ? ' (' + totalPre + ' loaded earlier)' : '') + ' · ' + escapeHtml(fmtLb(totalLb)) + '</span>' +
-      '<span><b>' + (allLegal ? 'All axles + zones legal ✓' : 'Limit problem ✗') + '</b></span>' +
+      '<span><b>' + (allLegal ? 'All weight limits met ✓' : 'Limit problem ✗') + '</b>' + (allLegal ? ' (' + FREIGHT_ONLY + '; trailer weight not counted): ' + escapeHtml(TP.front.label.toLowerCase()) + ' and ' + escapeHtml(TP.rear.label.toLowerCase()) + ', every 4 ft section' : '') + '</span>' +
       (unplacedN === 0
         ? '<span><b>Unplaced 0</b> · every piece has a slot</span>'
         : '<span><b>Unplaced ' + unplacedN + '</b> · see Plan</span>') +
@@ -6006,7 +6222,7 @@
       '<div class="boss-sum-inputs">' +
       '<label class="boss-sum-input">Minutes per move <input type="number" id="bossMinPerMove" min="1" max="30" step="0.5" inputmode="decimal" value="' +
       escapeHtml(String(run.minPerMove)) + '" /></label>' +
-      '<label class="boss-sum-input">$ per labor hour <input type="number" id="bossLaborRate" min="0" step="0.5" inputmode="decimal" placeholder="optional" value="' +
+      '<label class="boss-sum-input">Your $ per labor hour <input type="number" id="bossLaborRate" min="0" step="0.5" inputmode="decimal" placeholder="e.g. 28" value="' +
       escapeHtml(rate ? String(rate) : '') + '" /></label>' +
       '<p class="boss-sum-input-hint">Minutes per move = handling time; each trip adds 0.5 min per door of travel, rounded up to the whole minute. Change it and the times above recompute. Cost shows only when you enter a rate.</p>' +
       '</div>' +
@@ -6026,6 +6242,8 @@
       '<li>Operator scans for each move, so every piece has a name on it</li>' +
       '<li>OS&amp;D (Over, Short &amp; Damaged freight) photos attached to the piece and the bill</li>' +
       '<li>Export or share this summary</li>' +
+      '<li>Exceptions: freight that doesn\u2019t fit, a trailer that arrives late (today the demo assumes every piece fits and every trailer is on time)</li>' +
+      '<li>Other trailer types (28 ft pup, 53 ft tandem) as a setting; today every trailer is ' + escapeHtml(EQUIP_SHORT) + '</li>' +
       '</ul></div>' +
       '</div>' +
       '<div class="boss-sum-actions">' +
@@ -6037,6 +6255,8 @@
   }
 
   function runBossDemoWithPlan(plan, tourMode) {
+    // v55: a new run starts with the boss's own numbers blank
+    clearBossOwnNumbers();
     // Boss demo always starts in guided-tour mode (checkbox must match).
     setCrewTourEnabled(true);
     const ok = seedCrewDemo(plan, {
@@ -6510,8 +6730,7 @@
           localStorage.setItem(CREW_MIN_PER_MOVE_KEY, String(v));
         } else if (t.id === 'bossLaborRate') {
           const v = Number(t.value);
-          if (t.value === '' || !(v > 0)) localStorage.removeItem(CREW_RATE_KEY);
-          else localStorage.setItem(CREW_RATE_KEY, String(v));
+          bossSetNumber(CREW_RATE_KEY, t.value === '' || !(v > 0) ? null : v);
         } else if (t.id === 'bossYourHours' || t.id === 'bossYourFill') {
           saveBossCompareInput(t);
           return; // v54: never rebuild the summary for these (that wiped what was typed)
@@ -6528,8 +6747,7 @@
         if (t.id === 'bossYourHours' || t.id === 'bossYourFill') saveBossCompareInput(t);
         else if (t.id === 'bossLaborRate') {
           const v = Number(t.value);
-          if (t.value === '' || !(v > 0)) localStorage.removeItem(CREW_RATE_KEY);
-          else localStorage.setItem(CREW_RATE_KEY, String(v));
+          bossSetNumber(CREW_RATE_KEY, t.value === '' || !(v > 0) ? null : v);
           refreshBossCompareOut();
         }
       });
@@ -6542,8 +6760,7 @@
     const raw = String(t.value || '').trim();
     const v = Number(raw);
     const max = t.id === 'bossYourFill' ? 100 : 100000;
-    if (raw === '' || !(Number.isFinite(v) && v >= 0 && v <= max)) localStorage.removeItem(key);
-    else localStorage.setItem(key, String(v));
+    bossSetNumber(key, raw === '' || !(Number.isFinite(v) && v >= 0 && v <= max) ? null : v);
     refreshBossCompareOut();
   }
 
@@ -7445,23 +7662,23 @@
   }
 
   /**
-   * Full slot parse: section / level / lateral (Left|Middle|Right).
+   * Full slot parse: section / level / lateral (Left|Center|Right; old "Middle" = Center).
    * @param {string} slot
    * @returns {{section:number, level:string, lateral:string}|null}
    */
   function parseSlotFull(slot) {
     const s = String(slot || '').trim();
     if (!s) return null;
-    const m = s.match(/^(\d{1,2})\s*\/\s*([A-Ca-c])(?:\s*\/\s*(Left|Middle|Right))?/i);
+    const m = s.match(/^(\d{1,2})\s*\/\s*([A-Ca-c])(?:\s*\/\s*(Left|Center|Middle|Right))?/i);
     if (!m) return null;
     const section = Number(m[1]);
-    if (!Number.isFinite(section) || section < 1 || section > 12) return null;
+    if (!Number.isFinite(section) || section < 1 || section > TP_SECTIONS) return null;
     const lateralRaw = m[3] ? String(m[3]) : '';
     const lateral =
       /^left$/i.test(lateralRaw)
         ? 'Left'
-        : /^middle$/i.test(lateralRaw)
-          ? 'Middle'
+        : /^(middle|center)$/i.test(lateralRaw)
+          ? 'Center'
           : /^right$/i.test(lateralRaw)
             ? 'Right'
             : '';
@@ -7526,7 +7743,7 @@
 
   /**
    * Side-view trailer fill picture for OUT panel (nose=1 left → tail=12 right).
-   * Each cell = section × level; filled if any Left/Middle/Right is occupied.
+   * Each cell = section × level; filled if any Left/Center/Right is occupied.
    * @param {{slot:string, done:boolean}[]} pieces
    * @param {boolean} cityFloorOnly
    * @returns {string} HTML
@@ -7535,15 +7752,16 @@
   /**
    * v48 PUP axle / nose+tail zone weight limits (display mirrors planner caps).
    * Sections 1–12 nose→tail. Nose zone ≈ first bay (sec 1, ~4 ft). Tail ≈ last bay (sec 12).
-   * Axle share: secs 1–6 → front axle, 7–12 → rear axle.
+   * v55: weight split by position between the kingpin and the rear axle (freight only).
    */
-  const PUP_AXLE_CAP_LB = 20000;
+  // v55: from the trailer profile
+  const PUP_AXLE_CAP_LB = Math.min(TP.front.capLb, TP.rear.capLb);
   const PUP_ZONE_WARN_LB = 2800;
-  const PUP_ZONE_MAX_LB = 3200;
+  const PUP_ZONE_MAX_LB = TP.sectionMaxLb;
   const PUP_NOSE_WARN_LB = PUP_ZONE_WARN_LB; // alias
   const PUP_NOSE_MAX_LB = PUP_ZONE_MAX_LB;
-  const PUP_NOSE_SECTIONS = [1]; // first bay ≈ 4 ft
-  const PUP_TAIL_SECTIONS = [12]; // last bay ≈ 4 ft
+  const PUP_NOSE_SECTIONS = TP.noseSections; // first bay ≈ 4 ft
+  const PUP_TAIL_SECTIONS = TP.tailSections; // last bay ≈ 4 ft
   const PUP_FRONT_SECTIONS = [1, 2, 3, 4, 5, 6];
   const PUP_REAR_SECTIONS = [7, 8, 9, 10, 11, 12];
 
@@ -7564,6 +7782,7 @@
     let tail = 0;
     let total = 0;
     let known = false;
+    const secW = {};
     (pieces || []).forEach((p) => {
       const w = Number(p && p.weight);
       if (!Number.isFinite(w) || w < 0) return;
@@ -7573,6 +7792,7 @@
       const sec = parsed ? parsed.section : 0;
       if (PUP_NOSE_SECTIONS.indexOf(sec) >= 0) nose += w;
       if (PUP_TAIL_SECTIONS.indexOf(sec) >= 0) tail += w;
+      if (sec) secW[sec] = (secW[sec] || 0) + w;
       // v51: same lever split the planner uses (a piece's weight is shared by
       // the front support and the rear axle by where it sits)
       const r =
@@ -7582,17 +7802,32 @@
       rear += w * r;
       front += w * (1 - r);
     });
-    const fs = weightCellStatus(front, PUP_AXLE_CAP_LB);
-    const rs = weightCellStatus(rear, PUP_AXLE_CAP_LB);
+    const fs = weightCellStatus(front, TP.front.capLb);
+    const rs = weightCellStatus(rear, TP.rear.capLb);
     const ns = weightCellStatus(nose, PUP_ZONE_MAX_LB);
     const ts = weightCellStatus(tail, PUP_ZONE_MAX_LB);
+    // v55: the 3,200 lb rule covers EVERY section (nose and tail included)
+    let sectionMax = 0;
+    let sectionMaxSec = 0;
+    Object.keys(secW).forEach((k) => {
+      if (secW[k] > sectionMax) {
+        sectionMax = secW[k];
+        sectionMaxSec = Number(k);
+      }
+    });
+    const sectionOver = sectionMax > PUP_ZONE_MAX_LB;
     /** @type {string[]} */
     const messages = [];
-    if (ns.level === 2) messages.push('Nose over 3,200 lb — use lighter freight here');
-    if (ts.level === 2) messages.push('Tail over 3,200 lb — use lighter freight here');
-    if (fs.level === 2) messages.push('Front axle over 20,000 lb (' + Math.round(front).toLocaleString('en-US') + ' lb)');
-    if (rs.level === 2) messages.push('Rear axle over 20,000 lb (' + Math.round(rear).toLocaleString('en-US') + ' lb)');
+    if (ns.level === 2) messages.push('Nose over ' + lbTxt(PUP_ZONE_MAX_LB) + ' — use lighter freight here');
+    if (ts.level === 2) messages.push('Tail over ' + lbTxt(PUP_ZONE_MAX_LB) + ' — use lighter freight here');
+    if (sectionOver && ns.level < 2 && ts.level < 2) messages.push('Section ' + sectionMaxSec + ' over ' + lbTxt(PUP_ZONE_MAX_LB));
+    if (fs.level === 2) messages.push(TP.front.label + ' over ' + lbTxt(TP.front.capLb) + ' (' + lbTxt(front) + ')');
+    if (rs.level === 2) messages.push(TP.rear.label + ' over ' + lbTxt(TP.rear.capLb) + ' (' + lbTxt(rear) + ')');
     return {
+      sectionW: secW,
+      sectionMax,
+      sectionMaxSec,
+      sectionOver,
       frontAxle: front,
       rearAxle: rear,
       nose,
@@ -7629,10 +7864,10 @@
     const loadedList = list.filter((p) => p && p.done);
     const live = computePupAxleWeights(loadedList);
     const cells = [
-      { label: 'Front axle', live: live.frontAxle, plan: planned.frontAxle, cap: PUP_AXLE_CAP_LB, capTxt: 'max 20,000 (federal)' },
-      { label: 'Rear axle', live: live.rearAxle, plan: planned.rearAxle, cap: PUP_AXLE_CAP_LB, capTxt: 'max 20,000 (federal)' },
-      { label: 'Nose (first 4 ft)', live: live.nose, plan: planned.nose, cap: PUP_ZONE_MAX_LB, capTxt: 'max 3,200 (company)' },
-      { label: 'Tail (last 4 ft)', live: live.tail, plan: planned.tail, cap: PUP_ZONE_MAX_LB, capTxt: 'max 3,200 (company)' },
+      { label: TP.front.label, live: live.frontAxle, plan: planned.frontAxle, cap: TP.front.capLb, capTxt: 'max ' + lbTxt(TP.front.capLb) + ' (' + TP.front.capWhy + ')' },
+      { label: TP.rear.label, live: live.rearAxle, plan: planned.rearAxle, cap: TP.rear.capLb, capTxt: 'max ' + lbTxt(TP.rear.capLb) + ' (' + TP.rear.capWhy + ')' },
+      { label: 'Nose (sec ' + TP.noseSections.join(',') + ', first 4 ft)', live: live.nose, plan: planned.nose, cap: PUP_ZONE_MAX_LB, capTxt: 'max ' + lbTxt(PUP_ZONE_MAX_LB) + ' (company, every section)' },
+      { label: 'Tail (sec ' + TP.tailSections.join(',') + ', last 4 ft)', live: live.tail, plan: planned.tail, cap: PUP_ZONE_MAX_LB, capTxt: 'max ' + lbTxt(PUP_ZONE_MAX_LB) + ' (company, every section)' },
     ];
     let worst = 0;
     const cellHtml = cells
@@ -7662,25 +7897,25 @@
         '</ul>'
       : '';
     const title =
-      'Weight check · ' + EQUIP_SHORT + ' · on board now: ' + loadedList.length + ' of ' + list.length + ' pieces';
+      'Weight check (' + FREIGHT_ONLY + ') · ' + TP.name + ' · on board now: ' + loadedList.length + ' of ' + list.length + ' pieces';
     return (
       '<div class="' + cls + '" role="status">' +
       '<div class="trailer-weight-title">' + escapeHtml(title) + '</div>' +
       '<div class="trailer-weight-grid">' + cellHtml + '</div>' +
       msgs +
       '<p class="trailer-weight-legend">Green = under 95% of the limit · amber "at target" = 95–100%, filled close to the limit on purpose · red = over.</p>' +
-      '<p class="trailer-weight-why">' + escapeHtml(EQUIP_LONG) + ' The 3,200 lb nose/tail limit (the first and last 4 ft section) is a company setting. Each piece\'s weight is shared by the front and rear axles by where it sits, so loading from the nose starts front-heavy and evens out as the trailer fills. Balanced = the heavier axle carries no more than 25% more than the lighter.</p>' +
+      '<p class="trailer-weight-why">' + escapeHtml(EQUIP_LONG + ' ' + TP_RULES.section + ' Heaviest section on board now: ' + (live.sectionMaxSec ? 'sec ' + live.sectionMaxSec + ', ' + lbTxt(live.sectionMax) : 'none') + '. ' + SUPPORT_RULE_TEXT + ' Loading from the nose starts front-heavy and evens out as the trailer fills. Balanced = the heavier support carries no more than 25% more than the lighter.') + '</p>' +
       '</div>'
     );
   }
 
   /**
-   * v54: pieces grouped by space (section/level), Left → Middle → Right, so a
+   * v54: pieces grouped by space (section/level), Left → Center → Right, so a
    * side view can draw every piece (up to 3 sit side by side in one space).
    * @returns {Map<string, {p:object, lat:string}[]>}
    */
   function piecesBySpace(pieces) {
-    const order = { left: 0, middle: 1, right: 2 };
+    const order = { left: 0, center: 1, middle: 1, right: 2 };
     const map = new Map();
     (pieces || []).forEach((p) => {
       const f = parseSlotFull(p && p.slot);
@@ -7717,7 +7952,16 @@
    * view with the card on a phone: 12 sections × Floor / Deck 2 / Deck 3, one
    * block per piece, the piece just loaded outlined.
    */
-  function buildMiniSideViewHtml(pieces) {
+  /** v55: the kingpin and rear axle drawn under a side view, at their real positions. */
+  function supportMarkersHtml() {
+    const pct = (ft) => Math.max(0, Math.min(100, (ft / TP.lengthFt) * 100)).toFixed(2) + '%';
+    return (
+      '<span class="sup-mark sup-front" style="left:' + pct(TP.front.atFt) + '">▲ ' + escapeHtml(TP.front.kind) + '</span>' +
+      '<span class="sup-mark sup-rear" style="left:' + pct(TP.rear.atFt) + '">rear axle ▲</span>'
+    );
+  }
+
+  function buildMiniSideViewHtml(pieces, door) {
     const list = pieces || [];
     if (!list.length) return '';
     const bySpace = piecesBySpace(list);
@@ -7725,7 +7969,7 @@
     const rows = [['C', 'Deck 3'], ['B', 'Deck 2'], ['A', 'Floor']]
       .map(([lvl, name]) => {
         let cells = '';
-        for (let sec = 1; sec <= 12; sec++) {
+        for (let sec = 1; sec <= TP_SECTIONS; sec++) {
           const arr = bySpace.get(sec + '/' + lvl) || [];
           cells += '<span class="msv-cell' + (arr.length ? '' : ' is-empty') + '">' + pieceBlocksHtml(arr, justKey) + '</span>';
         }
@@ -7733,9 +7977,12 @@
       })
       .join('');
     return (
-      '<div class="msv" role="img" aria-label="Side view: 12 sections from nose to tail, Floor, Deck 2 and Deck 3; one block per piece">' +
-      '<div class="msv-ends"><span>NOSE (sec 1)</span><span>side view · 1 block = 1 piece</span><span>TAIL (12)</span></div>' +
+      '<div class="msv"' + (door ? ' data-cts-expand="' + escapeHtml(String(door)) + '" title="Tap for a bigger trailer view"' : '') +
+      ' role="img" aria-label="Side view: ' + TP_SECTIONS + ' sections from nose to tail, Floor, Deck 2 and Deck 3; one block per piece; ' +
+      escapeHtml(TP.front.kind) + ' at ' + TP.front.atFt + ' ft, rear axle at ' + TP.rear.atFt + ' ft">' +
+      '<div class="msv-ends"><span>Nose</span><span>1 block = 1 piece</span><span>Tail</span></div>' +
       rows +
+      '<div class="msv-row msv-suprow"><span class="msv-lvl"></span><span class="msv-supports">' + supportMarkersHtml() + '</span></div>' +
       '</div>'
     );
   }
@@ -7785,16 +8032,16 @@
         ? 'Loaded nose to tail · ' + fillInfo.line
         : 'Loading nose to tail · when done: ' + fillInfo.line;
     const preInList = list.filter((p) => p.preloaded).length;
+    // v55: no "spaces used" count next to "floor full" (it read as a contradiction)
     const captionSub =
       'trailer: ' + (loadedPieces === totalPieces ? totalPieces : loadedPieces + ' of ' + totalPieces) + ' pieces on board' +
-      (preInList ? ' (' + preInList + ' loaded earlier)' : '') + ' · ' +
-      (loadedPieces >= totalPieces
-        ? usedSpaces + ' of ' + totalSpaces + ' spaces used'
-        : loadedSpaces + ' of ' + totalSpaces + ' spaces in use (' + usedSpaces + ' when done)');
-    // v53: say what a "space" is, so pieces vs spaces isn't confusing
+      (preInList ? ' (' + preInList + ' loaded earlier)' : '');
     const spacesNote =
-      'A space = one section on one level (' + 12 + ' sections × ' + levels.length + (levels.length === 1 ? ' level' : ' levels: Floor, Deck 2, Deck 3') +
-      ' = ' + totalSpaces + '). Up to 3 pieces sit side by side in one space (left, middle, right), so pieces outnumber spaces. Each small block is one piece.';
+      'Each small block is one piece; up to 3 sit side by side (Left / Center / Right) in a section on each level. ' +
+      (levels.length > 1
+        ? '"Floor full" means no floor length is left. Open deck spots above can only take stackable pieces that pass the deck rules (' +
+          fmtLb(DECK_PIECE_MAX_LB_UI) + ' or less, never heavier than the piece below, stack under ' + TP.stackMaxIn + ' in), and this trailer\'s freight is all on board.'
+        : '');
 
     let rowsHtml = '';
     // v50: highlight the cell the current tour card just loaded
@@ -7863,6 +8110,9 @@
       '</div>' +
       '<div class="trailer-fill-grid">' +
       rowsHtml +
+      '<div class="trailer-fill-row tf-sup-row"><span class="trailer-fill-level">Supports</span>' +
+      '<div class="tf-supports">' + supportMarkersHtml() + '</div></div>' +
+      sectionWeightRowHtml(list) +
       '</div>' +
       '<div class="trailer-fill-caption">' +
       escapeHtml(captionMain) +
@@ -7883,6 +8133,24 @@
     );
   }
 
+  /** v55: lb on board per 4 ft section (the 3,200 lb rule covers every section). */
+  function sectionWeightRowHtml(list) {
+    const w = computePupAxleWeights((list || []).filter((p) => p && p.done));
+    let cells = '';
+    for (let sec = 1; sec <= TP_SECTIONS; sec++) {
+      const v = Number((w.sectionW || {})[sec]) || 0;
+      const over = v > TP.sectionMaxLb;
+      cells +=
+        '<span class="tf-secw' + (over ? ' is-over' : '') + (v >= TP.sectionMaxLb * 0.95 && !over ? ' is-warm' : '') + '" title="Section ' + sec + ': ' +
+        escapeHtml(lbTxt(v)) + ' on board (max ' + escapeHtml(lbTxt(TP.sectionMaxLb)) + ')">' + (v ? (v / 1000).toFixed(1) : '0') + '</span>';
+    }
+    return (
+      '<div class="trailer-fill-row tf-secw-row"><span class="trailer-fill-level">k lb</span>' +
+      '<div class="trailer-fill-cells tf-secw-cells">' + cells + '</div></div>' +
+      '<div class="tf-secw-note">k lb = thousands of lb on board in each 4 ft section. ' + escapeHtml(TP_RULES.section) + '</div>'
+    );
+  }
+
   /**
    * Loud who’s-where banner near god HUD — busy ops + distinct OUT doors.
    * @param {object[]} list
@@ -7890,8 +8158,8 @@
 
   /**
    * v48 Top-down (bird's-eye) trailer floor plan for one deck at a time.
-   * Nose at top → Tail at bottom. Width columns: Left | Mid-L | Mid-R | Right.
-   * Existing SLOT …/Middle pieces span both middle halves (display-only).
+   * Nose at top → Tail at bottom. Width columns: Left | Center | Right
+   * (a Center piece spans the two center half-columns; display-only).
    * @param {{slot:string, done:boolean, pro?:string, pieceFraction?:string}[]} pieces
    * @param {boolean} cityFloorOnly
    * @param {string} selectedLevel 'A'|'B'|'C'
@@ -7910,8 +8178,8 @@
       return parsed.level === level;
     });
 
-    // Map section → { Left?, Middle?, Right? } piece refs
-    /** @type {Map<number, {Left?:object, Middle?:object, Right?:object}>} */
+    // Map section → { Left?, Center?, Right? } piece refs
+    /** @type {Map<number, {Left?:object, Center?:object, Right?:object}>} */
     const bySec = new Map();
     for (let sec = 1; sec <= 12; sec++) bySec.set(sec, {});
     onDeck.forEach((p) => {
@@ -7960,7 +8228,7 @@
     const colHead =
       '<div class="trailer-top-colheads" aria-hidden="true">' +
       '<span class="trailer-top-sec-label"></span>' +
-      '<span>Left</span><span>Mid-L</span><span>Mid-R</span><span>Right</span>' +
+      '<span>Left</span><span style="grid-column: span 2">Center</span><span>Right</span>' +
       '</div>';
 
     function cellHtml(p, extraClass, spanMid) {
@@ -8017,7 +8285,7 @@
     for (let sec = 1; sec <= 12; sec++) {
       const row = bySec.get(sec) || {};
       const left = row.Left || null;
-      const mid = row.Middle || null;
+      const mid = row.Center || null;
       const right = row.Right || null;
       const isNose = PUP_NOSE_SECTIONS.indexOf(sec) >= 0;
       const isTail = PUP_TAIL_SECTIONS.indexOf(sec) >= 0;
@@ -8043,7 +8311,7 @@
         '<div class="trailer-top-cells">';
       rows += cellHtml(left, 'is-lat-left', false);
       if (mid) {
-        // One Middle piece spans Mid-L + Mid-R (half-width columns kept for layout)
+        // One Center piece spans both center half-columns (kept for layout)
         rows += cellHtml(mid, 'is-lat-middle', true);
       } else {
         rows += cellHtml(null, 'is-lat-midl', false);
@@ -8124,7 +8392,6 @@
         ? '<span><i class="trailer-fill-swatch is-loaded is-preloaded"></i> loaded earlier (earlier shift, same planner)</span>'
         : '') +
       '</div>' +
-      '<div class="trailer-top-mid-hint" aria-hidden="true">Middle splits into Mid-L and Mid-R</div>' +
       '</div>'
     );
   }
@@ -8477,7 +8744,13 @@
     );
     btn.title = btn.getAttribute('aria-label');
     if (!a.dropping) btn.setAttribute('aria-pressed', 'false');
-    btn.textContent = String(a.operator);
+    if (a.dropping) {
+      // v55: one pill "4 here" (the number and the word never overlap)
+      btn.classList.add('is-pill');
+      btn.innerHTML = '<span class="cm-num">' + escapeHtml(String(a.operator)) + '</span><span class="cm-here">here</span>';
+    } else {
+      btn.textContent = String(a.operator);
+    }
     return btn;
   }
 
@@ -8553,6 +8826,8 @@
       if (!opsByOut.has(d)) opsByOut.set(d, []);
       opsByOut.get(d).push(a);
     });
+    // v55: the forklift that just dropped first, then the one bringing the next piece
+    opsByOut.forEach((arr) => arr.sort((x, y) => (y.dropping ? 1 : 0) - (x.dropping ? 1 : 0)));
 
     const density =
       pullDoors.length > 30 ? 'high' : pullDoors.length > 16 ? 'med' : 'low';
@@ -8764,14 +9039,11 @@
           // (it is drawn at that inbound door); a circle here = it just dropped one
           const opLine = document.createElement('span');
           opLine.className = 'crew-out-ops';
+          if (loaders.length > 1) opLine.classList.add('has-two');
           loaders.forEach((a) => {
             if (a.dropping) {
               opLine.classList.add('has-marker');
               opLine.appendChild(createCrewOpMarker(a));
-              const t = document.createElement('span');
-              t.className = 'crew-out-ops-txt';
-              t.textContent = 'here';
-              opLine.appendChild(t);
             } else {
               const t = document.createElement('span');
               t.className = 'crew-out-ops-txt';
@@ -9691,7 +9963,7 @@
     // first visit (fresh site data) never has the worker installing while the
     // tour starts. The worker never takes over an open page (no clients.claim).
     const go = () => {
-      navigator.serviceWorker.register('./sw.js?v=54').catch(() => {
+      navigator.serviceWorker.register('./sw.js?v=55').catch(() => {
         /* offline cache optional */
       });
     };

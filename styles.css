@@ -5649,3 +5649,158 @@ body.crew-tour-open { overscroll-behavior-y: contain; }
 }
 .crew-out-ops.has-marker { gap: 6px; }
 .crew-op-marker.is-at-out.is-tour-target { outline: none; }
+
+/* ---------- v55 ---------- */
+/* Card trailer box: every label at least 12px, on phone and wide */
+.cts-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+.cts-kicker { font-size: 0.75rem; line-height: 1.25; }
+.cts-equip { font-size: 0.75rem; }
+.cts-expand {
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 850;
+  color: #0b1220;
+  background: #ffd166;
+  border: 0;
+  border-radius: 999px;
+  padding: 3px 9px;
+  min-height: 26px;
+  cursor: pointer;
+}
+.cts-expand:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.msv { cursor: zoom-in; }
+.msv-ends { font-size: 0.75rem; }
+.msv-lvl { flex: 0 0 44px; font-size: 0.75rem; }
+.msv-supports, .tf-supports {
+  position: relative;
+  flex: 1 1 auto;
+  display: block;
+  height: 17px;
+  min-width: 0;
+}
+.sup-mark {
+  position: absolute;
+  top: 0;
+  font-size: 0.75rem;
+  font-weight: 850;
+  color: #9ec2ff;
+  white-space: nowrap;
+  line-height: 17px;
+  transform: translateX(-0.36em);
+}
+.sup-mark.sup-rear { transform: translateX(calc(-100% + 0.36em)); }
+.cts-wtitle { margin-top: 4px; font-size: 0.75rem; font-weight: 800; color: #b8c6da; }
+.crew-tour-bubble .cts-cells,
+.cts-cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.crew-tour-bubble .cts-cell,
+.cts-cell { text-align: left; white-space: normal; overflow: visible; padding: 3px 5px; line-height: 1.2; }
+.crew-tour-bubble .cts-label,
+.cts-label { display: block; margin: 0; font-size: 0.75rem; }
+.cts-val { display: block; }
+.crew-tour-bubble .cts-cell b,
+.cts-cell b { display: inline; font-size: 0.82rem; }
+.crew-tour-bubble .cts-cap,
+.cts-cap { display: inline; font-size: 0.75rem; }
+.cts-cell i { display: inline; font-size: 0.75rem; }
+.cts-balance, .cts-hint { font-size: 0.75rem; }
+.crew-tour-bubble .cts-counts, .crew-tour-bubble .cts-pace-line { font-size: 0.78rem; }
+
+/* Big side view: support points + lb per section */
+.tf-sup-row .trailer-fill-level, .tf-secw-row .trailer-fill-level { font-size: 0.75rem; }
+.tf-secw-cells .tf-secw {
+  display: block;
+  text-align: center;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #cfe0f5;
+  border-radius: 2px;
+  background: #121a28;
+  line-height: 18px;
+  min-width: 0;
+  overflow: hidden;
+}
+.tf-secw.is-warm { color: #ffe2a8; background: #3a2c0c; }
+.tf-secw.is-over { color: #fff; background: #6a1a1a; }
+.tf-secw-note { margin-top: 3px; font-size: 0.75rem; color: #9eb0c8; font-weight: 700; }
+.trailer-fill-ends span, .trailer-fill-caption-sub, .trailer-fill-spaces-note, .trailer-fill-legend { font-size: 0.75rem; }
+
+/* Tap-to-expand trailer view (above the card) */
+.tx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(4, 8, 16, 0.78);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 10px;
+  box-sizing: border-box;
+}
+.tx-overlay[hidden] { display: none; }
+.tx-sheet {
+  width: min(760px, 100%);
+  background: #0f1828;
+  border: 2px solid #ffd166;
+  border-radius: 12px;
+  padding: 12px;
+  box-sizing: border-box;
+  color: #e8f0fb;
+  font-size: 0.9rem;
+}
+.tx-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 1rem; }
+.tx-head .tx-close { flex: 0 0 auto; }
+.tx-counts { margin: 4px 0; font-size: 0.85rem; font-weight: 700; color: #cfe0f5; }
+.tx-equip { margin: 4px 0 8px; font-size: 0.85rem; color: #b8c6da; }
+.tx-sheet .trailer-fill-level { flex: 0 0 52px; width: 52px; font-size: 0.75rem; }
+.tx-sheet .trailer-fill-cell { height: 26px; }
+.tx-close-bottom { display: block; width: 100%; margin-top: 10px; }
+body.tx-open { overflow: hidden; }
+
+/* OUT door chip: the forklift that just dropped = one pill "5 here"; "FL n coming" under it */
+.crew-op-marker.is-pill {
+  width: auto !important;
+  min-width: 0 !important;
+  border-radius: 999px;
+  padding: 0 6px;
+  gap: 3px;
+  white-space: nowrap;
+}
+.crew-op-marker.is-pill .cm-num { font-weight: 900; }
+.crew-op-marker.is-pill .cm-here { font-size: 0.75rem; font-weight: 850; }
+.crew-out-ops.has-marker { flex-direction: column; gap: 2px; }
+.crew-dock-map.is-boss .crew-out-ops { min-height: 46px; justify-content: flex-start; }
+@media (max-width: 899px) {
+  .crew-dock-map.is-boss .crew-op-marker.is-pill { height: 22px; min-height: 22px; font-size: 0.75rem; padding: 0 5px; }
+  .crew-out-ops.has-marker .crew-out-ops-txt, .crew-out-ops-txt { font-size: 0.75rem; }
+  .crew-dock-map.is-boss .crew-out-ops { min-height: 44px; }
+}
+@media (min-width: 900px) {
+  #dockPanelCrew.is-boss-mode .crew-op-marker.is-pill { height: 28px; min-height: 28px; font-size: 0.9rem; }
+  #dockPanelCrew.is-boss-mode .crew-dock-map.is-boss .crew-out-ops { min-height: 52px; }
+}
+/* v55 phone: the card keeps a short trailer summary; side view + gauges open in the bigger view (all ≥12px) */
+.cts-wsum { display: none; margin-top: 3px; font-size: 0.78rem; font-weight: 800; color: #d8ffe9; }
+@media (max-width: 899px) {
+  .crew-tour-bubble .cts-wsum { display: block; }
+  .crew-tour-bubble .msv,
+  .crew-tour-bubble .cts-wtitle,
+  .crew-tour-bubble .cts-cells,
+  .crew-tour-bubble .cts-balance,
+  .crew-tour-bubble .cts-hint,
+  .crew-tour-bubble .cts-equip { display: none; }
+}
+.tx-strip { margin: 6px 0 10px; padding: 8px; border: 1px solid #2a3c58; border-radius: 8px; background: #121a28; }
+.tx-strip .cts-counts, .tx-strip .cts-pace-line, .tx-strip .cts-head { font-size: 0.85rem; }
+.tx-sub { font-size: 0.8rem; font-weight: 800; color: #ffd166; margin: 4px 0; }
+@media (max-width: 899px) {
+  .crew-dock-map.is-boss .crew-out-label { font-size: 0.75rem; }
+}
+/* v55: pill + "FL n coming" never touch the counts above */
+.crew-out-ops.has-two { gap: 4px; padding-top: 4px; }
+.crew-op-marker.is-pill.is-tour-target { outline-offset: 0; }
+@media (max-width: 899px) {
+  .crew-dock-map.is-boss .crew-out-ops { min-height: 54px; }
+}
+.crew-op-marker.is-pill { animation: none !important; box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.55) !important; transform: none !important; }

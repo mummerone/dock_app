@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=54" />
+  <link rel="stylesheet" href="styles.css?v=55" />
 </head>
 <body>
   <div id="app">
@@ -20,7 +20,7 @@
         <span class="brand-mark" aria-hidden="true">▮</span>
         <div>
           <h1>Dock App</h1>
-          <p class="tagline">Forklift load planning for LTL docks · <span class="build-stamp" title="Build version">v54</span></p>
+          <p class="tagline">Forklift load planning for LTL docks · <span class="build-stamp" title="Build version">v55</span></p>
         </div>
       </div>
       <div id="speechStatus" class="speech-status" aria-live="polite">
@@ -51,11 +51,11 @@
       <!-- v50: first-screen hero for a first-time boss -->
       <section class="card hero-card" aria-labelledby="hero-heading">
         <p class="hero-kicker">Dock App · for LTL dock managers</p>
-        <h2 id="hero-heading" class="hero-headline">Every trailer out full, legal and on time</h2>
+        <h2 id="hero-heading" class="hero-headline">Every trailer out full, within weight limits and on time</h2>
         <p class="hero-ltl"><b>LTL</b> = less-than-truckload: many shippers' freight on one trailer.</p>
         <ul class="hero-bullets">
           <li>Every piece gets a slot</li>
-          <li>In the demo, all 5 trailers leave <b id="heroFillClaim">100% full by floor space</b> (no floor left, nose to tail) at 76–80% of the weight limit, and axle-legal. Space-full, not weight-full: normal for LTL.</li>
+          <li>In the demo, all 5 trailers leave with the <b id="heroFillClaim">floor full</b> (no floor length left, nose to tail) at 76–80% of the weight limit, within the kingpin and rear-axle limits (freight only: trailer weight not counted). Floor-full, not weight-full: normal for LTL.</li>
           <li>Forklifts never block each other: never two in one trailer at the same time</li>
         </ul>
         <button type="button" id="heroBossDemoBtn" class="btn accept-btn hero-demo-btn">▶ Watch the boss demo</button>
@@ -114,8 +114,8 @@
           <input id="doorNumberInput" type="text" inputmode="numeric" autocomplete="off" placeholder="e.g. 12" />
         </label>
         <p class="hint">Trailer number = which trailer. Door number = which dock door that trailer is at.</p>
-        <p class="hint">Section 1–12 · Level A–C · Left / Middle / Right</p>
-        <p class="hint help-line">Where the piece sits in the trailer. Section 1 is the nose (front wall), 12 is the tail (doors). Level A is the Floor, B is Deck 2 (second level), C is Deck 3 (third level). Left / Middle / Right is across the width.</p>
+        <p class="hint">Section 1–12 · Level A–C · Left / Center / Right</p>
+        <p class="hint help-line">Where the piece sits in the trailer. Section 1 is the nose (front wall), 12 is the tail (doors). Level A is the Floor, B is Deck 2 (second level), C is Deck 3 (third level). Left / Center / Right is across the width (the section group called Middle is sections 5–8, a different thing).</p>
 
         <div class="slot-block">
           <span class="slot-label">Section</span>
@@ -127,7 +127,7 @@
         </div>
         <div class="slot-block">
           <span class="slot-label">Lateral</span>
-          <div class="chip-row" id="lateralChips" role="group" aria-label="Left Middle Right"></div>
+          <div class="chip-row" id="lateralChips" role="group" aria-label="Left Center Right"></div>
         </div>
       </section>
 
@@ -381,7 +381,7 @@
           <section class="card crew-mode-card" aria-labelledby="crew-mode-heading">
             <div class="card-head crew-mode-head">
               <h2 id="crew-mode-heading">Start mode</h2>
-              <span class="build-stamp" title="Build version">v54</span>
+              <span class="build-stamp" title="Build version">v55</span>
             </div>
             <div class="crew-mode-start" id="crewModeStart" role="group" aria-label="Start demo mode">
               <button type="button" id="crewBossDemoBtn" class="btn accept-btn crew-mode-btn crew-boss-demo-btn">Show boss demo (8 key moments)</button>
@@ -408,7 +408,7 @@
             <details class="crew-howto-details">
               <summary id="crew-howto-heading">Crew — live demo</summary>
               <p class="hint"><strong>Show boss demo</strong> loads sample freight and stops at every forklift move. Tap <strong>Continue</strong> for the next move, or <strong>Play without stops</strong> to run to the end. The map shows inbound doors (top), forklifts (numbered circles) and outbound trailers (OUT chips). Tap an OUT chip to see that trailer's picture, weights and pieces. Solo forklift and Crew (5) are extra practice modes.</p>
-              <p class="hint crew-glossary"><strong>Words used here:</strong> <b>light</b> = 900 lb or less; <b>heavy</b> = over 900 lb · <b>move</b> = one forklift trip carrying one piece · <b>levels</b> = Floor (the trailer floor), Deck 2 (second level) and Deck 3 (third level); Deck 2 and Deck 3 rest on load bars above the piece below · <b>pallet</b> = one piece of freight on a pallet · <b>at target</b> = 95–100% of a limit · <b>tight</b> = still on time, but with under 15 min to spare (if anything slips, hold the trailer a few minutes or start it earlier next shift; adding a forklift won't help that one trailer, because never two forklifts work in one trailer at the same time) · <b>balanced axles</b> = the heavier axle carries no more than 25% more than the lighter · <b>OS&amp;D</b> = Over, Short &amp; Damaged freight · <b>fragile</b> = floor only, nothing stacked on top. Demo trailer: 48 ft, 12 sections of 4 ft, weights checked at 20,000 lb per axle (the federal single-axle limit, stricter than a 34,000 lb tandem). Weight % = freight ÷ 40,000 lb (both axle checks added; a demo setting). Limits: 20,000 lb per single axle is the federal limit; the 3,200 lb per 4 ft section limit at the nose and tail is a company setting. Inside roof height assumed 110 in (stacks stay under 100 in). Sample forklift limit: 5,000 lb per piece.</p>
+              <p class="hint crew-glossary"><strong>Words used here:</strong> <b>light</b> = 900 lb or less; <b>heavy</b> = over 900 lb · <b>move</b> = one forklift trip carrying one piece · <b>levels</b> = Floor (the trailer floor), Deck 2 (second level) and Deck 3 (third level); Deck 2 and Deck 3 rest on load bars above the piece below · <b>pallet</b> = one piece of freight on a pallet · <b>at target</b> = 95–100% of a limit · <b>tight</b> = still on time, but with under 15 min to spare (if anything slips, hold the trailer a few minutes or start it earlier next shift; adding a forklift won't help that one trailer, because never two forklifts work in one trailer at the same time) · <b>balanced</b> = the heavier support (kingpin or rear axle) carries no more than 25% more than the lighter · <b>kingpin</b> = the pin at the front of the trailer that sits on the tractor; it carries the front of the load · <b>OS&amp;D</b> = Over, Short &amp; Damaged freight · <b>fragile</b> = floor only, nothing stacked on top. Demo trailer: 48 ft, 12 sections of 4 ft, front support = kingpin (at 3 ft), rear = one single axle (at 42 ft). Weights checked at 20,000 lb at the kingpin (a demo limit, same as one axle) and 20,000 lb on the rear axle (the federal single-axle limit, stricter than a 34,000 lb tandem), freight only: the trailer’s own weight is not counted. Weight % = freight ÷ 40,000 lb (both checks added; a demo setting). Every 4 ft section, nose and tail included: 3,200 lb max (company setting). Nose and tail (sections 1 and 12): light pieces only, 900 lb or less. Sections are grouped Nose 1, Front 2–4, Middle 5–8, Rear 9–11, Tail 12. Inside roof height assumed 110 in (stacks stay under 100 in). Sample forklift limit: 5,000 lb per piece.</p>
             </details>
           </section>
 
@@ -497,7 +497,7 @@
           <section class="card operator-panel-card" aria-labelledby="operator-heading">
             <div class="card-head operator-head">
               <h2 id="operator-heading">My jobs</h2>
-              <span class="build-stamp" title="Build version">v54</span>
+              <span class="build-stamp" title="Build version">v55</span>
             </div>
             <p class="hint operator-blurb">One move at a time — directions only. No map.</p>
             <div class="operator-controls" id="operatorControls" role="group" aria-label="Operator demo">
@@ -608,9 +608,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=54"></script>
-  <script src="speech.js?v=54"></script>
-  <script src="loadPlan.js?v=54"></script>
-  <script src="app.js?v=54"></script>
+  <script src="storage.js?v=55"></script>
+  <script src="speech.js?v=55"></script>
+  <script src="loadPlan.js?v=55"></script>
+  <script src="app.js?v=55"></script>
 </body>
 </html>
