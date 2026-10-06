@@ -85,7 +85,7 @@
   // seed, so every load gives the identical freight, move count, weights and
   // percentages (any screen width, any reload).
   // ---------------------------------------------------------------------
-  const DEMO_SEED = 51051;
+  const DEMO_SEED = 53217;
   let rngSeeded = false;
   let rngState = 0;
 
@@ -168,8 +168,10 @@
   const FORKLIFT_CAPACITY_LB = 5000;
   /** v51: pieces already on the OUT trailers "from earlier in the shift". */
   const DEMO_PRELOAD_KEY = 'dockApp.demoPreload.v1';
-  /** v51: demo moves finish every OUT trailer at this section (10 of 12 ≈ 83%). */
-  const DEMO_TARGET_END_SECTION = 10;
+  /** v53: demo moves finish every OUT trailer at the tail (section 12 = full floor length). */
+  const DEMO_TARGET_END_SECTION = 12;
+  /** v53: aim for front/rear axles within 25% of each other on the finished sample trailers. */
+  const DEMO_AXLE_BALANCE_MAX = 1.25;
 
   /** v51 sample piece types (L×W in inches, weight lb). Lighter, realistic LTL mix. */
   const SAMPLE_POOL_V51 = [
@@ -759,7 +761,7 @@
       const demoPieces = rows.filter((r) => r.destination === dest);
       /** @type {object[]} */
       const pool = [];
-      for (let b = 0; b < 26; b++) {
+      for (let b = 0; b < 40; b++) {
         const pro = String(preSeq++);
         const n = randInt(2, 4);
         const type = b % 2 === 0 ? pick(lightPool) : pick(SAMPLE_POOL_V51);
@@ -768,17 +770,42 @@
         }
       }
       let best = null;
-      for (let P = 2; P <= DEMO_TARGET_END_SECTION - 2; P++) {
-        const pre = packTrailerPiecesV50(pool, city, { maxSection: P });
+      let missAfterFit = 0;
+      // v53: try every preload size (K pieces from the earlier-shift pool).
+      // The demo moves start in the preload's last section (filling the
+      // spots it left open), so the end point moves one slot at a time.
+      for (let K = 8; K <= pool.length; K++) {
+        const pre = packTrailerPiecesV50(pool.slice(0, K), city, { maxSection: DEMO_TARGET_END_SECTION - 1 });
+        const P = pre.endSection;
+        if (!P) continue;
         const preset = pre.placements.map(({ piece, slot }) =>
           Object.assign({}, piece, { section: slot.section, level: slot.level, lateral: slot.lateral })
         );
-        const res = packTrailerPiecesV50(demoPieces, city, { preset, minSection: P + 1 });
-        if (res.unplaced.length) continue;
+        const res = packTrailerPiecesV50(demoPieces, city, { preset, minSection: P, reserveTail: true });
+        if (res.unplaced.length) {
+          // more preload only leaves less room: stop once it stops fitting
+          if (best && ++missAfterFit >= 3) break;
+          continue;
+        }
+        missAfterFit = 0;
         const end = res.endSection;
-        const score = end === DEMO_TARGET_END_SECTION ? 0 : end === DEMO_TARGET_END_SECTION + 1 ? 1 : 2 + Math.abs(end - DEMO_TARGET_END_SECTION);
-        if (!best || score < best.score || (score === best.score && P > best.P)) {
-          best = { P, preset, score, end };
+        // v53 score: full to the tail (sec 12 floor L/M/R all used), sec 11
+        // well filled, axles balanced at the end. Lower is better.
+        const floorAt = (sec) =>
+          res.placements.filter((x) => x.slot.section === sec && x.slot.level === 'A').length +
+          preset.filter((x) => Number(x.section) === sec && x.level === 'A').length;
+        const ratio =
+          Math.max(res.axle.front, res.axle.rear) / Math.max(1, Math.min(res.axle.front, res.axle.rear));
+        const score =
+          (end === DEMO_TARGET_END_SECTION ? 0 : 1000 + 100 * Math.abs(end - DEMO_TARGET_END_SECTION)) +
+          10 * (3 - floorAt(DEMO_TARGET_END_SECTION)) +
+          10 * (3 - floorAt(DEMO_TARGET_END_SECTION - 1)) +
+          // every 4 ft section's floor (L/M/R) used = truly full floor length
+          5 * Array.from({ length: DEMO_TARGET_END_SECTION }, (_, i) => 3 - floorAt(i + 1)).reduce((a, b) => a + b, 0) +
+          (ratio > DEMO_AXLE_BALANCE_MAX ? 5 : 0) +
+          ((res.sectionWeight[DEMO_TARGET_END_SECTION - 1] || 0) < 2000 ? 1 : 0);
+        if (!best || score < best.score || (score === best.score && K > best.K)) {
+          best = { P, K, preset, score, end };
         }
       }
       if (!best) return;
@@ -797,6 +824,8 @@
       preloadStore.trailers[row.trailerNumber] = {
         destination: dest,
         endSection: best.P,
+        minSection: best.P,
+        reserveTail: true,
         pieces: best.preset.map((p) => ({
           pro: p.pro,
           pieceFraction: p.pieceFraction,
@@ -1142,6 +1171,26 @@
     const ctx = { secW, bySlot, axle, zoneTarget: PUP_ZONE_SOFT_LB };
     const placements = [];
     let endSection = 0;
+    // v53 (sample trailers): reserve the tail floor (sec 12 L/M/R) for the
+    // heaviest pieces that are still light enough for the tail (≤ 900 lb), so
+    // the trailer ends full to the doors. Moves are still loaded nose→tail.
+    if (o.reserveTail && maxSec >= 12 && !cityFloorOnly) {
+      LATERALS.forEach((lateral) => {
+        const slot = { section: 12, level: 'A', lateral, slotLabel: `12/A/${lateral}` };
+        if (bySlot.has(slot.slotLabel)) return;
+        const idx = pool.findIndex((e) => pieceFitsSlotV50(e, slot, ctx));
+        if (idx < 0) return;
+        const e = pool.splice(idx, 1)[0];
+        const w = pieceWeight(e);
+        secW[12] = (secW[12] || 0) + w;
+        const r = axleRearShare(12);
+        axle.front += w * (1 - r);
+        axle.rear += w * r;
+        bySlot.set(slot.slotLabel, e);
+        endSection = 12;
+        placements.push({ piece: e, slot, below: null });
+      });
+    }
     for (let c = 0; c < order.length && pool.length; c++) {
       const slot = order[c];
       if (bySlot.has(slot.slotLabel)) continue;
@@ -1393,7 +1442,7 @@
         // v51: sample trailers start with freight from earlier in the shift
         const pre = preload && preload.trailers[String(outbound.trailerNumber || '').trim()];
         st.packOpts = pre
-          ? { preset: pre.pieces, minSection: (Number(pre.endSection) || 0) + 1 }
+          ? { preset: pre.pieces, minSection: Number(pre.minSection) || (Number(pre.endSection) || 0) + 1, reserveTail: Boolean(pre.reserveTail) }
           : {};
         return st;
       };
@@ -1490,7 +1539,7 @@
         `Every piece has a unique outbound slot.`;
     } else {
       note =
-        'Packed nose→tail, Floor first, then Deck 2 / Deck 3; when a trailer is not full, the rear sections stay open for the next pickup. Nose/tail take light pieces only (900 lb or less, 3,200 lb per zone); each axle ≤20,000 lb; a deck piece is never heavier than the piece under it; fragile pieces stay on the floor with nothing on top; stacks stay ≤ 100 in under a 110 in inside roof height (assumed); every piece is under the 5,000 lb forklift limit. Every piece has a unique outbound slot.';
+        'Packed nose→tail, Floor first, then Deck 2 / Deck 3; a trailer with enough freight is loaded all the way to the tail. Nose/tail take light pieces only (900 lb or less, 3,200 lb per zone); each axle ≤20,000 lb; a deck piece is never heavier than the piece under it; fragile pieces stay on the floor with nothing on top; stacks stay ≤ 100 in under a 110 in inside roof height (assumed); every piece is under the 5,000 lb forklift limit. Every piece has a unique outbound slot.';
     }
 
     const plan = {
