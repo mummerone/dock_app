@@ -11,7 +11,7 @@
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <title>Dock App</title>
-  <link rel="stylesheet" href="styles.css?v=53" />
+  <link rel="stylesheet" href="styles.css?v=54" />
 </head>
 <body>
   <div id="app">
@@ -20,7 +20,7 @@
         <span class="brand-mark" aria-hidden="true">▮</span>
         <div>
           <h1>Dock App</h1>
-          <p class="tagline">Forklift load planning for LTL docks · <span class="build-stamp" title="Build version">v53</span></p>
+          <p class="tagline">Forklift load planning for LTL docks · <span class="build-stamp" title="Build version">v54</span></p>
         </div>
       </div>
       <div id="speechStatus" class="speech-status" aria-live="polite">
@@ -55,12 +55,12 @@
         <p class="hero-ltl"><b>LTL</b> = less-than-truckload: many shippers' freight on one trailer.</p>
         <ul class="hero-bullets">
           <li>Every piece gets a slot</li>
-          <li>In the demo, all 5 trailers leave <b id="heroFillClaim">100% full (floor length)</b> and axle-legal</li>
+          <li>In the demo, all 5 trailers leave <b id="heroFillClaim">100% full by floor space</b> (no floor left, nose to tail) at 76–80% of the weight limit, and axle-legal. Space-full, not weight-full: normal for LTL.</li>
           <li>Forklifts never block each other: never two in one trailer at the same time</li>
         </ul>
         <button type="button" id="heroBossDemoBtn" class="btn accept-btn hero-demo-btn">▶ Watch the boss demo</button>
         <button type="button" id="heroEveryMoveBtn" class="btn muted-btn hero-every-btn">Watch every move (100 stops)</button>
-        <p class="hint hero-sub"><b>8 stops = 8 key moments</b>, about 2 minutes; the moves in between play on the map. <b>100 stops = every single forklift move.</b> Skip to the summary any time. Uses sample freight; your own freight is saved and comes back when you exit.</p>
+        <p class="hint hero-sub"><b>1 move = one forklift trip carrying one piece</b> from an inbound trailer to its slot in an outbound trailer. <b>8 stops = 8 key moments</b>, about 2 minutes; the moves in between play on the map. <b>100 stops = every single forklift move.</b> Skip to the summary any time. Uses sample freight on 48 ft trailers; your own freight is saved and comes back when you exit.</p>
       </section>
 
       <div id="restoreNotice" class="restore-notice" role="status" hidden></div>
@@ -381,7 +381,7 @@
           <section class="card crew-mode-card" aria-labelledby="crew-mode-heading">
             <div class="card-head crew-mode-head">
               <h2 id="crew-mode-heading">Start mode</h2>
-              <span class="build-stamp" title="Build version">v53</span>
+              <span class="build-stamp" title="Build version">v54</span>
             </div>
             <div class="crew-mode-start" id="crewModeStart" role="group" aria-label="Start demo mode">
               <button type="button" id="crewBossDemoBtn" class="btn accept-btn crew-mode-btn crew-boss-demo-btn">Show boss demo (8 key moments)</button>
@@ -408,7 +408,7 @@
             <details class="crew-howto-details">
               <summary id="crew-howto-heading">Crew — live demo</summary>
               <p class="hint"><strong>Show boss demo</strong> loads sample freight and stops at every forklift move. Tap <strong>Continue</strong> for the next move, or <strong>Play without stops</strong> to run to the end. The map shows inbound doors (top), forklifts (numbered circles) and outbound trailers (OUT chips). Tap an OUT chip to see that trailer's picture, weights and pieces. Solo forklift and Crew (5) are extra practice modes.</p>
-              <p class="hint crew-glossary"><strong>Words used here:</strong> <b>light</b> = 900 lb or less · <b>levels</b> = Floor (the trailer floor), Deck 2 (second level) and Deck 3 (third level); Deck 2 and Deck 3 rest on load bars above the piece below · <b>pallet</b> = one piece of freight on a pallet · <b>at target</b> = 95–100% of a limit · <b>tight</b> = less than 15 min of slack before departure (hold the trailer a few minutes, or start it earlier next shift; adding a forklift won't help that one trailer, because never two forklifts work in one trailer at the same time) · <b>OS&amp;D</b> = Over, Short &amp; Damaged freight · <b>fragile</b> = floor only, nothing stacked on top. Limits: 20,000 lb per single axle is the federal limit; the 3,200 lb per 4 ft section limit at the nose and tail is a company setting. Inside roof height assumed 110 in (stacks stay under 100 in). Sample forklift limit: 5,000 lb per piece.</p>
+              <p class="hint crew-glossary"><strong>Words used here:</strong> <b>light</b> = 900 lb or less; <b>heavy</b> = over 900 lb · <b>move</b> = one forklift trip carrying one piece · <b>levels</b> = Floor (the trailer floor), Deck 2 (second level) and Deck 3 (third level); Deck 2 and Deck 3 rest on load bars above the piece below · <b>pallet</b> = one piece of freight on a pallet · <b>at target</b> = 95–100% of a limit · <b>tight</b> = still on time, but with under 15 min to spare (if anything slips, hold the trailer a few minutes or start it earlier next shift; adding a forklift won't help that one trailer, because never two forklifts work in one trailer at the same time) · <b>balanced axles</b> = the heavier axle carries no more than 25% more than the lighter · <b>OS&amp;D</b> = Over, Short &amp; Damaged freight · <b>fragile</b> = floor only, nothing stacked on top. Demo trailer: 48 ft, 12 sections of 4 ft, weights checked at 20,000 lb per axle (the federal single-axle limit, stricter than a 34,000 lb tandem). Weight % = freight ÷ 40,000 lb (both axle checks added; a demo setting). Limits: 20,000 lb per single axle is the federal limit; the 3,200 lb per 4 ft section limit at the nose and tail is a company setting. Inside roof height assumed 110 in (stacks stay under 100 in). Sample forklift limit: 5,000 lb per piece.</p>
             </details>
           </section>
 
@@ -457,11 +457,11 @@
                   <!-- Inbound door wall + OUT strip + operator badges injected by app.js -->
                 </div>
                 <div id="crewMapKey" class="crew-map-key" aria-label="Map key">
-                  <span><i class="mk-chip mk-fl">1</i> forklift FL 1</span>
-                  <span><i class="mk-chip mk-in">IN 81001</i> inbound trailer</span>
-                  <span><i class="mk-chip mk-out">OUT</i> outbound trailer · loaded/total</span>
-                  <span><i class="mk-chip mk-empty">empty</i> nothing left to pull</span>
-                  <span><i class="mk-swatch-pre"></i> gray = loaded earlier</span>
+                  <span><i class="mk-chip mk-fl">1</i> forklift FL 1, where it is now</span>
+                  <span><b>FL 3 coming</b> = bringing that trailer's next piece</span>
+                  <span><i class="mk-chip mk-in">IN 81001</i> inbound</span>
+                  <span><i class="mk-chip mk-out">OUT</i> outbound, loaded/total</span>
+                  <span><i class="mk-chip mk-empty">empty</i> nothing left</span>
                 </div>
               </div>
               <div id="crewOpDetail" class="crew-op-detail" hidden aria-live="polite"></div>
@@ -497,7 +497,7 @@
           <section class="card operator-panel-card" aria-labelledby="operator-heading">
             <div class="card-head operator-head">
               <h2 id="operator-heading">My jobs</h2>
-              <span class="build-stamp" title="Build version">v53</span>
+              <span class="build-stamp" title="Build version">v54</span>
             </div>
             <p class="hint operator-blurb">One move at a time — directions only. No map.</p>
             <div class="operator-controls" id="operatorControls" role="group" aria-label="Operator demo">
@@ -608,9 +608,9 @@
     </div>
   </div>
 
-  <script src="storage.js?v=53"></script>
-  <script src="speech.js?v=53"></script>
-  <script src="loadPlan.js?v=53"></script>
-  <script src="app.js?v=53"></script>
+  <script src="storage.js?v=54"></script>
+  <script src="speech.js?v=54"></script>
+  <script src="loadPlan.js?v=54"></script>
+  <script src="app.js?v=54"></script>
 </body>
 </html>

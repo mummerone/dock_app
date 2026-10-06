@@ -1,13 +1,13 @@
 /* Minimal offline cache for Dock App static assets */
-const CACHE = 'dock-app-v53';
+const CACHE = 'dock-app-v54';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=53',
-  './app.js?v=53',
-  './speech.js?v=53',
-  './storage.js?v=53',
-  './loadPlan.js?v=53',
+  './styles.css?v=54',
+  './app.js?v=54',
+  './speech.js?v=54',
+  './storage.js?v=54',
+  './loadPlan.js?v=54',
   './manifest.json',
   './icon.svg',
 ];
@@ -22,7 +22,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    )
+    // v54: no clients.claim() — a page that is already open (mid-tour) is never
+    // taken over by a brand-new worker; the worker only serves the next visit.
   );
 });
 

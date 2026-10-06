@@ -5452,3 +5452,200 @@ body.crew-tour-open { overscroll-behavior-y: contain; }
   .crew-tour-bubble[data-dock="side"] > * { flex-shrink: 0; }
   .crew-tour-bubble[data-dock="side"] .crew-tour-actions { margin-top: auto; }
 }
+
+/* ---------- v54 ---------- */
+/* Forklift that just dropped: drawn on its OUT door. "FL n coming" = bringing the next piece */
+.crew-out-ops {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  min-height: 26px;
+  line-height: 1.05;
+  white-space: normal;
+  text-align: center;
+}
+.crew-out-ops.has-marker { flex-direction: row; gap: 3px; }
+.crew-out-ops-txt { font-size: 0.6rem; font-weight: 850; color: #ffb066; }
+.crew-op-marker.is-at-out {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  border-width: 2px;
+  font-size: 0.72rem;
+  box-shadow: 0 0 0 2px rgba(255, 209, 102, 0.55);
+  cursor: default;
+}
+/* Waiting / Done groups */
+.crew-orphan-group { display: inline-flex; align-items: center; gap: 6px; margin: 0 6px; }
+.crew-orphan-group.is-done .crew-orphan-label { color: #9ef0c2; }
+.crew-op-marker.is-parked { background: #24603f; border-color: #9ef0c2; }
+
+/* The piece travelling from the inbound door to the OUT door (each move plays on the map) */
+.crew-move-token {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: #7dffb0;
+  border: 2px solid #f7fff9;
+  box-shadow: 0 0 10px rgba(125, 255, 176, 0.9);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.crew-move-token[hidden] { display: none; }
+
+/* Continue shows it is settling for the 400 ms double-tap guard (never a silent ignore) */
+.crew-tour-continue.is-settling { opacity: 0.65; filter: saturate(0.6); }
+
+/* Rules + map reading, open on the first card */
+.crew-tour-rules {
+  margin: 6px 0 8px;
+  padding: 6px 10px 4px;
+  border-radius: 10px;
+  border: 1px solid #36507a;
+  background: #13213a;
+  font-size: 0.84rem;
+  line-height: 1.38;
+  color: #e6eef9;
+}
+.crew-tour-rules[hidden] { display: none; }
+.crew-tour-rules ul { margin: 2px 0 6px; padding-left: 18px; }
+.crew-tour-rules li { margin: 2px 0; }
+.ctr-sub { font-size: 0.72rem; font-weight: 900; letter-spacing: 0.04em; text-transform: uppercase; color: #9ec2ff; margin-top: 4px; }
+.ctr-equip { margin: 4px 0 4px; font-size: 0.78rem; color: #c8d4e8; }
+
+/* "more below" cue at the bottom of a long card */
+.crew-tour-scrollcue {
+  position: sticky;
+  bottom: 96px;
+  align-self: center;
+  margin: 0 auto;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #2a3c58;
+  color: #dfe8f5;
+  font-size: 0.72rem;
+  font-weight: 800;
+  pointer-events: none;
+  z-index: 2;
+  width: max-content;
+}
+.crew-tour-scrollcue[hidden] { display: none; }
+
+/* Equipment in the trailer box kicker */
+.cts-equip { text-transform: none; letter-spacing: 0; color: #c8d4e8; font-weight: 750; }
+
+/* Mini side view inside the card (phone + wide) */
+.msv { margin: 4px 0 4px; }
+.msv-ends { display: flex; justify-content: space-between; font-size: 0.56rem; font-weight: 800; color: #9eb0c8; letter-spacing: 0.02em; }
+.msv-row { display: flex; align-items: center; gap: 3px; margin-top: 1px; }
+.msv-lvl { flex: 0 0 34px; font-size: 0.56rem; font-weight: 800; color: #9eb0c8; text-align: right; }
+.msv-cells { flex: 1 1 auto; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; }
+.msv-cell {
+  display: flex;
+  gap: 1px;
+  height: 11px;
+  padding: 1px;
+  border-radius: 2px;
+  border: 1px solid #2a3c58;
+  background: #121a28;
+  box-sizing: border-box;
+}
+.msv-cell.is-empty { opacity: 0.55; }
+
+/* One block per piece in a side-view space (left, middle, right side by side) */
+.tfp { display: block; flex: 1 1 0; min-width: 0; border-radius: 1px; font-style: normal; }
+.tfp.is-loaded { background: #2f9e5f; box-shadow: inset 0 0 0 1px #7dffb0; }
+.tfp.is-planned { background: rgba(255, 160, 48, 0.32); box-shadow: inset 0 0 0 1px #f0a030; }
+.tfp.is-pre { background: repeating-linear-gradient(45deg, #5b6575 0 3px, #3c4452 3px 6px); box-shadow: inset 0 0 0 1px #9aa6b8; }
+.tfp.is-just { background: #ffd166; box-shadow: 0 0 0 1px #fff, 0 0 6px rgba(255, 209, 102, 0.9); }
+.trailer-fill-cell.has-blocks {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: #121a28 !important;
+  border-color: #2a3c58 !important;
+  opacity: 1;
+}
+.trailer-fill-level { flex: 0 0 40px; width: 40px; font-size: 0.62rem; text-align: right; }
+
+/* Phone: compact map (2 forklifts side by side per door) so the card has room */
+@media (max-width: 899px) {
+  .crew-dock-map.is-boss .crew-door-cell { min-height: 78px; padding: 3px 2px 4px; gap: 2px; }
+  .crew-dock-map.is-boss .crew-door-ops { flex-wrap: nowrap; gap: 2px; }
+  .crew-dock-map.is-boss .crew-door-cell .crew-op-marker,
+  .crew-dock-map.is-boss .crew-orphan-ops .crew-op-marker {
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    border-width: 2px;
+    font-size: 0.85rem;
+  }
+  .crew-dock-map.is-boss .crew-op-marker.is-at-out { width: 20px; height: 20px; min-width: 20px; min-height: 20px; font-size: 0.68rem; }
+  .crew-dock-map.is-boss .crew-orphan-ops { min-height: 32px; padding: 0; }
+  .crew-dock-map.is-boss .crew-floor { gap: 6px; padding: 8px; }
+  .crew-dock-map.is-boss .crew-out-strip { padding-top: 6px; }
+  .crew-tour-stoptitle { font-size: 0.98rem; margin-bottom: 4px; }
+  .crew-tour-stopextra { font-size: 0.84rem; line-height: 1.32; padding: 5px 8px; }
+  .crew-tour-rules { font-size: 0.8rem; }
+  .crew-map-key { font-size: 0.64rem; gap: 1px 8px; }
+}
+
+/* Wide: use the width: bigger map, side view right under it, summary in columns */
+@media (min-width: 900px) {
+  #dockPanelCrew.is-boss-mode .crew-map-layout { display: block; }
+  #dockPanelCrew.is-boss-mode .crew-dock-map { max-width: none; width: 100%; }
+  #dockPanelCrew.is-boss-mode .crew-op-marker { width: 48px; height: 48px; min-width: 48px; min-height: 48px; }
+  #dockPanelCrew.is-boss-mode .crew-op-marker.is-at-out { width: 26px; height: 26px; min-width: 26px; min-height: 26px; font-size: 0.85rem; }
+  #dockPanelCrew.is-boss-mode .crew-out-ops-txt { font-size: 0.74rem; }
+  #dockPanelCrew.is-boss-mode .crew-out-door { font-size: 0.95rem; }
+  #dockPanelCrew.is-boss-mode .crew-map-key { font-size: 0.78rem; }
+  .crew-dock-map.is-boss .crew-door-cell { min-height: 120px; }
+  .trailer-fill-cell { height: 24px; }
+  .msv-cell { height: 13px; }
+}
+@media (min-width: 1200px) {
+  #app { max-width: 1180px; }
+  .boss-sum-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .boss-sum-rows { grid-template-columns: repeat(3, 1fr); }
+}
+/* v54 phone: weights in 2 short lines, compact trailer box */
+@media (max-width: 899px) {
+  .crew-tour-bubble .cts-cell { padding: 2px 3px; line-height: 1.15; }
+  .crew-tour-bubble .cts-cell b { display: inline; font-size: 0.76rem; }
+  .crew-tour-bubble .cts-cap { display: inline; font-size: 0.56rem; }
+  .crew-tour-bubble .cts-label { display: block; font-size: 0.6rem; }
+  .crew-tour-bubble .cts-counts, .crew-tour-bubble .cts-pace-line { font-size: 0.76rem; line-height: 1.3; }
+  .crew-tour-bubble .cts-head { font-size: 0.8rem; }
+  .crew-dock-map.is-boss .crew-door-cell { min-height: 70px; }
+  .crew-out-ops.has-marker { gap: 1px; }
+  .crew-out-ops.has-marker .crew-out-ops-txt { font-size: 0.55rem; }
+}
+@media (max-width: 899px) {
+  .crew-tour-bubble .cts-cells { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; }
+  .crew-tour-bubble .cts-label { display: inline; margin-right: 3px; }
+  .crew-tour-bubble .cts-cell { text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+.crew-op-marker.is-at-out.is-tour-target { outline: 2px solid #ffd166; outline-offset: 1px; animation: none; transform: none; box-shadow: none; }
+.crew-out-ops.has-marker { gap: 4px; }
+/* v54: the 5 inbound doors use the full map width (same as the OUT row) */
+.crew-dock-map.is-boss .crew-inbound-wall { grid-template-columns: repeat(auto-fit, minmax(60px, 1fr)); }
+@media (min-width: 900px) {
+  .crew-dock-map.is-boss .crew-door-ops { flex-wrap: nowrap; gap: 6px; }
+  .crew-dock-map.is-boss .crew-door-cell { min-height: 104px; }
+}
+@media (max-width: 899px) {
+  .crew-dock-map.is-boss .crew-inbound-wall { grid-template-columns: repeat(auto-fit, minmax(46px, 1fr)); gap: 5px; }
+}
+.crew-out-ops.has-marker { gap: 6px; }
+.crew-op-marker.is-at-out.is-tour-target { outline: none; }
